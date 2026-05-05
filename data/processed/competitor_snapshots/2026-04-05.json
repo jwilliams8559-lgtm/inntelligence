@@ -1,0 +1,559 @@
+{
+  "snapshot_date": "2026-04-05",
+  "scraped_at": "2026-04-05T06:00:00Z",
+  "synthetic": true,
+  "rates": {
+    "Rhett House Inn": {
+      "2026-05-05": {
+        "rate": 365,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-06": {
+        "rate": 370,
+        "availability_status": "available",
+        "est_occupancy": 0.68,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-05-07": {
+        "rate": 370,
+        "availability_status": "limited",
+        "est_occupancy": 0.71,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-08": {
+        "rate": 415,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-09": {
+        "rate": 430,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.96,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-10": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-11": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-12": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-13": {
+        "rate": 380,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.89,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-14": {
+        "rate": 360,
+        "availability_status": "available",
+        "est_occupancy": 0.69,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-05-15": {
+        "rate": 415,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-16": {
+        "rate": 415,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.93,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-17": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.81,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-19": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      }
+    },
+    "City Loft Hotel": {
+      "2026-05-05": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-06": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.87,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-07": {
+        "rate": 250,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.9,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-08": {
+        "rate": 285,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.96,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-09": {
+        "rate": 290,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.9,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-10": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.76,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-11": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.79,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-12": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.82,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-13": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-14": {
+        "rate": 255,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-15": {
+        "rate": 295,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-16": {
+        "rate": 280,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-17": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.74,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.77,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-19": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      }
+    },
+    "Beaufort Inn": {
+      "2026-05-05": {
+        "rate": 310,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-06": {
+        "rate": 310,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.91,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-07": {
+        "rate": 310,
+        "availability_status": "limited",
+        "est_occupancy": 0.7,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-08": {
+        "rate": 355,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-09": {
+        "rate": 360,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.95,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-10": {
+        "rate": 315,
+        "availability_status": "limited",
+        "est_occupancy": 0.79,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-11": {
+        "rate": 315,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-12": {
+        "rate": 320,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-13": {
+        "rate": 320,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.89,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-14": {
+        "rate": 300,
+        "availability_status": "available",
+        "est_occupancy": 0.68,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-05-15": {
+        "rate": 350,
+        "availability_status": "limited",
+        "est_occupancy": 0.82,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-16": {
+        "rate": 350,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.92,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-17": {
+        "rate": 305,
+        "availability_status": "limited",
+        "est_occupancy": 0.77,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 305,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-19": {
+        "rate": 310,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      }
+    },
+    "Cuthbert House Inn": {
+      "2026-05-05": {
+        "rate": 360,
+        "availability_status": "limited",
+        "est_occupancy": 0.82,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-06": {
+        "rate": 360,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-07": {
+        "rate": 360,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-08": {
+        "rate": 410,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.93,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-09": {
+        "rate": 420,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-10": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.74,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-11": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.77,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-12": {
+        "rate": 370,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-13": {
+        "rate": 370,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-14": {
+        "rate": 370,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-15": {
+        "rate": 430,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-16": {
+        "rate": 430,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-17": {
+        "rate": 355,
+        "availability_status": "limited",
+        "est_occupancy": 0.72,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 355,
+        "availability_status": "limited",
+        "est_occupancy": 0.75,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-19": {
+        "rate": 360,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      }
+    },
+    "607 Bay Inn": {
+      "2026-05-05": {
+        "rate": 295,
+        "availability_status": "available",
+        "est_occupancy": 0.69,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-05-06": {
+        "rate": 295,
+        "availability_status": "limited",
+        "est_occupancy": 0.73,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-07": {
+        "rate": 295,
+        "availability_status": "limited",
+        "est_occupancy": 0.76,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-08": {
+        "rate": 335,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-09": {
+        "rate": 345,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-10": {
+        "rate": 300,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-11": {
+        "rate": 285,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-12": {
+        "rate": 285,
+        "availability_status": "available",
+        "est_occupancy": 0.67,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-05-13": {
+        "rate": 285,
+        "availability_status": "limited",
+        "est_occupancy": 0.7,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-14": {
+        "rate": 285,
+        "availability_status": "limited",
+        "est_occupancy": 0.73,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-15": {
+        "rate": 330,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-16": {
+        "rate": 335,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-17": {
+        "rate": 290,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 290,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-19": {
+        "rate": 295,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.89,
+        "indicator": "\ud83d\udd34"
+      }
+    },
+    "Airbnb Near Bay Street (avg)": {
+      "2026-05-05": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.82,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-06": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-07": {
+        "rate": 250,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-08": {
+        "rate": 285,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.93,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-09": {
+        "rate": 295,
+        "availability_status": "limited",
+        "est_occupancy": 0.87,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-10": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.73,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-11": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.77,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-12": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-13": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-14": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-15": {
+        "rate": 300,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-16": {
+        "rate": 300,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-17": {
+        "rate": 265,
+        "availability_status": "limited",
+        "est_occupancy": 0.71,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.74,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-19": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      }
+    }
+  }
+}
