@@ -123,7 +123,8 @@ COMPETITORS: Dict[str, Competitor] = {
     "rhett_house":    Competitor("Rhett House Inn",              239, 439, "rhethouse.com"),
     "city_loft":      Competitor("City Loft Hotel",              169, 295, "citylofthotel.com"),
     "beaufort_inn":   Competitor("Beaufort Inn",                 199, 375, "beaufortinn.com"),
-    "cuthbert_house": Competitor("Cuthbert House Inn 607 Bay St",249, 425, "cuthberthouseinn.com"),
+    "cuthbert_house": Competitor("Cuthbert House Inn",           249, 425, "cuthberthouseinn.com"),
+    "bay_inn_607":    Competitor("607 Bay Inn",                  189, 349, "booking.com"),
     "airbnb_avg":     Competitor("Airbnb Near Bay Street (avg)", 149, 325, "airbnb.com"),
 }
 

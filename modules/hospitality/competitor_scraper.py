@@ -7,7 +7,8 @@ Target properties:
   - Rhett House Inn
   - City Loft Hotel
   - Beaufort Inn
-  - Cuthbert House Inn (607 Bay Street)
+  - Cuthbert House Inn
+  - 607 Bay Inn
   - Airbnb waterfront area (average)
 
 Scraping strategy (fallback chain):
