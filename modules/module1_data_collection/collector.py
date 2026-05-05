@@ -77,21 +77,57 @@ class DataCollector:
         }
 
     def _collect_hospitality(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
-        """Stub — replace with actual PMS/channel-manager calls."""
-        logger.debug(f"[{self.tenant.tenant_id}] Fetching hospitality occupancy and rate records")
-        n = 500
-        idx = range(n)
+        """
+        Anchorage 1770 Inn — 1103 Bay Street, Beaufort SC.
+        Generates a 90-day forward pricing calendar from the dynamic pricing engine
+        and formats it into the pipeline-compatible schema expected by
+        DataProcessor and FeatureEngineer.
+
+        Production swap points:
+          • occupancy_by_date  → live PMS feed (Opera, Cloudbeds, Guesty, etc.)
+          • competitor_rate    → live OTA rate shopping (OTA Insight / Lighthouse)
+        """
+        from modules.hospitality.anchorage_pricing import (
+            AnchoragePricingEngine,
+            SEASONAL_INDEX,
+        )
+
+        logger.debug(
+            f"[{self.tenant.tenant_id}] Generating Anchorage 1770 Inn "
+            "90-day pricing calendar"
+        )
+        engine = AnchoragePricingEngine()
+        calendar_df = engine.generate_pricing_calendar(days_ahead=90, base_occupancy=0.75)
+
+        def _demand_score(event_mult: float) -> float:
+            """Normalise event multiplier → [0, 1] demand score."""
+            return round(min((event_mult - 1.0) * 2.5 + 0.50, 1.0), 4)
+
+        def _season_index(date_str: str) -> float:
+            month = datetime.strptime(date_str, "%Y-%m-%d").month
+            return SEASONAL_INDEX.get(month, 1.0)
+
         primary_df = pd.DataFrame({
-            "room_id":           list(idx),
-            "occupancy_rate":    [0.5 + (i % 50) / 100.0 for i in idx],
-            "lead_time_days":    [i % 60 for i in idx],
-            "season_index":      [0.8 + (i % 5) * 0.1 for i in idx],
-            "competitor_rate":   [100.0 + (i % 200) for i in idx],
-            "demand_score":      [round((i % 100) / 100, 4) for i in idx],
-            "current_price":     [99.0 + (i % 50) * 10.0 for i in idx],
-            "collected_at":      datetime.utcnow(),
+            "room_id":        calendar_df["room_id"],
+            "occupancy_rate": 0.75,
+            "lead_time_days": calendar_df["days_out"],
+            "season_index":   calendar_df["date"].apply(_season_index),
+            "competitor_rate":calendar_df["competitor_avg"],
+            "demand_score":   calendar_df["event_multiplier"].apply(_demand_score),
+            "current_price":  calendar_df["recommended_rate"],
+            "collected_at":   datetime.utcnow(),
         })
+
+        logger.info(
+            f"[{self.tenant.tenant_id}] Collected {len(primary_df):,} records "
+            f"(14 rooms × 90 days) from Anchorage 1770 pricing engine"
+        )
         return {
             "primary": primary_df,
-            "metadata": {"start": start_date, "end": end_date, "source": "hospitality_stub"},
+            "metadata": {
+                "start":    start_date,
+                "end":      end_date,
+                "source":   "anchorage_1770_pricing_engine",
+                "property": "Anchorage 1770 Inn, 1103 Bay Street, Beaufort SC 29902",
+            },
         }
