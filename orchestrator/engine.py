@@ -36,6 +36,7 @@ from modules.module1_data_collection.collector import DataCollector
 from modules.module2_data_processing.processor import DataProcessor
 from modules.module3_feature_engineering.engineer import FeatureEngineer
 from modules.module4_predictive_analytics.predictor import PricingPredictor
+from modules.module5_optimization.optimizer import PricingOptimizer
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +189,15 @@ class PricingEngineOrchestrator:
                 step_name="module4_predictive_analytics",
                 fn=lambda: PricingPredictor(tenant).predict(engineered_data),
             )
+
+            # ── Module 5: Optimization (hospitality only) ─────────────
+            if tenant.vertical == "hospitality":
+                optimizations = self._run_step(
+                    tenant_id,
+                    step_name="module5_optimization",
+                    fn=lambda: PricingOptimizer().optimize(predictions),
+                )
+                result["optimizations"] = optimizations
 
             result["predictions"] = predictions
             result["status"] = "success"

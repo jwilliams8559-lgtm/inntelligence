@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anchorage 1770 Inn — Pricing Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Variables ───────────────────────────────────────────────────── */
+    :root {
+      --navy:        #0a2342;
+      --navy-light:  #1a3a5c;
+      --navy-hover:  #0d2e56;
+      --gold:        #c9a84c;
+      --gold-light:  #e8d5a3;
+      --gold-bg:     #fdf8ee;
+      --premium-bg:  #d4edda;
+      --premium-txt: #155724;
+      --hold-bg:     #fff8e7;
+      --hold-txt:    #856404;
+      --discount-bg: #fde8e8;
+      --discount-txt:#721c24;
+      --card-shadow: 0 2px 8px rgba(0,0,0,.08);
+      --page-bg:     #f0f3f7;
+    }
+
+    /* ── Base ────────────────────────────────────────────────────────── */
+    body { background: var(--page-bg); font-family: 'Segoe UI', system-ui, sans-serif; color: #2c3e50; }
+
+    /* ── Header ─────────────────────────────────────────────────────── */
+    .site-header {
+      background: var(--navy);
+      color: #fff;
+      padding: 0;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,.3);
+    }
+    .site-header .inner {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px; gap: 16px; flex-wrap: wrap;
+    }
+    .property-title { font-size: 1.15rem; font-weight: 700; letter-spacing: .3px; }
+    .property-addr  { font-size: .78rem; color: var(--gold-light); margin-top: 2px; }
+    .header-meta    { font-size: .82rem; color: var(--gold-light); text-align: center; }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-gold {
+      background: var(--gold); color: var(--navy); border: none;
+      font-weight: 600; font-size: .82rem; padding: 6px 14px; border-radius: 6px;
+    }
+    .btn-gold:hover { background: #b8942d; color: var(--navy); }
+    .btn-outline-gold {
+      border: 1.5px solid var(--gold); color: var(--gold); background: transparent;
+      font-size: .82rem; padding: 5px 13px; border-radius: 6px;
+    }
+    .btn-outline-gold:hover { background: var(--gold); color: var(--navy); }
+
+    /* ── KPI Strip ───────────────────────────────────────────────────── */
+    .kpi-strip {
+      background: var(--navy-light);
+      display: flex; gap: 0; overflow-x: auto;
+    }
+    .kpi-item {
+      flex: 1; min-width: 130px;
+      padding: 10px 20px; text-align: center;
+      border-right: 1px solid rgba(255,255,255,.1);
+      color: #fff;
+    }
+    .kpi-label { font-size: .7rem; color: var(--gold-light); text-transform: uppercase; letter-spacing: .5px; }
+    .kpi-value { font-size: 1.4rem; font-weight: 700; margin-top: 2px; }
+    .kpi-sub   { font-size: .7rem; color: var(--gold-light); }
+
+    /* ── Section cards ───────────────────────────────────────────────── */
+    .panel {
+      background: #fff; border-radius: 10px;
+      box-shadow: var(--card-shadow); overflow: hidden; margin-bottom: 20px;
+    }
+    .panel-header {
+      background: var(--navy); color: #fff;
+      padding: 10px 18px; font-size: .85rem; font-weight: 600;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .panel-header .badge-gold {
+      background: var(--gold); color: var(--navy);
+      font-size: .7rem; padding: 3px 9px; border-radius: 12px; font-weight: 700;
+    }
+    .panel-body { padding: 16px; }
+
+    /* ── Room Grid ───────────────────────────────────────────────────── */
+    .room-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+      gap: 10px;
+    }
+    .room-card {
+      border-radius: 8px; padding: 12px;
+      border: 1.5px solid transparent; cursor: default;
+      transition: transform .15s, box-shadow .15s;
+      position: relative;
+    }
+    .room-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+    .room-card.premium  { background: var(--premium-bg); border-color: #85d19a; }
+    .room-card.hold     { background: var(--hold-bg);    border-color: var(--gold); }
+    .room-card.discount { background: var(--discount-bg);border-color: #e4918f; }
+
+    .room-card .tier-icon  { font-size: 1.1rem; }
+    .room-card .room-id    { font-size: .8rem; font-weight: 700; color: #444; margin-top: 2px; }
+    .room-card .room-rate  { font-size: 1.5rem; font-weight: 800; margin: 4px 0 2px; }
+    .room-card.premium  .room-rate { color: var(--premium-txt); }
+    .room-card.hold     .room-rate { color: #7d6000; }
+    .room-card.discount .room-rate { color: var(--discount-txt); }
+
+    .room-card .rack-range { font-size: .68rem; color: #666; }
+    .status-badge {
+      display: inline-block; font-size: .62rem; font-weight: 700;
+      padding: 2px 7px; border-radius: 10px; margin-top: 5px; text-transform: uppercase;
+    }
+    .status-badge.premium  { background: #155724; color: #fff; }
+    .status-badge.hold     { background: #856404; color: #fff; }
+    .status-badge.discount { background: #721c24; color: #fff; }
+
+    .event-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); display: inline-block; }
+
+    /* ── Competitor Table ────────────────────────────────────────────── */
+    .comp-table { width: 100%; font-size: .8rem; border-collapse: collapse; }
+    .comp-table th { background: var(--navy); color: #fff; padding: 7px 10px; text-align: center; font-weight: 600; }
+    .comp-table th:first-child { text-align: left; }
+    .comp-table td { padding: 6px 10px; border-bottom: 1px solid #eee; text-align: center; }
+    .comp-table td:first-child { text-align: left; font-weight: 600; }
+    .comp-table tr:hover td { background: #f7f7f7; }
+    .comp-table .our-row td { background: var(--gold-bg) !important; font-weight: 700; color: var(--navy); }
+    .comp-table .our-row td:first-child::before { content: "★ "; color: var(--gold); }
+    .table-wrap { overflow-x: auto; }
+
+    /* ── Events Timeline ─────────────────────────────────────────────── */
+    .event-list { list-style: none; padding: 0; margin: 0; }
+    .event-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 0; border-bottom: 1px solid #f0f0f0;
+    }
+    .event-item:last-child { border-bottom: none; }
+    .event-date-badge {
+      background: var(--navy); color: #fff;
+      font-size: .68rem; font-weight: 700; padding: 3px 8px;
+      border-radius: 5px; white-space: nowrap; min-width: 55px; text-align: center;
+    }
+    .event-name  { font-size: .82rem; font-weight: 600; }
+    .event-impact{
+      font-size: .7rem; font-weight: 700; padding: 1px 7px;
+      border-radius: 10px; background: var(--gold-bg);
+      color: #7d6000; border: 1px solid var(--gold); white-space: nowrap;
+    }
+
+    /* ── Chart ───────────────────────────────────────────────────────── */
+    .chart-container { position: relative; height: 240px; }
+
+    /* ── Optimization Cards ──────────────────────────────────────────── */
+    .opt-section-title { font-size: .78rem; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .5px; margin: 12px 0 8px; }
+    .opt-card {
+      border: 1.5px solid #e8e8e8; border-radius: 8px; padding: 12px;
+      margin-bottom: 10px; background: #fafafa;
+    }
+    .opt-card .opt-title  { font-size: .88rem; font-weight: 700; margin-bottom: 3px; }
+    .opt-card .opt-meta   { font-size: .75rem; color: #666; }
+    .opt-card .opt-action { font-size: .78rem; color: var(--navy); margin-top: 6px; font-style: italic; }
+    .opt-card .revenue-tag{
+      float: right; background: var(--premium-bg); color: var(--premium-txt);
+      font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    }
+    .opt-card.midweek { border-left: 4px solid #5b8dee; }
+    .opt-card.package { border-left: 4px solid var(--gold); }
+
+    /* ── Spinner ─────────────────────────────────────────────────────── */
+    .loading-msg { text-align: center; color: #999; padding: 30px; font-size: .9rem; }
+
+    /* ── Footer ──────────────────────────────────────────────────────── */
+    .site-footer { text-align: center; padding: 20px; font-size: .72rem; color: #aaa; }
+
+    /* ── Mobile tweaks ───────────────────────────────────────────────── */
+    @media (max-width: 576px) {
+      .site-header .inner { padding: 10px 14px; }
+      .property-title { font-size: 1rem; }
+      .kpi-item { min-width: 100px; padding: 8px 12px; }
+      .kpi-value { font-size: 1.2rem; }
+      .panel-body { padding: 12px; }
+      .room-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .chart-container { height: 200px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────────── -->
+<header class="site-header">
+  <div class="inner">
+    <div>
+      <div class="property-title">Anchorage 1770 Inn</div>
+      <div class="property-addr">1103 Bay Street · Beaufort, SC 29902</div>
+    </div>
+    <div class="header-meta" id="report-date-label">Loading…</div>
+    <div class="header-actions">
+      <button class="btn btn-outline-gold" onclick="refreshData()">⟳ Refresh</button>
+      <a class="btn btn-gold" href="/export">↓ Export CSV</a>
+    </div>
+  </div>
+  <!-- KPI strip -->
+  <div class="kpi-strip">
+    <div class="kpi-item">
+      <div class="kpi-label">Avg Rate</div>
+      <div class="kpi-value" id="kpi-avg-rate">—</div>
+      <div class="kpi-sub">all 14 rooms</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-label">RevPAR</div>
+      <div class="kpi-value" id="kpi-revpar">—</div>
+      <div class="kpi-sub">at 75% occ</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-label">Premium</div>
+      <div class="kpi-value" id="kpi-premium">—</div>
+      <div class="kpi-sub">rooms above rack</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-label">Active Events</div>
+      <div class="kpi-value" id="kpi-events">—</div>
+      <div class="kpi-sub">today</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-label">Occ Target</div>
+      <div class="kpi-value">70–85%</div>
+      <div class="kpi-sub">assumed: 75%</div>
+    </div>
+  </div>
+</header>
+
+<!-- ── Main ───────────────────────────────────────────────────────────── -->
+<main class="container-fluid px-3 px-md-4 mt-3">
+
+  <!-- Row 1: Room Rate Grid -->
+  <div class="panel">
+    <div class="panel-header">
+      TODAY'S RECOMMENDED RATES — ALL 14 ROOMS
+      <span class="badge-gold" id="badge-date">—</span>
+    </div>
+    <div class="panel-body">
+      <div class="room-grid" id="room-grid">
+        <div class="loading-msg">Loading room rates…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Competitors + Events -->
+  <div class="row g-3">
+    <div class="col-12 col-lg-7">
+      <div class="panel h-100">
+        <div class="panel-header">7-DAY COMPETITOR COMPARISON</div>
+        <div class="panel-body">
+          <div class="table-wrap">
+            <table class="comp-table" id="comp-table">
+              <tr><td class="loading-msg" colspan="8">Loading competitor rates…</td></tr>
+            </table>
+          </div>
+          <div class="mt-3" style="height:160px">
+            <canvas id="comp-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-5">
+      <div class="panel h-100">
+        <div class="panel-header">
+          UPCOMING EVENTS
+          <span class="badge-gold" id="badge-events-count">—</span>
+        </div>
+        <div class="panel-body" style="max-height:440px; overflow-y:auto">
+          <ul class="event-list" id="event-list">
+            <li class="loading-msg">Loading events…</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Revenue Forecast -->
+  <div class="panel">
+    <div class="panel-header">90-DAY REVENUE FORECAST — PROJECTED DAILY REVENUE (14 ROOMS × 75% OCC)</div>
+    <div class="panel-body">
+      <div class="chart-container">
+        <canvas id="forecast-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 4: Optimization Panel -->
+  <div class="panel">
+    <div class="panel-header">
+      OPTIMIZATION RECOMMENDATIONS
+      <span class="badge-gold" id="badge-uplift">—</span>
+    </div>
+    <div class="panel-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <div class="opt-section-title">🎯 Midweek Specials (3 nights for price of 2)</div>
+          <div id="midweek-cards"><div class="loading-msg">Loading…</div></div>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="opt-section-title">✨ Package Opportunities</div>
+          <div id="package-cards"><div class="loading-msg">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  <span id="generated-at"></span> · Anchorage 1770 Inn Pricing Dashboard · Data refreshes every 5 minutes
+</footer>
+
+<!-- ── JavaScript ────────────────────────────────────────────────────── -->
+<script>
+let compChart = null;
+let forecastChart = null;
+
+// ── Fetch & render ────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const res = await fetch('/api/dashboard');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderAll(data);
+  } catch (err) {
+    console.error('Dashboard load failed:', err);
+    document.getElementById('room-grid').innerHTML =
+      `<div class="loading-msg text-danger">Failed to load data: ${err.message}</div>`;
+  }
+}
+
+function renderAll(data) {
+  renderHeader(data);
+  renderKPIs(data.summary, data.report_date);
+  renderRoomGrid(data.today_rates);
+  renderCompetitorTable(data.competitor_comparison);
+  renderCompetitorChart(data.competitor_comparison);
+  renderEvents(data.upcoming_events);
+  renderForecastChart(data.revenue_forecast);
+  renderOptimizations(data.optimizations);
+  document.getElementById('generated-at').textContent = 'Generated ' + data.generated_at;
+}
+
+// ── Header ────────────────────────────────────────────────────────────
+function renderHeader(data) {
+  const d = new Date(data.report_date + 'T12:00:00');
+  const label = d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  document.getElementById('report-date-label').textContent = label;
+  document.getElementById('badge-date').textContent = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  document.title = `Anchorage 1770 — ${label}`;
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────
+function renderKPIs(s, reportDate) {
+  document.getElementById('kpi-avg-rate').textContent = '$' + s.avg_rate.toFixed(0);
+  document.getElementById('kpi-revpar').textContent   = '$' + s.revpar.toFixed(0);
+  document.getElementById('kpi-premium').textContent  = s.rooms_premium + ' / 14';
+  document.getElementById('kpi-events').textContent   = s.active_events > 0 ? s.active_events : 'None';
+}
+
+// ── Room Grid ─────────────────────────────────────────────────────────
+function renderRoomGrid(rooms) {
+  const tierOrder = { cottage:0, waterfront:1, water_view:2, garden:3 };
+  rooms.sort((a,b) => tierOrder[a.tier] - tierOrder[b.tier]);
+
+  const html = rooms.map(r => {
+    const evtDot = r.active_events.length ? '<span class="event-dot ms-1" title="' + r.active_events.join(', ') + '"></span>' : '';
+    const sign   = r.vs_rack_pct >= 0 ? '+' : '';
+    return `
+      <div class="room-card ${r.status}" title="${r.reasoning}">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="tier-icon">${r.tier_icon}</span>
+          ${evtDot}
+        </div>
+        <div class="room-id">${r.room_name}</div>
+        <div class="room-rate">$${r.rate.toFixed(0)}</div>
+        <div class="rack-range">Rack $${r.rack_low}–$${r.rack_high}</div>
+        <span class="status-badge ${r.status}">${sign}${r.vs_rack_pct.toFixed(1)}%</span>
+      </div>`;
+  }).join('');
+  document.getElementById('room-grid').innerHTML = html;
+}
+
+// ── Competitor Table ──────────────────────────────────────────────────
+function renderCompetitorTable(data) {
+  const { dates, anchorage_avg, competitors } = data;
+  let html = '<thead><tr><th>Property</th>';
+  dates.forEach(d => { html += `<th>${d}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  // Anchorage row first
+  html += '<tr class="our-row"><td>Anchorage 1770 (avg)</td>';
+  anchorage_avg.forEach(r => { html += `<td>$${r.toFixed(0)}</td>`; });
+  html += '</tr>';
+
+  // Competitor rows
+  Object.entries(competitors).forEach(([name, rates]) => {
+    html += `<tr><td>${name}</td>`;
+    rates.forEach(r => { html += `<td>$${r.toFixed(0)}</td>`; });
+    html += '</tr>';
+  });
+
+  html += '</tbody>';
+  document.getElementById('comp-table').innerHTML = html;
+}
+
+// ── Competitor Chart ──────────────────────────────────────────────────
+function renderCompetitorChart(data) {
+  const ctx = document.getElementById('comp-chart').getContext('2d');
+  if (compChart) compChart.destroy();
+
+  const colors = ['#0a2342','#c9a84c','#e63946','#457b9d','#2a9d8f','#e9c46a'];
+  const datasets = [];
+  let i = 0;
+
+  datasets.push({
+    label: 'Anchorage 1770',
+    data: data.anchorage_avg,
+    borderColor: '#c9a84c',
+    backgroundColor: 'rgba(201,168,76,.15)',
+    borderWidth: 2.5,
+    tension: 0.3,
+    fill: true,
+  });
+
+  Object.entries(data.competitors).forEach(([name, rates]) => {
+    datasets.push({
+      label: name.split(' ')[0] + ' ' + (name.split(' ')[1] || ''),
+      data: rates,
+      borderColor: colors[i % colors.length] || '#888',
+      borderWidth: 1.5,
+      borderDash: [4,3],
+      tension: 0.3,
+      fill: false,
+    });
+    i++;
+  });
+
+  compChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: data.dates, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ` $${ctx.parsed.y.toFixed(0)}` } },
+      },
+      scales: {
+        y: { ticks: { callback: v => '$' + v, font: { size: 10 } }, grid: { color: '#f0f0f0' } },
+        x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+      },
+    },
+  });
+}
+
+// ── Events ────────────────────────────────────────────────────────────
+function renderEvents(events) {
+  document.getElementById('badge-events-count').textContent = events.length + ' in 60d';
+
+  if (!events.length) {
+    document.getElementById('event-list').innerHTML =
+      '<li class="loading-msg">No events in the next 60 days</li>';
+    return;
+  }
+
+  const html = events.map(e => `
+    <li class="event-item">
+      <span class="event-date-badge">${e.display}</span>
+      <div class="flex-grow-1">
+        <div class="event-name">${e.event}</div>
+        <div class="mt-1">
+          <span class="event-impact">+${e.impact_pct.toFixed(0)}% pricing</span>
+          <span class="text-muted ms-2" style="font-size:.7rem">${e.days_away}d away</span>
+        </div>
+      </div>
+    </li>`).join('');
+  document.getElementById('event-list').innerHTML = html;
+}
+
+// ── Revenue Forecast Chart ────────────────────────────────────────────
+function renderForecastChart(data) {
+  const ctx = document.getElementById('forecast-chart').getContext('2d');
+  if (forecastChart) forecastChart.destroy();
+
+  const target = data.revenues.map(() => data.revenues.reduce((a,b)=>a+b,0)/data.revenues.length);
+
+  forecastChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.labels,
+      datasets: [
+        {
+          label: 'Projected Daily Revenue',
+          data: data.revenues,
+          borderColor: '#0a2342',
+          backgroundColor: 'rgba(10,35,66,.08)',
+          borderWidth: 2,
+          tension: 0.4,
+          fill: true,
+          pointRadius: 0,
+        },
+        {
+          label: '90-Day Average',
+          data: target,
+          borderColor: '#c9a84c',
+          borderWidth: 1.5,
+          borderDash: [6,4],
+          pointRadius: 0,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` $${ctx.parsed.y.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0})}`,
+            title: ctxArr => data.dates[ctxArr[0].dataIndex] || '',
+          },
+        },
+      },
+      scales: {
+        y: {
+          ticks: { callback: v => '$' + (v/1000).toFixed(1) + 'k', font:{ size:10 } },
+          grid: { color: '#f0f0f0' },
+        },
+        x: { ticks: { font:{ size:10 }, maxRotation: 0 }, grid:{ display:false } },
+      },
+    },
+  });
+}
+
+// ── Optimizations ─────────────────────────────────────────────────────
+function renderOptimizations(opt) {
+  const uplift = opt.estimated_total_uplift || 0;
+  document.getElementById('badge-uplift').textContent =
+    '$' + uplift.toLocaleString('en-US', {maximumFractionDigits:0}) + ' est. uplift';
+
+  // Midweek specials
+  const midweekEl = document.getElementById('midweek-cards');
+  if (!opt.midweek_specials || !opt.midweek_specials.length) {
+    midweekEl.innerHTML = '<p class="text-muted small mt-2">No midweek special opportunities detected — occupancy on target.</p>';
+  } else {
+    midweekEl.innerHTML = opt.midweek_specials.map(s => `
+      <div class="opt-card midweek">
+        <span class="revenue-tag">+$${s.revenue_impact.toLocaleString('en-US',{maximumFractionDigits:0})}</span>
+        <div class="opt-title">🎯 ${s.date_range}</div>
+        <div class="opt-meta">
+          Tier: <strong>${s.tier.replace('_',' ')}</strong> ·
+          ${s.rooms_affected} room${s.rooms_affected > 1 ? 's' : ''} ·
+          Avg $${s.avg_nightly_rate.toFixed(0)}/night
+        </div>
+        <div class="opt-meta mt-1">
+          Special: <strong>$${s.special_total_charged.toFixed(0)} for 3 nights</strong>
+          (guest saves $${s.guest_savings.toFixed(0)})
+        </div>
+        <div class="opt-action">${s.action}</div>
+      </div>`).join('');
+  }
+
+  // Packages
+  const pkgEl = document.getElementById('package-cards');
+  if (!opt.packages || !opt.packages.length) {
+    pkgEl.innerHTML = '<p class="text-muted small mt-2">No package opportunities at this time.</p>';
+  } else {
+    // Deduplicate: one card per package type showing best opportunity
+    const seen = new Set();
+    const cards = opt.packages.filter(p => {
+      if (seen.has(p.package_id)) return false;
+      seen.add(p.package_id);
+      return true;
+    });
+    pkgEl.innerHTML = cards.map(p => `
+      <div class="opt-card package">
+        <span class="revenue-tag">+$${p.revenue_impact.toLocaleString('en-US',{maximumFractionDigits:0})}</span>
+        <div class="opt-title">${p.emoji} ${p.package_name}</div>
+        <div class="opt-meta">${p.tagline}</div>
+        <div class="opt-meta mt-1">
+          Best date: <strong>${p.day_of_week} ${p.date}</strong> ·
+          +$${p.premium} premium ·
+          ${Math.round(p.conversion_rate * 100)}% est. conversion
+        </div>
+        <div class="opt-meta text-muted mt-1">${p.reason}</div>
+        <div class="opt-action">${p.action}</div>
+      </div>`).join('');
+  }
+}
+
+// ── Refresh ───────────────────────────────────────────────────────────
+function refreshData() {
+  document.getElementById('room-grid').innerHTML = '<div class="loading-msg">Refreshing…</div>';
+  loadDashboard();
+}
+
+// ── Init: load now + auto-refresh every 5 min ─────────────────────────
+loadDashboard();
+setInterval(loadDashboard, 5 * 60 * 1000);
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
