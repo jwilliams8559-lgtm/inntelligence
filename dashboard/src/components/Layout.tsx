@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import type { AppRole, Screen } from '../lib/types'
+import { usePlanFeatures } from '../hooks/usePlanFeatures'
 import HelpDrawer from './HelpDrawer'
 import DemoWalkthrough from './DemoWalkthrough'
 
@@ -142,6 +143,9 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
           ))}
         </nav>
 
+        {/* Section G — Monthly all-stream summary */}
+        <SidebarMonthlySummary />
+
         {/* Help button */}
         <div className="px-3 pb-2">
           <button onClick={() => setHelpOpen(true)}
@@ -226,4 +230,87 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
       <DemoWalkthrough open={demoOpen} onClose={() => setDemoOpen(false)} />
     </div>
   )
+}
+
+// ── Section G: Sidebar Monthly Summary panel ──
+// Renders all four revenue streams. Locked lines show "—" with a lock
+// icon. The total is always shown — locked streams contribute $0 so the
+// total reflects what's actually unlocked, while the visible row labels
+// create a constant upgrade incentive.
+function SidebarMonthlySummary() {
+  const [data, setData] = useState({ rooms: 0, fb: 0, packages: 0, giftShop: 0, loading: true })
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/rates').then(r => r.json()).catch(() => []),
+      fetch('/api/fb-summary').then(r => r.json()).catch(() => null),
+      fetch('/api/packages').then(r => r.json()).catch(() => []),
+      fetch('/api/gift-shop').then(r => r.json()).catch(() => []),
+    ]).then(([rooms, fb, pkgs, shop]: any[]) => {
+      const avgRate = rooms.length ? Math.round(rooms.reduce((s: number, r: any) => s + r.price, 0) / rooms.length) : 0
+      // Anchorage 1770 has 14 rooms per ACTIVE_PROPERTY
+      const totalRooms = 14
+      const roomRev = Math.round(avgRate * totalRooms * 0.75 * 30)
+      const fbRev   = fb?.total ?? 0
+      const pkgRev  = Array.isArray(pkgs) ? pkgs.filter((p: any) => p.active).reduce((s: number, p: any) => s + (p.est_monthly_rev || 0), 0) : 0
+      const shopRev = Array.isArray(shop) ? shop.reduce((s: number, c: any) => s + (c.est_monthly_rev || 0), 0) : 0
+      setData({ rooms: roomRev, fb: fbRev, packages: pkgRev, giftShop: shopRev, loading: false })
+    })
+  }, [])
+
+  const { features } = usePlanFeaturesSafe()
+  const f = features
+  const locks = {
+    fb:       !f.fb_module,
+    packages: !f.packages_module,
+    giftShop: !f.gift_shop_module,
+  }
+  const visibleTotal = data.rooms
+    + (locks.fb       ? 0 : data.fb)
+    + (locks.packages ? 0 : data.packages)
+    + (locks.giftShop ? 0 : data.giftShop)
+
+  function Line({ label, value, locked }: { label: string; value: number; locked: boolean }) {
+    return (
+      <div className="flex justify-between items-baseline">
+        <span className="text-white/60">{label}</span>
+        <span className={locked ? 'text-white/30' : 'text-gold font-semibold'}>
+          {locked ? '🔒 —' : `$${value.toLocaleString()}`}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-3 mb-3 p-3 rounded-lg bg-navy-light/40 border border-navy-light">
+      <div className="text-[9px] uppercase tracking-[2px] text-gold font-bold mb-2">Monthly (proj.)</div>
+      {data.loading ? (
+        <div className="text-[11px] text-white/40">Loading…</div>
+      ) : (
+        <div className="space-y-1 text-[11px]">
+          <Line label="Rooms"      value={data.rooms}    locked={false} />
+          <Line label="F&B"         value={data.fb}       locked={locks.fb} />
+          <Line label="Packages"   value={data.packages} locked={locks.packages} />
+          <Line label="Gift Shop"  value={data.giftShop} locked={locks.giftShop} />
+          <div className="border-t border-white/10 pt-1 mt-1 flex justify-between items-baseline">
+            <span className="text-white/80 font-semibold">TOTAL</span>
+            <span className="text-gold font-bold text-sm">${visibleTotal.toLocaleString()}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Safe wrapper — usePlanFeatures may not be ready before the provider mounts
+// (Layout is rendered inside the provider, so this should always succeed,
+// but keep a fallback for defensive cases).
+function usePlanFeaturesSafe() {
+  try {
+    return usePlanFeatures()
+  } catch {
+    return {
+      features: { fb_module: true, packages_module: true, gift_shop_module: true } as any,
+    } as any
+  }
 }

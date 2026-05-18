@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import type { Tenant, Property } from '../lib/types'
+import LockedFeature from '../components/LockedFeature'
 
 interface Props { tenant: Tenant; property: Property; pendingCount: number; setPendingCount: (n: number) => void }
 
@@ -449,8 +450,144 @@ export default function GuestCRM({ tenant, property }: Props) {
         )}
       </div>
 
+      {/* D2 — Guest Packages panel */}
+      <div className="px-4 py-3 border-t border-slate-200 bg-cream">
+        <LockedFeature
+          featureName="Guest Packages & Enhancements"
+          featureKey="packages_module"
+          description="Optimize add-on packages: Romance, Anniversary, Adventure, Spa, Breakfast, Sunset Cruise, Pet. Generates an estimated $13,000+/mo for a typical 14-room boutique inn."
+        >
+          <PackagesPanel />
+        </LockedFeature>
+      </div>
+
+      {/* D3 — Gift Shop panel */}
+      <div className="px-4 py-3 border-t border-slate-200 bg-cream">
+        <LockedFeature
+          featureName="Gift Shop & Online Store"
+          featureKey="gift_shop_module"
+          description="Track Lowcountry food, branded merch, artisan goods, and wines & spirits. Integration-ready for Square POS and Shopify."
+        >
+          <GiftShopPanel />
+        </LockedFeature>
+      </div>
+
       <div className="px-4 py-1 text-[10px] text-slate-400 bg-white border-t border-slate-100">
         Tenant: {tenant.slug} · property_id: {property.id.slice(0, 8)}…
+      </div>
+    </div>
+  )
+}
+
+// ── D2: Guest Packages panel ──
+interface Pkg {
+  id: string; icon: string; name: string; components: string; description: string
+  upsell_price: number; take_rate: number; seasonal: string | null
+  active: boolean; coming_soon: boolean
+  est_monthly_rev: number
+  est_monthly_label: string
+  eligible_rooms: number
+  room_restriction_label: string
+}
+
+function PackagesPanel() {
+  const [pkgs, setPkgs] = useState<Pkg[]>([])
+  useEffect(() => {
+    fetch('/api/packages').then(r => r.json()).then(setPkgs).catch(() => setPkgs([]))
+  }, [])
+  async function togglePkg(p: Pkg) {
+    const newActive = !p.active
+    setPkgs(list => list.map(x => x.id === p.id ? { ...x, active: newActive } : x))
+    try {
+      await fetch(`/api/packages/${p.id}/toggle`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: newActive }),
+      })
+    } catch { /* keep optimistic update */ }
+  }
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-navy font-bold text-sm">Guest Packages &amp; Enhancements</h2>
+        <span className="text-xs text-slate-400">
+          {pkgs.filter(p => p.active).length} active · {pkgs.filter(p => p.coming_soon).length} coming soon
+        </span>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        {pkgs.map(p => (
+          <div key={p.id} className="border border-slate-100 rounded-lg p-3 bg-white relative">
+            {p.coming_soon && (
+              <span className="absolute top-2 right-2 text-[9px] uppercase tracking-wide bg-gold/15 text-gold px-1.5 py-0.5 rounded">Coming soon</span>
+            )}
+            <div className="text-2xl mb-1">{p.icon}</div>
+            <div className="font-bold text-navy text-sm">{p.name}</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">{p.components}</div>
+            <div className="text-[11px] text-slate-600 mt-1.5">{p.description}</div>
+            {p.seasonal && (
+              <span className="inline-block mt-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                {p.seasonal}
+              </span>
+            )}
+            <div className="text-sage font-bold text-sm mt-2">+${p.upsell_price} per stay</div>
+            <div className="text-[10px] text-slate-400">{p.est_monthly_label}</div>
+            {p.room_restriction_label && (
+              <div className="text-[10px] text-amber-600 mt-1">{p.room_restriction_label}</div>
+            )}
+            {!p.coming_soon && (
+              <label className="absolute top-2 right-2 inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked={p.active} onChange={() => togglePkg(p)} className="sr-only peer" />
+                <div className="w-9 h-5 bg-slate-200 peer-checked:bg-sage rounded-full transition-colors after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-4" />
+              </label>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="text-[10px] text-slate-400 mt-3 italic">
+        Monthly estimates based on 75% occupancy × take rate.
+      </div>
+    </div>
+  )
+}
+
+// ── D3: Gift Shop panel ──
+interface ShopCat {
+  icon: string; name: string; items: string; item_count: number
+  est_monthly_rev: number; note: string; margin: number; est_margin_dollars?: number
+}
+
+function GiftShopPanel() {
+  const [cats, setCats] = useState<ShopCat[]>([])
+  useEffect(() => {
+    fetch('/api/gift-shop').then(r => r.json()).then(setCats).catch(() => setCats([]))
+  }, [])
+  const total = cats.reduce((s, c) => s + (c.est_monthly_rev || 0), 0)
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-navy font-bold text-sm">Gift Shop &amp; Online Store</h2>
+      </div>
+      <div className="bg-gold/10 border border-gold/30 rounded-lg px-3 py-2 mb-3 text-xs text-gold-dark">
+        🔗 Integration ready — connect to Square POS or Shopify to sync inventory counts and sales automatically.
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {cats.map(c => (
+          <div key={c.name} className="border border-slate-100 rounded-lg p-3 bg-white">
+            <div className="text-2xl mb-1">{c.icon}</div>
+            <div className="font-bold text-navy text-sm">{c.name}</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">{c.items}</div>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-[10px] bg-gold/15 text-gold-dark font-bold px-1.5 py-0.5 rounded">
+                {c.item_count} items
+              </span>
+              <span className="text-sage font-bold text-sm">Est. ${c.est_monthly_rev.toLocaleString()}/mo</span>
+            </div>
+            <div className="text-[10px] text-slate-400 italic mt-1">{c.note}</div>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-200">
+        <span className="text-xs text-slate-500 uppercase tracking-wider">Total est. gift shop revenue</span>
+        <span className="font-bold text-gold">${total.toLocaleString()}/mo</span>
       </div>
     </div>
   )
