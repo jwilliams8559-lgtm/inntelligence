@@ -413,62 +413,19 @@ def _v2_competitor_7day(check_in: date) -> dict:
     return snap7
 
 
+# NOTE — v2_dashboard HTML route retired 2026-05-18.
+# Flask is now a pure JSON API. React app at :5173 is the only UI.
+# Helpers above (_v2_*) are kept because the new /api/* endpoints below
+# call into them.
+
 @app.route("/")
-def v2_dashboard():
-    check_in_str = request.args.get("date", date.today().isoformat())
-    try:
-        check_in = date.fromisoformat(check_in_str)
-    except ValueError:
-        check_in = date.today()
-
-    features    = _v2_plan_features()
-    room_rates  = _v2_daily_rates(check_in)
-    kpis        = _v2_kpis(check_in, room_rates)
-    events      = _v2_upcoming_events()
-    calendar    = _v2_calendar(check_in, features["calendar_days"])
-    comp7       = _v2_competitor_7day(check_in)
-    forecast90  = _v2_90day_forecast(check_in)
-    mi          = _v2_market_intelligence()
-    packages    = _v2_pkgs.list_with_revenue()
-
-    demand_range = _v2_demand.forecast_range(check_in, 90)
-    opt_recs = _v2_opt.generate_recommendations(
-        rate_recs=[{"room_id": r["id"], "recommended_rate": r["price"],
-                    "demand_score": r["demand_score"], "target_date": check_in_str}
-                   for r in room_rates],
-        demand_forecasts=demand_range,
-        events=events,
-        comp_snapshot=_v2_scraper.get_current_snapshot(),
-    )
-
-    room_rev_monthly = int(kpis["avg_rate"] * V2_PROPERTY["total_rooms"] * 0.75 * 30)
-    fb_monthly       = _v2_fb.total()
-    pkg_rev_monthly  = sum(p["est_monthly_rev"] for p in packages if p["active"])
-    shop_rev_monthly = _v2_shop.total_monthly_revenue()
-
-    return render_template(
-        "dashboard.html",
-        property=V2_PROPERTY,
-        kpis=kpis,
-        room_rates=room_rates,
-        events=events,
-        calendar_json=json.dumps(calendar),
-        comp7_json=json.dumps(comp7),
-        forecast_json=json.dumps(forecast90),
-        mi=mi,
-        packages=packages,
-        gift_shop=V2_GIFT_SHOP,
-        opt_recs=opt_recs,
-        features=features,
-        event_sources=V2_EVENT_SOURCES,
-        competitors=V2_COMPETITORS,
-        check_in_date=check_in_str,
-        room_rev_monthly=f"${room_rev_monthly:,}",
-        fb_rev_monthly=f"${fb_monthly:,}",
-        pkg_rev_monthly=f"${pkg_rev_monthly:,}",
-        shop_rev_monthly=f"${shop_rev_monthly:,}",
-        total_monthly=f"${room_rev_monthly + fb_monthly + pkg_rev_monthly + shop_rev_monthly:,}",
-    )
+def root_redirect():
+    """Root no longer serves HTML — point developers at the React app."""
+    return jsonify({
+        "service":   "TGC Pricing Engine API",
+        "ui_url":    "http://localhost:5173",
+        "endpoints": [r.rule for r in app.url_map.iter_rules() if r.rule.startswith("/api")],
+    })
 
 
 @app.route("/api/rates")
@@ -506,6 +463,69 @@ def v2_api_health():
     return jsonify({"status": "ok", "property": V2_PROPERTY["name"]})
 
 
+# ── New JSON-only endpoints (Section B4) ────────────────────────────
+
+@app.route("/api/packages")
+def v2_api_packages():
+    """Returns GUEST_PACKAGES with est_monthly_rev computed for each."""
+    return jsonify(_v2_pkgs.list_with_revenue())
+
+
+@app.route("/api/packages/<pkg_id>/toggle", methods=["PATCH", "POST"])
+def v2_api_package_toggle(pkg_id: str):
+    body = request.get_json(force=True) or {}
+    active = bool(body.get("active", True))
+    status = _load_packages_status()
+    status[pkg_id] = "active" if active else "coming_soon"
+    _save_packages_status(status)
+    return jsonify({"ok": True, "id": pkg_id, "active": active})
+
+
+@app.route("/api/gift-shop")
+def v2_api_gift_shop():
+    """Returns GIFT_SHOP_CATEGORIES with margin_dollars computed for each."""
+    return jsonify(_v2_shop.categories())
+
+
+@app.route("/api/fb-summary")
+def v2_api_fb_summary():
+    """Returns the monthly F&B revenue breakdown + raw FB_CONFIG."""
+    return jsonify({**_v2_fb.monthly_revenue(), "config": V2_FB_CONFIG})
+
+
+@app.route("/api/optimization-recommendations")
+def v2_api_optimization_recs():
+    """Returns midweek/rate-alert/package-opportunity recommendation cards."""
+    check_in_str = request.args.get("date", date.today().isoformat())
+    try:
+        check_in = date.fromisoformat(check_in_str)
+    except ValueError:
+        check_in = date.today()
+    room_rates = _v2_daily_rates(check_in)
+    demand_range = _v2_demand.forecast_range(check_in, 90)
+    events = _v2_upcoming_events()
+    return jsonify(_v2_opt.generate_recommendations(
+        rate_recs=[{"room_id": r["id"], "recommended_rate": r["price"],
+                    "demand_score": r["demand_score"], "target_date": check_in_str}
+                   for r in room_rates],
+        demand_forecasts=demand_range,
+        events=events,
+        comp_snapshot=_v2_scraper.get_current_snapshot(),
+    ))
+
+
+@app.route("/api/property-config")
+def v2_api_property_config():
+    """Returns the current property + plan_tier + active feature gates."""
+    tier = V2_PROPERTY.get("plan_tier", "professional")
+    return jsonify({
+        "property":  V2_PROPERTY,
+        "plan_tier": tier,
+        "features":  V2_FEATURE_GATES.get(tier, V2_FEATURE_GATES["professional"]),
+        "all_tiers": V2_FEATURE_GATES,
+    })
+
+
 @app.route("/api/package-toggle", methods=["POST"])
 def v2_api_pkg_toggle():
     body = request.get_json(force=True) or {}
@@ -516,16 +536,9 @@ def v2_api_pkg_toggle():
     return jsonify({"ok": True, "id": pid, "active": active})
 
 
-# Legacy demo dashboard — preserved at /legacy (was /)
-@app.route("/legacy")
-def index():
-    return render_template("index.html")
-
-
-@app.route("/legacy/export")
-def legacy_export_redirect():
-    # convenience alias used by the v2 topbar's Export button
-    return export_csv()
+# NOTE — /legacy demo dashboard retired 2026-05-18.
+# Flask serves no HTML pages anymore (except wifi.html which is a
+# captive-portal flow, not a dashboard).
 
 
 @app.route("/api/dashboard")
