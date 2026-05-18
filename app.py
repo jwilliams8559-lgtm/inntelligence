@@ -15,6 +15,8 @@ Routes:
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import io
 import json
 import logging
@@ -23,6 +25,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+import requests
 from flask import Flask, jsonify, make_response, render_template, request
 
 from modules.hospitality.anchorage_pricing import (
@@ -227,9 +230,302 @@ def _save_competitor_settings(data: Dict[str, Any]) -> None:
 #  Routes
 # ─────────────────────────────────────────────────────────────────────────────
 
+# v2 dashboard (The Gracious Collection — single-property Anchorage view)
+# Lives at "/" and pulls from the new modules.hospitality.* engines.
+# The legacy demo (templates/index.html + /api/dashboard) is preserved at /legacy.
+
+from config.settings import (
+    ACTIVE_PROPERTY as V2_PROPERTY,
+    ROOM_TYPES as V2_ROOM_TYPES,
+    COMPETITORS as V2_COMPETITORS,
+    GUEST_PACKAGES as V2_GUEST_PACKAGES,
+    GIFT_SHOP_CATEGORIES as V2_GIFT_SHOP,
+    KNOWN_ANNUAL_EVENTS as V2_ANNUAL_EVENTS,
+    EVENT_SOURCES as V2_EVENT_SOURCES,
+    FEATURE_GATES as V2_FEATURE_GATES,
+    FB_CONFIG as V2_FB_CONFIG,
+)
+from modules.hospitality.demand_engine        import DemandEngine
+from modules.hospitality.rate_engine          import RateEngine
+from modules.hospitality.optimization_engine  import OptimizationEngine
+from modules.hospitality.competitor_scraper   import CompetitorScraper as V2Scraper
+from modules.hospitality.packages_engine      import PackagesEngine
+from modules.hospitality.gift_shop_engine     import GiftShopEngine
+from modules.hospitality.fb_engine            import FBEngine
+
+_v2_demand   = DemandEngine()
+_v2_rate     = RateEngine()
+_v2_opt      = OptimizationEngine()
+_v2_scraper  = V2Scraper()
+_v2_pkgs     = PackagesEngine()
+_v2_shop     = GiftShopEngine()
+_v2_fb       = FBEngine()
+
+
+def _v2_plan_features():
+    tier = V2_PROPERTY.get("plan_tier", "professional")
+    return V2_FEATURE_GATES.get(tier, V2_FEATURE_GATES["professional"])
+
+
+def _v2_daily_rates(check_in: date) -> list:
+    comp_snap = _v2_scraper.get_current_snapshot()
+    comp_rates = list(comp_snap.values())
+    results = []
+    fc = _v2_demand.forecast(check_in)
+    for room in V2_ROOM_TYPES:
+        rec = _v2_rate.recommend(
+            room=room, demand_score=fc.score, demand_label=fc.label,
+            demand_drivers=fc.drivers, confidence=fc.confidence,
+            comp_rates=comp_rates, target_date=check_in,
+        )
+        rack_mid = room["base"]
+        delta_pct = ((rec.recommended_rate - rack_mid) / rack_mid) * 100
+        results.append({
+            "id":          room["id"],
+            "name":        room["name"],
+            "icon":        room["icon"],
+            "price":       int(rec.recommended_rate),
+            "rack_low":    rec.rack_low,
+            "rack_high":   rec.rack_high,
+            "delta_pct":   f"{delta_pct:+.1f}%",
+            "delta_sign":  "up" if delta_pct >= 0 else "down",
+            "demand_score": fc.score,
+            "demand_label": fc.label,
+            "reasoning":   rec.reasoning,
+            "minimum_stay": rec.minimum_stay,
+            "competitive_position": rec.competitive_position,
+        })
+    return results
+
+
+def _v2_calendar(check_in: date, days: int = 90) -> list:
+    cal = []
+    comp_snap = _v2_scraper.get_current_snapshot()
+    comp_avg = sum(comp_snap.values()) / len(comp_snap) if comp_snap else 350
+    waterfront_room = next((r for r in V2_ROOM_TYPES if "waterfront" in r["id"]), V2_ROOM_TYPES[0])
+    garden_room     = next((r for r in V2_ROOM_TYPES if "garden"     in r["id"]), V2_ROOM_TYPES[-1])
+    waterview_room  = next((r for r in V2_ROOM_TYPES if "waterview"  in r["id"]), V2_ROOM_TYPES[5])
+    for i in range(min(days, 365)):
+        d = check_in + timedelta(days=i)
+        fc = _v2_demand.forecast(d)
+        rec_wf = _v2_rate.recommend(waterfront_room, fc.score, fc.label, fc.drivers, fc.confidence, [comp_avg], d)
+        rec_g  = _v2_rate.recommend(garden_room,     fc.score, fc.label, fc.drivers, fc.confidence, [comp_avg * 0.75], d)
+        rec_wv = _v2_rate.recommend(waterview_room,  fc.score, fc.label, fc.drivers, fc.confidence, [comp_avg * 0.87], d)
+        cal.append({
+            "date":            d.isoformat(),
+            "label":           d.strftime("%b %-d"),
+            "dow":             d.strftime("%a"),
+            "is_weekend":      d.weekday() in (4, 5, 6),
+            "waterfront_rate": int(rec_wf.recommended_rate),
+            "waterview_rate":  int(rec_wv.recommended_rate),
+            "garden_rate":     int(rec_g.recommended_rate),
+            "demand_score":    fc.score,
+            "demand_label":    fc.label,
+            "has_event":       fc.event_name is not None,
+            "event_name":      fc.event_name,
+        })
+    return cal
+
+
+def _v2_upcoming_events(days_ahead: int = 120) -> list:
+    today = date.today()
+    events = []
+    for ev in V2_ANNUAL_EVENTS:
+        for year in (today.year, today.year + 1):
+            ev_date = date(year, ev["month"], ev["day"])
+            days_away = (ev_date - today).days
+            if 0 <= days_away <= days_ahead:
+                events.append({
+                    "date_str":   ev_date.strftime("%b %-d"),
+                    "name":       ev["name"],
+                    "days_away":  days_away,
+                    "nudge_pct":  ev["pricing_nudge"],
+                    "nudge_label": f"+{ev['pricing_nudge']}% pricing",
+                    "source":     ev.get("source", "Tourist Board"),
+                    "color":      "#c9a84c" if ev["pricing_nudge"] >= 15 else "#1d9e75",
+                })
+    events.sort(key=lambda x: x["days_away"])
+    return events[:12]
+
+
+def _v2_90day_forecast(check_in: date) -> dict:
+    labels, projected = [], []
+    total_rooms = V2_PROPERTY["total_rooms"]
+    running_sum = 0
+    for i in range(90):
+        d = check_in + timedelta(days=i)
+        fc = _v2_demand.forecast(d)
+        base_rev = total_rooms * 0.75 * 388
+        mult = 0.75 + (fc.score / 100) * 0.70
+        daily_rev = int(base_rev * mult)
+        running_sum += daily_rev
+        labels.append(d.strftime("%b %-d"))
+        projected.append(daily_rev)
+    avg_val = int(running_sum / 90)
+    return {"labels": labels, "projected": projected, "avg": [avg_val] * 90, "avg_val": avg_val}
+
+
+def _v2_kpis(check_in: date, room_rates: list) -> dict:
+    total_rooms = V2_PROPERTY["total_rooms"]
+    avg_rate = sum(r["price"] for r in room_rates) / len(room_rates) if room_rates else 388
+    revpar = int(avg_rate * 0.75)
+    premium_count = sum(1 for r in room_rates if r["delta_sign"] == "up")
+    events_today = _v2_demand.get_events_for_date(check_in)
+    active_event = events_today[0]["name"] if events_today else "None"
+    fc_today = _v2_demand.forecast(check_in)
+    pressure = max(1, min(10, int(fc_today.score / 10)))
+    pressure_label = "Low" if pressure <= 3 else "Normal" if pressure <= 6 else "High" if pressure <= 8 else "Critical"
+    return {
+        "avg_rate":       int(avg_rate),
+        "revpar":         revpar,
+        "total_rooms":    total_rooms,
+        "premium_rooms":  premium_count,
+        "active_event":   active_event,
+        "check_in_date":  check_in.isoformat(),
+        "pressure_score": pressure,
+        "pressure_label": pressure_label,
+    }
+
+
+def _v2_market_intelligence() -> dict:
+    snap  = _v2_scraper.get_current_snapshot()
+    drops = _v2_scraper.detect_rate_drops()
+    rows = []
+    for comp in V2_COMPETITORS:
+        rate_now = snap.get(comp["name"], 0)
+        rows.append({
+            "name":      comp["name"],
+            "rate_now":  f"${rate_now}" if rate_now else "—",
+            "rate_14d":  "—",
+            "rate_30d":  "—",
+            "trend":     "—",
+        })
+    return {"rows": rows, "drops": drops}
+
+
+def _v2_competitor_7day(check_in: date) -> dict:
+    snap7 = _v2_scraper.get_7day_snapshot(check_in)
+    cal = _v2_calendar(check_in, 7)
+    anch_rates = [c["waterfront_rate"] for c in cal]
+    snap7["competitors"]["Anchorage 1770 Inn (avg)"] = anch_rates
+    snap7["avail"] = {c["name"]: c["avail_color"] for c in V2_COMPETITORS}
+    snap7["property_avg"] = anch_rates
+    return snap7
+
+
 @app.route("/")
+def v2_dashboard():
+    check_in_str = request.args.get("date", date.today().isoformat())
+    try:
+        check_in = date.fromisoformat(check_in_str)
+    except ValueError:
+        check_in = date.today()
+
+    features    = _v2_plan_features()
+    room_rates  = _v2_daily_rates(check_in)
+    kpis        = _v2_kpis(check_in, room_rates)
+    events      = _v2_upcoming_events()
+    calendar    = _v2_calendar(check_in, features["calendar_days"])
+    comp7       = _v2_competitor_7day(check_in)
+    forecast90  = _v2_90day_forecast(check_in)
+    mi          = _v2_market_intelligence()
+    packages    = _v2_pkgs.list_with_revenue()
+
+    demand_range = _v2_demand.forecast_range(check_in, 90)
+    opt_recs = _v2_opt.generate_recommendations(
+        rate_recs=[{"room_id": r["id"], "recommended_rate": r["price"],
+                    "demand_score": r["demand_score"], "target_date": check_in_str}
+                   for r in room_rates],
+        demand_forecasts=demand_range,
+        events=events,
+        comp_snapshot=_v2_scraper.get_current_snapshot(),
+    )
+
+    room_rev_monthly = int(kpis["avg_rate"] * V2_PROPERTY["total_rooms"] * 0.75 * 30)
+    fb_monthly       = _v2_fb.total()
+    pkg_rev_monthly  = sum(p["est_monthly_rev"] for p in packages if p["active"])
+    shop_rev_monthly = _v2_shop.total_monthly_revenue()
+
+    return render_template(
+        "dashboard.html",
+        property=V2_PROPERTY,
+        kpis=kpis,
+        room_rates=room_rates,
+        events=events,
+        calendar_json=json.dumps(calendar),
+        comp7_json=json.dumps(comp7),
+        forecast_json=json.dumps(forecast90),
+        mi=mi,
+        packages=packages,
+        gift_shop=V2_GIFT_SHOP,
+        opt_recs=opt_recs,
+        features=features,
+        event_sources=V2_EVENT_SOURCES,
+        competitors=V2_COMPETITORS,
+        check_in_date=check_in_str,
+        room_rev_monthly=f"${room_rev_monthly:,}",
+        fb_rev_monthly=f"${fb_monthly:,}",
+        pkg_rev_monthly=f"${pkg_rev_monthly:,}",
+        shop_rev_monthly=f"${shop_rev_monthly:,}",
+        total_monthly=f"${room_rev_monthly + fb_monthly + pkg_rev_monthly + shop_rev_monthly:,}",
+    )
+
+
+@app.route("/api/rates")
+def v2_api_rates():
+    check_in_str = request.args.get("date", date.today().isoformat())
+    return jsonify(_v2_daily_rates(date.fromisoformat(check_in_str)))
+
+
+@app.route("/api/calendar")
+def v2_api_calendar():
+    check_in_str = request.args.get("date", date.today().isoformat())
+    days = int(request.args.get("days", 90))
+    return jsonify(_v2_calendar(date.fromisoformat(check_in_str), days))
+
+
+@app.route("/api/events")
+def v2_api_events():
+    return jsonify(_v2_upcoming_events())
+
+
+@app.route("/api/forecast")
+def v2_api_forecast():
+    check_in_str = request.args.get("date", date.today().isoformat())
+    return jsonify(_v2_90day_forecast(date.fromisoformat(check_in_str)))
+
+
+@app.route("/api/competitors")
+def v2_api_competitors():
+    check_in_str = request.args.get("date", date.today().isoformat())
+    return jsonify(_v2_competitor_7day(date.fromisoformat(check_in_str)))
+
+
+@app.route("/api/health")
+def v2_api_health():
+    return jsonify({"status": "ok", "property": V2_PROPERTY["name"]})
+
+
+@app.route("/api/package-toggle", methods=["POST"])
+def v2_api_pkg_toggle():
+    body = request.get_json(force=True) or {}
+    pid = body.get("id"); active = bool(body.get("active", False))
+    status = _load_packages_status()
+    status[pid] = "active" if active else "coming_soon"
+    _save_packages_status(status)
+    return jsonify({"ok": True, "id": pid, "active": active})
+
+
+# Legacy demo dashboard — preserved at /legacy (was /)
+@app.route("/legacy")
 def index():
     return render_template("index.html")
+
+
+@app.route("/legacy/export")
+def legacy_export_redirect():
+    # convenience alias used by the v2 topbar's Export button
+    return export_csv()
 
 
 @app.route("/api/dashboard")
@@ -494,6 +790,1047 @@ def _format_optimizations(raw: Dict[str, Any]) -> Dict[str, Any]:
         "total_package_opportunities": raw.get("total_package_opportunities", 0),
         "estimated_total_uplift":      raw.get("estimated_total_uplift", 0),
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Competitor Discovery API (serves the React dashboard)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/discover-competitors")
+def api_discover_competitors():
+    """
+    GET /api/discover-competitors?slug=anchorage-1770-demo&radius=25&address=...
+
+    Runs live Google Places competitor discovery and returns grouped results.
+    Upserts to competitor_properties and seeds rates for new discoveries.
+    """
+    from flask import Response
+    import os, sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+    try:
+        from engine.competitor_discovery import (
+            discover_competitors_google,
+            _BEAUFORT_TEXT_SEARCHES,
+        )
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError as exc:
+        return jsonify({"error": f"Engine import failed: {exc}"}), 500
+
+    slug         = request.args.get("slug",    "anchorage-1770-demo")
+    radius       = float(request.args.get("radius",  "25"))
+    address_arg  = request.args.get("address", "")
+
+    supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    service_key  = os.getenv("SUPABASE_SERVICE_KEY", "")
+    hdrs = {"apikey": service_key, "Authorization": f"Bearer {service_key}",
+            "Prefer": "count=none"}
+
+    # Look up property_id from slug
+    tenants = requests.get(
+        f"{supabase_url}/rest/v1/tenants",
+        headers=hdrs,
+        params={"slug": f"eq.{slug}", "select": "id"},
+        timeout=10,
+    ).json()
+    if not tenants:
+        return jsonify({"error": f"Tenant {slug!r} not found"}), 404
+
+    tid   = tenants[0]["id"]
+    props = requests.get(
+        f"{supabase_url}/rest/v1/properties",
+        headers=hdrs,
+        params={"tenant_id": f"eq.{tid}", "select": "id,name,address,city,state"},
+        timeout=10,
+    ).json()
+    if not props:
+        return jsonify({"error": "No property found for tenant"}), 404
+
+    prop     = props[0]
+    pid      = prop["id"]
+    address  = address_arg or f"{prop.get('address','')}, {prop.get('city','')}, {prop.get('state','')}"
+
+    # Use Beaufort text searches when this is the Beaufort property
+    text_searches = _BEAUFORT_TEXT_SEARCHES if "beaufort" in address.lower() else None
+
+    try:
+        result = discover_competitors_google(
+            property_id=pid,
+            property_address=address,
+            radius_miles=radius,
+            text_searches=text_searches,
+        )
+    except Exception as exc:
+        logger.exception("Discovery failed")
+        return jsonify({"error": str(exc)}), 500
+
+    # Make serialisable (convert None ratings etc)
+    def _clean(obj):
+        if isinstance(obj, list):
+            return [_clean(i) for i in obj]
+        if isinstance(obj, dict):
+            return {k: _clean(v) for k, v in obj.items()}
+        return obj
+
+    return jsonify(_clean(result))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Stripe Billing (Phase 10)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/billing/plans", methods=["GET"])
+def api_billing_plans():
+    """Return the plan catalog (used by the onboarding wizard)."""
+    from engine.billing import _PLAN_CATALOG
+    return jsonify({
+        k: {**v, "amount": v["amount_cents"] / 100}
+        for k, v in _PLAN_CATALOG.items()
+    })
+
+
+@app.route("/api/billing/create-subscription", methods=["POST"])
+def api_billing_create_subscription():
+    body = request.get_json(force=True) or {}
+    for k in ("tenant_id", "plan_tier", "billing_email"):
+        if not body.get(k):
+            return jsonify({"error": f"{k} required"}), 400
+    from engine.billing import create_subscription
+    try:
+        return jsonify(create_subscription(
+            body["tenant_id"], body["plan_tier"], body["billing_email"],
+            trial_days=int(body.get("trial_days", 0)),
+        ))
+    except Exception as exc:
+        logger.exception("create-subscription failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/billing/cancel-subscription", methods=["POST"])
+def api_billing_cancel_subscription():
+    body = request.get_json(force=True) or {}
+    tid = body.get("tenant_id")
+    if not tid:
+        return jsonify({"error": "tenant_id required"}), 400
+    from engine.billing import cancel_subscription
+    return jsonify(cancel_subscription(tid, immediate=bool(body.get("immediate", False))))
+
+
+@app.route("/api/billing/invoices/<tenant_id>", methods=["GET"])
+def api_billing_invoices(tenant_id: str):
+    from engine.billing import list_invoices
+    return jsonify(list_invoices(tenant_id,
+                                  limit=int(request.args.get("limit", "20"))))
+
+
+@app.route("/api/billing/webhook", methods=["POST"])
+def api_billing_webhook():
+    from engine.billing import process_webhook
+    raw = request.get_data(cache=False)
+    sig = request.headers.get("Stripe-Signature", "")
+    result = process_webhook(raw, sig)
+    return jsonify(result), (200 if not result.get("error") else 400)
+
+
+@app.route("/api/billing/setup-products", methods=["POST"])
+def api_billing_setup_products():
+    from engine.billing import setup_stripe_products
+    return jsonify(setup_stripe_products())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  SHG Management Console (Phase 9)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Strategic dashboard for The Gracious Collection across all client
+# properties. All endpoints are intentionally read-only — they aggregate
+# state from tables already populated by Phases 1–8.
+
+def _mgmt_sb():
+    sb  = os.getenv("SUPABASE_URL", "").rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    return sb, {"apikey": key, "Authorization": f"Bearer {key}",
+                 "Prefer": "count=none"}
+
+
+@app.route("/api/management/portfolio", methods=["GET"])
+def api_management_portfolio():
+    """One row per active TGC property — occupancy, RevPAR, pending count,
+    autopilot status, last_sync, plan tier, MRR."""
+    sb, h = _mgmt_sb()
+
+    props = requests.get(f"{sb}/rest/v1/properties", headers=h,
+                         params={"select": "id,tenant_id,name,city,state,timezone,"
+                                           "pms_type,pms_last_sync_at,channel_manager_type",
+                                 "order": "name.asc"}, timeout=15).json()
+    if not isinstance(props, list):
+        props = []
+
+    today = date.today()
+    month_start = today.replace(day=1)
+    ly_start    = month_start.replace(year=month_start.year - 1)
+    ly_end      = today.replace(year=today.year - 1)
+
+    rows: List[Dict[str, Any]] = []
+    for p in props:
+        pid = p["id"]; tid = p.get("tenant_id")
+
+        # YTD + this-month occupancy + RevPAR (this year vs last year)
+        ty = requests.get(f"{sb}/rest/v1/occupancy_snapshots", headers=h,
+                          params={"property_id": f"eq.{pid}",
+                                  "snapshot_date": f"gte.{month_start.isoformat()}",
+                                  "and": f"(snapshot_date.lte.{today.isoformat()})",
+                                  "select": "occupancy_rate,adr,revpar"},
+                          timeout=15).json() or []
+        ly = requests.get(f"{sb}/rest/v1/occupancy_snapshots", headers=h,
+                          params={"property_id": f"eq.{pid}",
+                                  "snapshot_date": f"gte.{ly_start.isoformat()}",
+                                  "and": f"(snapshot_date.lte.{ly_end.isoformat()})",
+                                  "select": "occupancy_rate,adr,revpar"},
+                          timeout=15).json() or []
+
+        def _avg(rows_: list, key: str):
+            xs = [float(r[key]) for r in rows_ if r.get(key) is not None]
+            return round(sum(xs)/len(xs), 4) if xs else None
+
+        ty_occ, ly_occ = _avg(ty, "occupancy_rate"), _avg(ly, "occupancy_rate")
+        ty_rp,  ly_rp  = _avg(ty, "revpar"),         _avg(ly, "revpar")
+
+        # YTD figure independent of month filter (year-to-date)
+        ytd_start = date(today.year, 1, 1)
+        ytd = requests.get(f"{sb}/rest/v1/occupancy_snapshots", headers=h,
+                           params={"property_id": f"eq.{pid}",
+                                   "snapshot_date": f"gte.{ytd_start.isoformat()}",
+                                   "and": f"(snapshot_date.lte.{today.isoformat()})",
+                                   "select": "occupancy_rate,adr,revpar"},
+                           timeout=15).json() or []
+        ytd_occ = _avg(ytd, "occupancy_rate")
+        ytd_adr = _avg(ytd, "adr")
+
+        # Pending rate recommendations (forward-looking)
+        pending = requests.get(f"{sb}/rest/v1/rate_recommendations",
+                               headers={**h, "Prefer": "count=exact"},
+                               params={"property_id": f"eq.{pid}",
+                                       "status":      "eq.pending",
+                                       "target_date": f"gte.{today.isoformat()}",
+                                       "select":      "id", "limit": "1"},
+                               timeout=10)
+        pending_count = int((pending.headers.get("content-range", "/0").split("/")[-1]) or 0)
+
+        # Autopilot status — any enabled config?
+        ac = requests.get(f"{sb}/rest/v1/autopilot_configs", headers=h,
+                          params={"property_id": f"eq.{pid}",
+                                  "enabled":     "eq.true",
+                                  "select":      "room_type_id"},
+                          timeout=10).json() or []
+        autopilot_enabled_count = len(ac)
+
+        # Plan tier — placeholder; Anchorage = Founding Member, others = Unknown
+        is_anchorage = "Anchorage" in (p.get("name") or "")
+        plan_tier = "Founding Member" if is_anchorage else "Unassigned"
+        mrr       = 0  # all Founding Members are free for the demo
+
+        delta_occ_pct = None
+        if ty_occ is not None and ly_occ:
+            delta_occ_pct = round((ty_occ - ly_occ) / ly_occ * 100, 1)
+        delta_rp_pct = None
+        if ty_rp is not None and ly_rp:
+            delta_rp_pct = round((ty_rp - ly_rp) / ly_rp * 100, 1)
+
+        rows.append({
+            "property_id":         pid,
+            "tenant_id":           tid,
+            "name":                p.get("name"),
+            "location":            f"{p.get('city') or '—'}, {p.get('state') or ''}".strip(", "),
+            "ytd_occupancy":       ytd_occ,
+            "ytd_adr":             ytd_adr,
+            "month_occupancy":     ty_occ,
+            "month_occupancy_ly":  ly_occ,
+            "delta_occ_pct":       delta_occ_pct,
+            "month_revpar":        ty_rp,
+            "month_revpar_ly":     ly_rp,
+            "delta_revpar_pct":    delta_rp_pct,
+            "pending_count":       pending_count,
+            "autopilot_enabled_rooms": autopilot_enabled_count,
+            "pms_type":            p.get("pms_type"),
+            "pms_last_sync_at":    p.get("pms_last_sync_at"),
+            "channel_manager_type":p.get("channel_manager_type"),
+            "plan_tier":           plan_tier,
+            "mrr":                 mrr,
+        })
+
+    return jsonify({
+        "as_of":      datetime.now(timezone.utc).isoformat(),
+        "total_mrr":  sum(r["mrr"] for r in rows),
+        "properties": rows,
+    })
+
+
+@app.route("/api/management/revenue", methods=["GET"])
+def api_management_revenue():
+    """MRR / ARR / pipeline. All zero — pre-revenue, honest framing."""
+    # Compute totals from the portfolio (single source of truth)
+    sb, h = _mgmt_sb()
+    props = requests.get(f"{sb}/rest/v1/properties", headers=h,
+                         params={"select": "name"}, timeout=10).json() or []
+    founding_members = sum(1 for p in props if "Anchorage" in (p.get("name") or ""))
+
+    # 6-month trend — all zeros pre-revenue
+    today = date.today()
+    months = []
+    for i in range(6, -1, -1):
+        m = (today.replace(day=1) - timedelta(days=30 * i)).replace(day=1)
+        months.append({"label": m.strftime("%b %y"),
+                        "starter": 0, "professional": 0, "enterprise": 0})
+
+    return jsonify({
+        "mrr_total":             0,
+        "arr_total":             0,
+        "mom_growth_pct":        0,
+        "paying_clients":        0,
+        "founding_members":      founding_members,
+        "founding_member_target":"3–5 by Q3 2026",
+        "advisory_pipeline_value":0,
+        "trend":                 months,
+        "by_plan_current": {
+            "starter":      {"mrr": 0, "clients": 0, "price": 199},
+            "professional": {"mrr": 0, "clients": 0, "price": 499},
+            "enterprise":   {"mrr": 0, "clients": 0, "price": 1499},
+        },
+    })
+
+
+@app.route("/api/management/market-intel", methods=["GET"])
+def api_management_market_intel():
+    """Market-wide signals from market_signals — occupancy, ADR, booking window mix."""
+    sb, h = _mgmt_sb()
+    market = request.args.get("market", "beaufort-sc-lowcountry")
+
+    rows = requests.get(f"{sb}/rest/v1/market_signals", headers=h,
+                         params={"market": f"eq.{market}",
+                                 "select": "month,day_of_week,avg_occupancy,avg_adr,"
+                                           "booking_window_0_7,booking_window_8_30,"
+                                           "booking_window_31_60,booking_window_61_plus,"
+                                           "event_lift,seasonal_index"},
+                         timeout=15).json() or []
+
+    by_month: Dict[int, Dict[str, list]] = {}
+    for r in rows:
+        m = r.get("month")
+        if m is None: continue
+        b = by_month.setdefault(m, {"occ": [], "adr": [], "evt": [], "bw07": [],
+                                     "bw830": [], "bw3160": [], "bw61": []})
+        if r.get("avg_occupancy") is not None: b["occ"].append(float(r["avg_occupancy"]))
+        if r.get("avg_adr") is not None:        b["adr"].append(float(r["avg_adr"]))
+        if r.get("event_lift") is not None:     b["evt"].append(float(r["event_lift"]))
+        if r.get("booking_window_0_7") is not None:    b["bw07"].append(float(r["booking_window_0_7"]))
+        if r.get("booking_window_8_30") is not None:   b["bw830"].append(float(r["booking_window_8_30"]))
+        if r.get("booking_window_31_60") is not None:  b["bw3160"].append(float(r["booking_window_31_60"]))
+        if r.get("booking_window_61_plus") is not None:b["bw61"].append(float(r["booking_window_61_plus"]))
+
+    def _avg(xs): return round(sum(xs)/len(xs), 4) if xs else None
+    monthly = []
+    for m in range(1, 13):
+        b = by_month.get(m, {})
+        monthly.append({
+            "month":         m,
+            "avg_occupancy": _avg(b.get("occ", [])),
+            "avg_adr":       _avg(b.get("adr", [])),
+            "event_lift":    _avg(b.get("evt", [])),
+            "bw_0_7":        _avg(b.get("bw07", [])),
+            "bw_8_30":       _avg(b.get("bw830", [])),
+            "bw_31_60":      _avg(b.get("bw3160", [])),
+            "bw_61_plus":    _avg(b.get("bw61", [])),
+        })
+
+    return jsonify({"market": market, "monthly": monthly,
+                     "cells_used": len(rows)})
+
+
+@app.route("/api/management/acquisition-signals", methods=["GET"])
+def api_management_acquisition():
+    """Markets where demand exceeds supply — TGC expansion opportunity scoring."""
+    sb, h = _mgmt_sb()
+
+    # All distinct markets in market_signals
+    cells = requests.get(f"{sb}/rest/v1/market_signals", headers=h,
+                          params={"select": "market,avg_occupancy,avg_adr"},
+                          timeout=15).json() or []
+    by_market: Dict[str, Dict[str, list]] = {}
+    for c in cells:
+        m = c.get("market");
+        if not m: continue
+        d = by_market.setdefault(m, {"occ": [], "adr": []})
+        if c.get("avg_occupancy") is not None: d["occ"].append(float(c["avg_occupancy"]))
+        if c.get("avg_adr") is not None:        d["adr"].append(float(c["avg_adr"]))
+
+    # Active TGC properties per market (city-state matched)
+    props = requests.get(f"{sb}/rest/v1/properties", headers=h,
+                          params={"select": "city,state,name"}, timeout=10).json() or []
+    tgc_by_market: Dict[str, int] = {}
+    for p in props:
+        c = (p.get("city") or "").lower().replace(" ", "-")
+        s = (p.get("state") or "").lower()
+        if c and s:
+            tgc_by_market[f"{c}-{s}"] = tgc_by_market.get(f"{c}-{s}", 0) + 1
+
+    # Add Savannah GA as a watched market even if it has no signals yet
+    watched = {"savannah-ga", "beaufort-sc-lowcountry"}
+    all_markets = set(by_market.keys()) | watched
+
+    rows = []
+    for m in sorted(all_markets):
+        occs = by_market.get(m, {}).get("occ", [])
+        adrs = by_market.get(m, {}).get("adr", [])
+        avg_occ = round(sum(occs)/len(occs), 4) if occs else None
+        avg_adr = round(sum(adrs)/len(adrs), 2) if adrs else None
+        # Prefix match — TGC's 'beaufort-sc' should count for 'beaufort-sc-lowcountry'
+        tgc_n = sum(c for k, c in tgc_by_market.items()
+                    if m == k or m.startswith(f"{k}-") or k.startswith(f"{m}-"))
+        # Opportunity score: high occ × high ADR × inverse presence
+        score = 0
+        if avg_occ and avg_adr:
+            score = round((avg_occ * 100) * (avg_adr / 300) * (1.0 if tgc_n == 0 else 0.5), 1)
+        status = ("Active Market" if tgc_n > 0 else
+                  "High Opportunity — No presence yet" if (avg_occ or 0) > 0 else
+                  "Watched — Awaiting data")
+        # Pretty market name
+        pretty = m.replace("-sc-lowcountry", " SC").replace("-ga", " GA").replace("-sc", " SC")
+        pretty = pretty.replace("-", " ").title().replace(" Sc", " SC").replace(" Ga", " GA")
+        rows.append({
+            "market":            m,
+            "market_name":       pretty,
+            "avg_occupancy":     avg_occ,
+            "avg_adr":           avg_adr,
+            "tgc_properties":    tgc_n,
+            "tgc_clients":       tgc_n,  # one-tenant-per-property for now
+            "opportunity_score": score,
+            "status":            status,
+        })
+
+    rows.sort(key=lambda r: -(r["opportunity_score"] or 0))
+    return jsonify({"as_of": datetime.now(timezone.utc).isoformat(),
+                     "markets": rows})
+
+
+@app.route("/api/management/founding-members", methods=["GET"])
+def api_management_founding_members():
+    """List founding-member slots — populated as members join."""
+    sb, h = _mgmt_sb()
+    today = date.today()
+    props = requests.get(f"{sb}/rest/v1/properties", headers=h,
+                          params={"select": "id,name,city,state,created_at"}, timeout=10).json() or []
+    # Treat Anchorage as the founding member 1 with a synthetic start date
+    members: list[dict] = []
+    for p in props:
+        if "Anchorage" in (p.get("name") or ""):
+            try:
+                created = datetime.fromisoformat(p["created_at"].replace("Z", "+00:00"))
+                months_elapsed = max(1, ((today.year - created.year) * 12
+                                         + (today.month - created.month)))
+            except Exception:
+                months_elapsed = 1
+            members.append({
+                "name":           p["name"],
+                "city":           p.get("city"),
+                "state":          p.get("state"),
+                "start_date":     (created.date().isoformat() if created else None),
+                "months_elapsed": months_elapsed,
+                "data_quality_score": 92,
+                "engagement_score":   88,
+                "testimonial_status": "Pending request",
+                "converted_to_paid":  False,
+            })
+            break
+
+    # Empty slots — show 3 by default
+    while len(members) < 3:
+        members.append({
+            "name": f"Founding Member Slot {len(members) + 1} — Available",
+            "city": None, "state": None, "start_date": None,
+            "months_elapsed": None, "data_quality_score": None,
+            "engagement_score": None, "testimonial_status": None,
+            "converted_to_paid": None, "is_slot": True,
+        })
+
+    return jsonify({"target": "3–5 founding members by Q3 2026",
+                     "members": members})
+
+
+@app.route("/api/management/advisory", methods=["GET"])
+def api_management_advisory():
+    """Advisory client tracker — empty until first engagement."""
+    return jsonify({
+        "engagements": [],
+        "prompt": "Start your first advisory conversation",
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Autopilot + Alerts (Phase 8)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/run-autopilot", methods=["POST"])
+def api_run_autopilot():
+    body = request.get_json(force=True) or {}
+    pid = body.get("property_id")
+    if not pid:
+        return jsonify({"error": "property_id required"}), 400
+    from engine.autopilot import run_autopilot
+    return jsonify(run_autopilot(pid, mock=bool(body.get("mock", True))))
+
+
+@app.route("/api/alerts/<property_id>", methods=["GET"])
+def api_alerts(property_id: str):
+    from engine.autopilot import list_alerts
+    unread = request.args.get("unread", "true").lower() != "false"
+    limit  = int(request.args.get("limit", "50"))
+    return jsonify(list_alerts(property_id, unread_only=unread, limit=limit))
+
+
+@app.route("/api/dismiss-alert", methods=["POST"])
+def api_dismiss_alert():
+    body = request.get_json(force=True) or {}
+    aid = body.get("alert_id")
+    if not aid:
+        return jsonify({"error": "alert_id required"}), 400
+    from engine.autopilot import dismiss_alert
+    return jsonify({"ok": dismiss_alert(aid)})
+
+
+@app.route("/api/autopilot-config", methods=["POST"])
+def api_autopilot_config():
+    """Body: { tenant_id, property_id, room_type_id, enabled?, max_rate_change_pct?, ... }"""
+    body = request.get_json(force=True) or {}
+    for k in ("tenant_id", "property_id", "room_type_id"):
+        if not body.get(k):
+            return jsonify({"error": f"{k} required"}), 400
+    from engine.autopilot import upsert_autopilot_config
+    cfg = upsert_autopilot_config(
+        body["tenant_id"], body["property_id"], body["room_type_id"],
+        enabled=body.get("enabled"),
+        max_rate_change_pct=body.get("max_rate_change_pct"),
+        min_confidence_score=body.get("min_confidence_score"),
+        autopilot_start_hour=body.get("autopilot_start_hour"),
+        autopilot_end_hour=body.get("autopilot_end_hour"),
+        notify_on_publish=body.get("notify_on_publish"),
+        max_daily_changes=body.get("max_daily_changes"),
+    )
+    return jsonify(cfg)
+
+
+@app.route("/api/autopilot-config/<property_id>", methods=["GET"])
+def api_get_autopilot_config(property_id: str):
+    sb  = os.getenv("SUPABASE_URL", "").rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    r = requests.get(f"{sb}/rest/v1/autopilot_configs",
+                     headers={"apikey": key, "Authorization": f"Bearer {key}",
+                              "Prefer": "count=none"},
+                     params={"property_id": f"eq.{property_id}",
+                             "select": "*", "order": "room_type_id.asc"},
+                     timeout=15)
+    if not r.ok:
+        return jsonify({"error": r.text}), r.status_code
+    return jsonify(r.json())
+
+
+@app.route("/api/autopilot-report/<property_id>", methods=["GET"])
+def api_autopilot_report(property_id: str):
+    from engine.autopilot import generate_autopilot_report
+    weeks = int(request.args.get("weeks", "1"))
+    return jsonify(generate_autopilot_report(property_id, weeks=weeks))
+
+
+@app.route("/api/run-alert-checks", methods=["POST"])
+def api_run_alert_checks():
+    body = request.get_json(force=True) or {}
+    pid = body.get("property_id")
+    if not pid:
+        return jsonify({"error": "property_id required"}), 400
+    from engine.autopilot import run_alert_checks
+    return jsonify({"new_alerts": run_alert_checks(pid)})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Federated Market Signals (Phase 7)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/market-aggregation", methods=["POST"])
+def api_market_aggregation():
+    from engine.learning import run_market_aggregation
+    return jsonify(run_market_aggregation())
+
+
+@app.route("/api/market-benchmarks", methods=["GET"])
+def api_market_benchmarks():
+    from engine.learning import get_market_benchmarks
+    market = request.args.get("market", "").strip()
+    if not market:
+        return jsonify({"error": "market required"}), 400
+    month = request.args.get("month")
+    dow   = request.args.get("day_of_week")
+    return jsonify(get_market_benchmarks(
+        market,
+        month=int(month) if month else None,
+        day_of_week=int(dow) if dow else None,
+    ))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Guest CRM + Email Marketing (Phase 6)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Routes:
+#   GET  /wifi/<slug>                — branded WiFi capture landing page
+#   POST /wifi/<slug>/submit         — process WiFi capture submission
+#   GET  /unsubscribe?token=...      — process unsubscribe link
+#   GET  /api/campaigns/<property>   — list campaigns
+#   POST /api/create-campaign        — create draft campaign
+#   POST /api/send-campaign          — dispatch a campaign
+#   POST /api/check-campaigns        — run demand-trigger check
+#   GET  /api/guests/<property>      — list guests with segments
+#   POST /api/update-segments        — recompute all guest tags
+#
+# WiFi routes use TENANT slug (one-property-per-tenant for now); see
+# memory note — properties.slug doesn't exist.
+
+def _tenant_property_by_slug(slug: str) -> Optional[dict]:
+    sb  = os.getenv("SUPABASE_URL", "").rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    hdrs = {"apikey": key, "Authorization": f"Bearer {key}",
+            "Prefer": "count=none"}
+    t = requests.get(f"{sb}/rest/v1/tenants", headers=hdrs,
+                      params={"slug": f"eq.{slug}",
+                              "select": "id,name,slug"},
+                      timeout=10).json()
+    if not t:
+        return None
+    tid = t[0]["id"]
+    p = requests.get(f"{sb}/rest/v1/properties", headers=hdrs,
+                      params={"tenant_id": f"eq.{tid}",
+                              "select":    "id,name,city,state,address",
+                              "limit":     "1"},
+                      timeout=10).json()
+    if not p:
+        return None
+    return {"tenant": t[0], "property": p[0]}
+
+
+@app.route("/wifi/<slug>")
+def wifi_landing(slug: str):
+    """Branded WiFi capture landing page."""
+    ctx = _tenant_property_by_slug(slug)
+    if not ctx:
+        return render_template("wifi.html", error="Property not found", slug=slug), 404
+    return render_template(
+        "wifi.html",
+        slug=slug,
+        property_name=ctx["property"]["name"],
+        property_city=ctx["property"].get("city"),
+        property_state=ctx["property"].get("state"),
+        error=None,
+    )
+
+
+@app.route("/wifi/<slug>/submit", methods=["POST"])
+def wifi_submit(slug: str):
+    """Process WiFi capture; upsert guest + create wifi_session."""
+    ctx = _tenant_property_by_slug(slug)
+    if not ctx:
+        return jsonify({"error": "property not found"}), 404
+
+    form = request.form or request.get_json(silent=True) or {}
+    email = (form.get("email") or "").strip().lower()
+    if not email:
+        return render_template(
+            "wifi.html", slug=slug,
+            property_name=ctx["property"]["name"],
+            property_city=ctx["property"].get("city"),
+            property_state=ctx["property"].get("state"),
+            error="Email is required.",
+        ), 400
+
+    from engine.crm import upsert_guest
+
+    consent = bool(form.get("marketing_consent")) or form.get("marketing_consent") == "on"
+    try:
+        gid = upsert_guest(
+            tenant_id=ctx["tenant"]["id"],
+            property_id=ctx["property"]["id"],
+            guest_data={
+                "first_name":        (form.get("first_name") or "").strip(),
+                "last_name":         (form.get("last_name") or "").strip(),
+                "email":             email,
+                "home_city":         (form.get("home_city") or "").strip(),
+                "home_state":        (form.get("home_state") or "").strip().upper(),
+                "marketing_consent": consent,
+                "source":            "wifi",
+                "tags":              ["wifi_capture"],
+            },
+        )
+    except Exception as exc:
+        logger.exception("wifi submit upsert failed")
+        return jsonify({"error": str(exc)}), 500
+
+    # Best-effort log the session
+    sb  = os.getenv("SUPABASE_URL", "").rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    try:
+        import hashlib as _hash
+        ip_hash = _hash.sha256((request.remote_addr or "").encode()).hexdigest()[:16]
+        requests.post(f"{sb}/rest/v1/wifi_sessions",
+                       headers={"apikey": key, "Authorization": f"Bearer {key}",
+                                "Content-Type": "application/json",
+                                "Prefer": "return=minimal"},
+                       json={
+                           "tenant_id":   ctx["tenant"]["id"],
+                           "property_id": ctx["property"]["id"],
+                           "guest_id":    gid,
+                           "ip_hash":     ip_hash,
+                           "user_agent":  request.headers.get("User-Agent", "")[:200],
+                       }, timeout=8)
+    except Exception:
+        pass
+
+    return render_template(
+        "wifi.html", slug=slug,
+        property_name=ctx["property"]["name"],
+        success_message=f"You are connected! Welcome to {ctx['property']['name']}.",
+        error=None,
+    )
+
+
+@app.route("/unsubscribe")
+def unsubscribe_handler():
+    token = request.args.get("token", "")
+    from engine.crm import consume_unsubscribe
+    gid = consume_unsubscribe(token)
+    return render_template(
+        "wifi.html",
+        slug="",
+        unsubscribed=bool(gid),
+        error=None if gid else "This unsubscribe link is invalid or expired.",
+    )
+
+
+@app.route("/api/campaigns/<property_id>", methods=["GET"])
+def api_campaigns(property_id: str):
+    sb  = os.getenv("SUPABASE_URL", "").rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    r = requests.get(f"{sb}/rest/v1/campaigns",
+                     headers={"apikey": key, "Authorization": f"Bearer {key}",
+                              "Prefer": "count=none"},
+                     params={"property_id": f"eq.{property_id}",
+                             "order":       "created_at.desc",
+                             "select":      "id,name,target_segment,subject,status,"
+                                            "scheduled_at,sent_at,recipient_count,"
+                                            "delivered_count,opened_count,clicked_count,"
+                                            "bookings_attributed,revenue_attributed,"
+                                            "trigger_source,trigger_metadata,created_at"},
+                     timeout=15)
+    if not r.ok:
+        return jsonify({"error": r.text}), r.status_code
+    return jsonify(r.json())
+
+
+@app.route("/api/create-campaign", methods=["POST"])
+def api_create_campaign():
+    from engine.crm import create_draft_campaign
+    body = request.get_json(force=True) or {}
+    required = ("tenant_id", "property_id", "name", "target_segment",
+                "subject", "body_html")
+    missing = [k for k in required if not body.get(k)]
+    if missing:
+        return jsonify({"error": f"missing fields: {missing}"}), 400
+    cid = create_draft_campaign(
+        tenant_id=body["tenant_id"], property_id=body["property_id"],
+        name=body["name"], target_segment=body["target_segment"],
+        subject=body["subject"], body_html=body["body_html"],
+        scheduled_at=(datetime.fromisoformat(body["scheduled_at"])
+                      if body.get("scheduled_at") else None),
+        trigger_source=body.get("trigger_source"),
+        trigger_metadata=body.get("trigger_metadata"),
+    )
+    if not cid:
+        return jsonify({"error": "create failed"}), 500
+    return jsonify({"campaign_id": cid, "status": "draft"})
+
+
+@app.route("/api/send-campaign", methods=["POST"])
+def api_send_campaign():
+    from engine.crm import send_campaign
+    body = request.get_json(force=True) or {}
+    cid = body.get("campaign_id")
+    if not cid:
+        return jsonify({"error": "campaign_id required"}), 400
+    summary = send_campaign(cid)
+    if summary.get("error"):
+        return jsonify(summary), 400
+    return jsonify(summary)
+
+
+@app.route("/api/check-campaigns", methods=["POST"])
+def api_check_campaigns():
+    from engine.crm import check_and_create_campaigns
+    body = request.get_json(force=True) or {}
+    pid = body.get("property_id")
+    if not pid:
+        return jsonify({"error": "property_id required"}), 400
+    created = check_and_create_campaigns(pid)
+    return jsonify({"created": created, "count": len(created)})
+
+
+@app.route("/api/guests/<property_id>", methods=["GET"])
+def api_guests(property_id: str):
+    sb  = os.getenv("SUPABASE_URL", "").rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    seg    = request.args.get("segment", "").strip().lower()
+    search = request.args.get("q", "").strip()
+    limit  = max(1, min(int(request.args.get("limit", "200")), 1000))
+    params: Dict[str, str] = {
+        "property_id": f"eq.{property_id}",
+        "select":      "id,first_name,last_name,home_city,home_state,"
+                       "total_stays,total_nights,total_revenue,avg_rate_paid,"
+                       "preferred_room_type,booking_sources,last_stay_date,"
+                       "next_stay_date,tags,marketing_consent,source,created_at",
+        "order":       "total_revenue.desc.nullslast",
+        "limit":       str(limit),
+    }
+    if seg:
+        params["tags"] = f"cs.{{\"{seg}\"}}"
+    if search:
+        s = search.replace(",", "")
+        params["or"] = (f"(first_name.ilike.*{s}*,last_name.ilike.*{s}*,"
+                        f"home_city.ilike.*{s}*)")
+    r = requests.get(f"{sb}/rest/v1/guests",
+                     headers={"apikey": key, "Authorization": f"Bearer {key}",
+                              "Prefer": "count=none"},
+                     params=params, timeout=15)
+    if not r.ok:
+        return jsonify({"error": r.text}), r.status_code
+    return jsonify(r.json())
+
+
+@app.route("/api/update-segments", methods=["POST"])
+def api_update_segments():
+    from engine.crm import update_guest_segments
+    body = request.get_json(force=True) or {}
+    pid = body.get("property_id"); tid = body.get("tenant_id")
+    if not (pid and tid):
+        return jsonify({"error": "tenant_id and property_id required"}), 400
+    counts = update_guest_segments(tid, pid)
+    return jsonify(counts)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Rate Publishing API (Phase 5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/approve-rate", methods=["POST"])
+def api_approve_rate():
+    """
+    POST /api/approve-rate
+    Body: {recommendation_id, tenant_id?, mock?}
+    Publishes a single approved rate to the property's channel manager.
+    """
+    body = request.get_json(force=True) or {}
+    rec_id = body.get("recommendation_id")
+    if not rec_id:
+        return jsonify({"error": "recommendation_id required"}), 400
+    use_mock = bool(body.get("mock", False))
+    try:
+        from engine.channel.publisher import publish_approved_rate
+        result = publish_approved_rate(rec_id, mock=use_mock)
+        return jsonify(result.to_jsonable()), (200 if result.success else 502)
+    except Exception as exc:
+        logger.exception("approve-rate failed")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/approve-all-rates", methods=["POST"])
+def api_approve_all_rates():
+    """
+    POST /api/approve-all-rates
+    Body: {property_id, tenant_id?, date_from?, date_to?, mock?}
+    Bulk-publishes every pending/approved recommendation for the property.
+    """
+    body = request.get_json(force=True) or {}
+    pid = body.get("property_id")
+    if not pid:
+        return jsonify({"error": "property_id required"}), 400
+
+    df = body.get("date_from"); dt = body.get("date_to")
+    date_from = date.fromisoformat(df) if df else None
+    date_to   = date.fromisoformat(dt) if dt else None
+    use_mock = bool(body.get("mock", False))
+
+    try:
+        from engine.channel.publisher import publish_all_pending
+        summary = publish_all_pending(
+            pid, date_from=date_from, date_to=date_to, mock=use_mock,
+        )
+        status_code = 200 if summary.get("failed", 0) == 0 else 207
+        return jsonify(summary), status_code
+    except Exception as exc:
+        logger.exception("approve-all-rates failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/publish-log/<property_id>", methods=["GET"])
+def api_publish_log(property_id: str):
+    """
+    GET /api/publish-log/<property_id>?limit=50&recommendation_id=<uuid>
+    Returns the most recent rate_publish_log records for the property.
+    Optional ?recommendation_id filter scopes to one date/room (for the
+    Rate Calendar drawer's Publish History tab).
+    """
+    sb = os.getenv("SUPABASE_URL", "").rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    hdrs = {"apikey": key, "Authorization": f"Bearer {key}",
+            "Prefer": "count=none"}
+    limit = max(1, min(int(request.args.get("limit", "50")), 500))
+    params: Dict[str, str] = {
+        "property_id": f"eq.{property_id}",
+        "select":      "id,recommendation_id,channel_manager,status,"
+                       "otas_updated,response_body,published_at,error_message",
+        "order":       "published_at.desc",
+        "limit":       str(limit),
+    }
+    rec_id = request.args.get("recommendation_id", "").strip()
+    if rec_id:
+        params["recommendation_id"] = f"eq.{rec_id}"
+    try:
+        r = requests.get(f"{sb}/rest/v1/rate_publish_log",
+                         headers=hdrs, params=params, timeout=15)
+        if not r.ok:
+            return jsonify({"error": r.text}), r.status_code
+        return jsonify(r.json())
+    except Exception as exc:
+        logger.exception("publish-log fetch failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  PMS Webhooks (Phase 4B)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Each PMS posts reservation lifecycle events here. We verify the signature
+# against a per-vendor shared secret, dispatch the payload to the connector's
+# handle_webhook, and return 200 if processing succeeded — 401 on bad sig,
+# 500 if processing raised. The connector handler is itself idempotent: it
+# computes affected dates, marks demand for refresh, but never writes raw
+# webhook data to a queue (the caller already retries on non-2xx).
+
+def _resnexus_webhook_secret() -> str:
+    return os.getenv("RESNEXUS_WEBHOOK_SECRET", "")
+
+
+def _verify_resnexus_signature(raw_body: bytes, header_signature: str) -> bool:
+    """HMAC-SHA256(hex) of raw body using shared webhook secret."""
+    secret = _resnexus_webhook_secret()
+    if not secret or not header_signature:
+        return False
+    mac = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    sig = header_signature.strip().lower()
+    if sig.startswith("sha256="):
+        sig = sig[7:]
+    return hmac.compare_digest(mac, sig)
+
+
+def _resolve_pms_property_id(pms_type: str, payload: dict) -> Optional[str]:
+    """Map a PMS webhook payload back to our internal properties.id."""
+    sb_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    sb_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    if not sb_url or not sb_key:
+        return None
+    hdrs = {"apikey": sb_key, "Authorization": f"Bearer {sb_key}",
+            "Prefer": "count=none"}
+
+    ext_id: Optional[str] = None
+    if pms_type == "resnexus":
+        ext_id = (payload.get("propertyId")
+                  or payload.get("data", {}).get("propertyId"))
+    elif pms_type == "cloudbeds":
+        ext_id = (payload.get("propertyID")
+                  or payload.get("data", {}).get("propertyID"))
+
+    if ext_id:
+        r = requests.get(f"{sb_url}/rest/v1/properties",
+                         headers=hdrs,
+                         params={"pms_type":        f"eq.{pms_type}",
+                                 "pms_external_id": f"eq.{ext_id}",
+                                 "select":          "id"},
+                         timeout=10)
+        if r.ok and r.json():
+            return r.json()[0]["id"]
+
+    # Fallback: single-tenant deployments — return any property using this PMS.
+    r = requests.get(f"{sb_url}/rest/v1/properties",
+                     headers=hdrs,
+                     params={"pms_type": f"eq.{pms_type}", "select": "id",
+                             "limit":    "1"},
+                     timeout=10)
+    if r.ok and r.json():
+        return r.json()[0]["id"]
+    return None
+
+
+@app.route("/webhooks/resnexus", methods=["POST"])
+def webhook_resnexus():
+    """ResNexus reservation lifecycle webhook (HMAC-SHA256 signed)."""
+    raw  = request.get_data(cache=False)
+    sig  = request.headers.get("X-Resnexus-Signature", "")
+    if not _verify_resnexus_signature(raw, sig):
+        logger.warning("ResNexus webhook: invalid signature (len=%d)", len(raw))
+        return jsonify({"error": "invalid signature"}), 401
+
+    try:
+        payload = json.loads(raw or b"{}")
+    except json.JSONDecodeError:
+        return jsonify({"error": "invalid JSON"}), 400
+
+    try:
+        from engine.pms.factory import get_connector as _factory_get_connector
+        pid = _resolve_pms_property_id("resnexus", payload)
+        if not pid:
+            logger.error("ResNexus webhook: could not resolve property")
+            return jsonify({"error": "property not found"}), 404
+        pms = _factory_get_connector(pid)
+        report = pms.handle_webhook(payload)
+    except Exception as exc:
+        logger.exception("ResNexus webhook processing failed")
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"ok": True, **report})
+
+
+@app.route("/webhooks/cloudbeds", methods=["POST"])
+def webhook_cloudbeds():
+    """Cloudbeds reservation lifecycle webhook (HMAC-SHA256 signed)."""
+    raw = request.get_data(cache=False)
+    sig = request.headers.get("X-Cloudbeds-Signature", "")
+    from engine.pms.cloudbeds import CloudbedsConnector
+    if not CloudbedsConnector.verify_webhook_signature(raw, sig):
+        logger.warning("Cloudbeds webhook: invalid signature (len=%d)", len(raw))
+        return jsonify({"error": "invalid signature"}), 401
+
+    try:
+        payload = json.loads(raw or b"{}")
+    except json.JSONDecodeError:
+        return jsonify({"error": "invalid JSON"}), 400
+
+    try:
+        from engine.pms.factory import get_connector as _factory_get_connector
+        pid = _resolve_pms_property_id("cloudbeds", payload)
+        if not pid:
+            logger.error("Cloudbeds webhook: could not resolve property")
+            return jsonify({"error": "property not found"}), 404
+        pms = _factory_get_connector(pid)
+        report = pms.handle_webhook(payload)
+    except Exception as exc:
+        logger.exception("Cloudbeds webhook processing failed")
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"ok": True, **report})
 
 
 # ─────────────────────────────────────────────────────────────────────────────

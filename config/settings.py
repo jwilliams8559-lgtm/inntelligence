@@ -85,3 +85,161 @@ NIGHTLY_JOB_MINUTE = 0
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_ROTATION = "midnight"
 LOG_BACKUP_COUNT = 30
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# The Gracious Collection — single-property Flask dashboard constants (v2)
+# Added 2026-05-18 alongside the legacy TenantConfig schema above.
+# ════════════════════════════════════════════════════════════════════════════
+
+ACTIVE_PROPERTY = {
+    "name": "Anchorage 1770 Inn",
+    "address": "1103 Bay Street",
+    "city": "Beaufort",
+    "state": "SC",
+    "zip": "29902",
+    "timezone": "America/New_York",
+    "total_rooms": 14,
+    "target_occupancy_min": 0.70,
+    "target_occupancy_max": 0.85,
+    "max_discount_floor_pct": 0.15,
+    "pms": "cloudbeds",
+    "plan_tier": "professional",
+}
+
+ROOM_TYPES = [
+    {"id": "private_cottage", "name": "Private Cottage", "icon": "🏡", "count": 1, "base": 489, "min": 350, "max": 695, "category": "premium"},
+    {"id": "waterfront_201",  "name": "Waterfront 201",  "icon": "🌊", "count": 1, "base": 419, "min": 295, "max": 695, "category": "waterfront"},
+    {"id": "waterfront_202",  "name": "Waterfront 202",  "icon": "🌊", "count": 1, "base": 419, "min": 295, "max": 695, "category": "waterfront"},
+    {"id": "waterfront_203",  "name": "Waterfront 203",  "icon": "🌊", "count": 1, "base": 419, "min": 295, "max": 695, "category": "waterfront"},
+    {"id": "waterfront_204",  "name": "Waterfront 204",  "icon": "🌊", "count": 1, "base": 429, "min": 295, "max": 695, "category": "waterfront"},
+    {"id": "waterview_301",   "name": "Water View 301",  "icon": "💧", "count": 1, "base": 339, "min": 265, "max": 595, "category": "waterview"},
+    {"id": "waterview_302",   "name": "Water View 302",  "icon": "💧", "count": 1, "base": 339, "min": 265, "max": 595, "category": "waterview"},
+    {"id": "waterview_303",   "name": "Water View 303",  "icon": "💧", "count": 1, "base": 339, "min": 265, "max": 595, "category": "waterview"},
+    {"id": "waterview_304",   "name": "Water View 304",  "icon": "💧", "count": 1, "base": 259, "min": 225, "max": 495, "category": "waterview"},
+    {"id": "waterview_305",   "name": "Water View 305",  "icon": "💧", "count": 1, "base": 259, "min": 225, "max": 495, "category": "waterview"},
+    {"id": "garden_101",      "name": "Garden Room 101", "icon": "🌿", "count": 1, "base": 279, "min": 225, "max": 495, "category": "garden"},
+    {"id": "garden_102",      "name": "Garden Room 102", "icon": "🌿", "count": 1, "base": 279, "min": 225, "max": 495, "category": "garden"},
+    {"id": "garden_103",      "name": "Garden Room 103", "icon": "🌿", "count": 1, "base": 279, "min": 225, "max": 495, "category": "garden"},
+    {"id": "garden_104",      "name": "Garden Room 104", "icon": "🌿", "count": 1, "base": 279, "min": 225, "max": 495, "category": "garden"},
+]
+
+COMPETITORS = [
+    {"id": "c1", "name": "607 Bay Inn",            "city": "Beaufort", "state": "SC", "avail_color": "yellow"},
+    {"id": "c2", "name": "Airbnb Near Bay (avg)",  "city": "Beaufort", "state": "SC", "avail_color": "green"},
+    {"id": "c3", "name": "Beaufort Inn",            "city": "Beaufort", "state": "SC", "avail_color": "red"},
+    {"id": "c4", "name": "City Loft Hotel",         "city": "Beaufort", "state": "SC", "avail_color": "green"},
+    {"id": "c5", "name": "Cuthbert House Inn",      "city": "Beaufort", "state": "SC", "avail_color": "green"},
+    {"id": "c6", "name": "Rhett House Inn",         "city": "Beaufort", "state": "SC", "avail_color": "yellow"},
+]
+
+GUEST_PACKAGES = [
+    {"id": "romance",       "icon": "💑", "name": "Romance Package",
+     "components": "Room · Dinner for Two at Ribaut Social Club · Bottle of Wine",
+     "description": "An unforgettable evening: premium room, in-room dining at the legendary Ribaut Social Club, and a selected South Carolina wine awaiting on arrival.",
+     "upsell_price": 85, "take_rate": 0.20, "seasonal": None,
+     "room_restriction": ["waterfront_201","waterfront_202","waterfront_203","waterfront_204","waterview_301","waterview_302","waterview_303"],
+     "active": True,  "coming_soon": False},
+    {"id": "anniversary",   "icon": "🥂", "name": "Anniversary Package",
+     "components": "Room · Fresh Flowers · Champagne on Arrival",
+     "description": "In-room fresh floral arrangement from a local Beaufort florist and chilled champagne waiting when you arrive.",
+     "upsell_price": 65, "take_rate": 0.22, "seasonal": None,
+     "room_restriction": None, "active": True,  "coming_soon": False},
+    {"id": "adventure",     "icon": "🚣", "name": "Adventure Package",
+     "components": "Room · Kayak Rental · Packed Lowcountry Lunch",
+     "description": "Full-day kayak rental on the Beaufort River estuary with a packed Lowcountry lunch to enjoy on the water.",
+     "upsell_price": 75, "take_rate": 0.18, "seasonal": "May–October",
+     "room_restriction": None, "active": True,  "coming_soon": False},
+    {"id": "spa",           "icon": "💆", "name": "Spa Enhancement",
+     "components": "In-Room Massage for Two (90 min)",
+     "description": "A licensed therapist comes to you — 90-minute couples massage in the comfort of your room. Add to any booking.",
+     "upsell_price": 120,"take_rate": 0.20, "seasonal": None,
+     "room_restriction": None, "active": True,  "coming_soon": False},
+    {"id": "breakfast",     "icon": "☕", "name": "Breakfast Upgrade",
+     "components": "Private Porch Breakfast for Two",
+     "description": "Skip the continental buffet — enjoy a private, fully-served breakfast for two delivered to your porch or balcony.",
+     "upsell_price": 35, "take_rate": 0.20, "seasonal": None,
+     "room_restriction": None, "active": True,  "coming_soon": False},
+    {"id": "sunset_cruise", "icon": "🌅", "name": "Sunset Cruise",
+     "components": "Chartered Boat Sunset Cruise for Two",
+     "description": "A private 2-hour chartered sunset cruise on the Beaufort River — one of the most scenic waterways in the Lowcountry.",
+     "upsell_price": 95, "take_rate": 0.20, "seasonal": "April–October",
+     "room_restriction": None, "active": False, "coming_soon": True},
+    {"id": "pet",           "icon": "🐾", "name": "Pet Package",
+     "components": "Pet Welcome Kit · $50 Pet Fee Waived · Pet-Friendly Amenities",
+     "description": "Rooms 101–103 only. The welcome kit includes a bed, treats, and a local trail guide. Pet fee waived.",
+     "upsell_price": 45, "take_rate": 0.20, "seasonal": None,
+     "room_restriction": ["garden_101","garden_102","garden_103"],
+     "active": True,  "coming_soon": False},
+]
+
+GIFT_SHOP_CATEGORIES = [
+    {"icon": "🍯", "name": "Lowcountry Food & Pantry",
+     "items": "Sweetgrass Jams · Hot Sauces · Stone-Ground Grits · Pralines · Local Honey",
+     "item_count": 24, "est_monthly_rev": 1200,
+     "note": "Best sellers: jams and pralines", "margin": 0.55},
+    {"icon": "👕", "name": "Anchorage 1770 Branded",
+     "items": "Monogrammed Robes · Canvas Totes · Soy Candles · Coffee Mugs · Embroidered Hats",
+     "item_count": 12, "est_monthly_rev": 800,
+     "note": "High-margin, strong during holiday season", "margin": 0.70},
+    {"icon": "🎨", "name": "Local Artisan Goods",
+     "items": "Sweetgrass Baskets · Lowcountry Prints · Sea Glass Jewelry · Handmade Pottery",
+     "item_count": 18, "est_monthly_rev": 650,
+     "note": "Curated from Beaufort artists — consignment model", "margin": 0.30},
+    {"icon": "🍷", "name": "Wines & Spirits",
+     "items": "SC Muscadine Wine · Firefly Sweet Tea Vodka · Striped Pig Rum · Local Craft Ales",
+     "item_count": 8, "est_monthly_rev": 950,
+     "note": "Requires SC liquor license compliance", "margin": 0.40},
+]
+
+KNOWN_ANNUAL_EVENTS = [
+    {"name": "Parris Island USMC Graduation",     "month": 5,  "day": 6,  "pricing_nudge": 20, "source": "City Visitors Bureau"},
+    {"name": "Downtown Farmers Market",            "month": 5,  "day": 9,  "pricing_nudge": 8,  "source": "Tourist Board"},
+    {"name": "Original Gullah Festival",           "month": 5,  "day": 20, "pricing_nudge": 18, "source": "Eventbrite"},
+    {"name": "First Friday Art Walk",              "month": 6,  "day": 5,  "pricing_nudge": 20, "source": "City Visitors Bureau"},
+    {"name": "Music Festival of the Lowcountry",  "month": 6,  "day": 17, "pricing_nudge": 13, "source": "Tourist Board"},
+    {"name": "4th of July Celebrations",          "month": 7,  "day": 1,  "pricing_nudge": 18, "source": "Tourist Board"},
+    {"name": "Black Roses Freedom Festival",      "month": 7,  "day": 3,  "pricing_nudge": 15, "source": "Eventbrite"},
+    {"name": "Beaufort Water Festival",           "month": 7,  "day": 17, "pricing_nudge": 25, "duration_days": 10, "source": "Tourist Board"},
+    {"name": "Beaufort Film Festival",            "month": 2,  "day": 14, "pricing_nudge": 12, "source": "Tourist Board"},
+    {"name": "Shrimp Festival",                   "month": 10, "day": 15, "pricing_nudge": 15, "source": "City Visitors Bureau"},
+    {"name": "Holiday Parade & Tree Lighting",    "month": 12, "day": 5,  "pricing_nudge": 10, "source": "City Visitors Bureau"},
+    {"name": "USCB Commencement",                 "month": 5,  "day": 2,  "pricing_nudge": 12, "source": "Tourist Board"},
+    {"name": "Martin Luther King Jr. Weekend",    "month": 1,  "day": 18, "pricing_nudge": 10, "source": "Tourist Board"},
+    {"name": "Memorial Day Weekend",              "month": 5,  "day": 23, "pricing_nudge": 20, "duration_days": 3, "source": "Tourist Board"},
+    {"name": "Labor Day Weekend",                 "month": 9,  "day": 4,  "pricing_nudge": 20, "duration_days": 3, "source": "Tourist Board"},
+    {"name": "Thanksgiving Weekend",              "month": 11, "day": 26, "pricing_nudge": 15, "duration_days": 4, "source": "Tourist Board"},
+]
+
+EVENT_SOURCES = {
+    "city_visitors_bureau": {"enabled": True,  "label": "City Visitors Bureau"},
+    "tourist_board_rss":    {"enabled": True,  "label": "Tourist Board RSS"},
+    "eventbrite_api":       {"enabled": True,  "label": "Eventbrite API"},
+    "facebook_events":      {"enabled": False, "label": "Facebook Events"},
+    "chamber_of_commerce":  {"enabled": False, "label": "Chamber of Commerce"},
+    "sports_venues":        {"enabled": False, "label": "Sports Venue Calendar"},
+}
+
+FEATURE_GATES = {
+    "essentials":   {"max_competitors": 5,  "calendar_days": 30,  "max_events": 10,
+                     "fb_module": False, "packages_module": False, "gift_shop_module": False,
+                     "optimization_engine": False, "autopilot": False, "price_per_month": 399},
+    "professional": {"max_competitors": 10, "calendar_days": 90,  "max_events": 999,
+                     "fb_module": True,  "packages_module": True,  "gift_shop_module": True,
+                     "optimization_engine": True,  "autopilot": True,  "price_per_month": 699},
+    "portfolio":    {"max_competitors": 10, "calendar_days": 365, "max_events": 999,
+                     "fb_module": True,  "packages_module": True,  "gift_shop_module": True,
+                     "optimization_engine": True,  "autopilot": True,  "multi_property": True,
+                     "white_label": True, "api_access": True, "price_per_month": 1199},
+}
+
+FB_CONFIG = {
+    "restaurant_name":         "Ribaut Social Club",
+    "covers_per_night":        40,
+    "avg_check":               65,
+    "nights_open_per_week":    4,
+    "bar_avg_daily_revenue":   800,
+    "event_avg_revenue":       3500,
+    "event_nights_per_month":  2,
+    "take_rate_est":           0.20,
+}

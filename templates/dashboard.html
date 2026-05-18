@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{{ property.name }} · The Gracious Collection Pricing Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1b2a; --bg2: #14253b; --card: #1b2c45;
+    --gold: #c9a84c; --teal: #1d9e75; --amber: #e8a93b;
+    --coral: #c0392b; --text: #e7eaf0; --muted: #98a4b6;
+    --line: #233853;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
+  a { color: var(--gold); text-decoration: none; }
+  h1,h2,h3 { margin: 0; font-weight: 600; }
+  .container { display: grid; grid-template-columns: 1fr 320px; gap: 16px; padding: 0 16px 24px; max-width: 1700px; margin: 0 auto; }
+  .topbar { background: var(--bg2); border-bottom: 1px solid var(--line); padding: 12px 24px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .topbar h1 { font-size: 16px; }
+  .topbar .addr { color: var(--muted); font-size: 12px; }
+  .topbar .grow { flex: 1; }
+  .topbar input[type="date"] { background: var(--card); color: var(--text); border: 1px solid var(--line); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+  .btn { background: var(--card); color: var(--text); border: 1px solid var(--line); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .btn:hover { background: #243957; }
+  .btn.primary { background: var(--gold); color: #1a1a1a; border-color: var(--gold); }
+  .badge { background: var(--gold); color: #1a1a1a; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .badge.teal  { background: var(--teal);  color: #fff; }
+  .badge.amber { background: var(--amber); color: #1a1a1a; }
+  .badge.coral { background: var(--coral); color: #fff; }
+  .badge.muted { background: var(--card);  color: var(--muted); border: 1px solid var(--line); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+  .card h2 { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .accent { color: var(--gold); }
+  .kpi-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 14px 16px 4px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .kpi .lbl { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .kpi .val { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .kpi .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .room { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; cursor: pointer; transition: border-color .15s; }
+  .room:hover { border-color: var(--gold); }
+  .room .icon { font-size: 22px; }
+  .room .name { font-size: 12px; color: var(--muted); }
+  .room .price { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .room .rack { font-size: 11px; color: var(--muted); }
+  .room .delta { display: inline-block; margin-top: 6px; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 700; }
+  .room .delta.up   { background: rgba(29,158,117,0.2); color: var(--teal); }
+  .room .delta.down { background: rgba(192,57,43,0.2); color: var(--coral); }
+  .range-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .range-buttons .btn.active { background: var(--gold); color: #1a1a1a; border-color: var(--gold); }
+  .custom-range { display: none; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .custom-range.show { display: flex; }
+  .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-cell { background: var(--bg2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 4px; text-align: center; font-size: 11px; min-height: 78px; position: relative; cursor: pointer; }
+  .cal-cell.weekend { border-color: rgba(29,158,117,0.5); }
+  .cal-cell.event { border-color: var(--gold); }
+  .cal-cell .dow  { color: var(--muted); font-size: 10px; }
+  .cal-cell .date { font-weight: 700; }
+  .cal-cell .rate-wf { font-weight: 700; font-size: 14px; color: var(--gold); margin-top: 4px; }
+  .cal-cell .rate-other { font-size: 9.5px; color: var(--muted); }
+  .cal-cell .event-dot { position: absolute; top: 2px; right: 4px; color: var(--gold); font-size: 9px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+  th { font-weight: 600; color: var(--muted); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .avail-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .avail-dot.green  { background: var(--teal); }
+  .avail-dot.yellow { background: var(--amber); }
+  .avail-dot.red    { background: var(--coral); }
+  .opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .opt-card { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .opt-card .title { font-weight: 700; color: var(--gold); font-size: 12px; }
+  .opt-card .body  { color: var(--text); font-size: 12px; margin-top: 4px; }
+  .opt-card .action { color: var(--gold); font-style: italic; font-size: 11px; margin-top: 6px; }
+  .pkg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .pkg { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; position: relative; }
+  .pkg .icon { font-size: 26px; }
+  .pkg .name { font-weight: 700; font-size: 14px; margin-top: 4px; }
+  .pkg .comp { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .pkg .desc { font-size: 11px; color: #cdd5e0; margin-top: 6px; }
+  .pkg .price { color: var(--teal); font-weight: 700; font-size: 14px; margin-top: 8px; }
+  .pkg .rev { font-size: 11px; color: var(--muted); }
+  .pkg .restr { color: var(--amber); font-size: 11px; margin-top: 4px; }
+  .pkg .toggle { position: absolute; top: 12px; right: 12px; }
+  .pkg .toggle input { display: none; }
+  .pkg .toggle label { width: 36px; height: 18px; background: var(--card); border-radius: 10px; display: inline-block; position: relative; cursor: pointer; }
+  .pkg .toggle label:after { content: ""; position: absolute; width: 14px; height: 14px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: .15s; }
+  .pkg .toggle input:checked + label { background: var(--teal); }
+  .pkg .toggle input:checked + label:after { left: 20px; }
+  .pkg .coming { position: absolute; top: 8px; right: 12px; font-size: 9px; background: var(--amber); color: #1a1a1a; padding: 2px 6px; border-radius: 3px; font-weight: 700; }
+  .shop-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .shop-item { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .shop-item .icon { font-size: 22px; }
+  .shop-item .name { font-weight: 700; font-size: 13px; margin-top: 4px; }
+  .shop-item .items { color: var(--muted); font-size: 11px; margin-top: 4px; }
+  .shop-item .stats { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; }
+  .shop-item .stats .ct { color: var(--gold); font-weight: 700; }
+  .shop-item .stats .rev { color: var(--teal); font-weight: 700; }
+  .shop-item .note { color: var(--muted); font-size: 10px; margin-top: 4px; font-style: italic; }
+  .shop-banner { background: rgba(201,168,76,0.1); border: 1px solid var(--gold); color: var(--gold); padding: 10px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
+  .event-item { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .event-item:last-child { border-bottom: 0; }
+  .event-item .date { color: var(--gold); font-size: 11px; font-weight: 700; }
+  .event-item .name { font-size: 13px; margin-top: 2px; }
+  .event-item .meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .src-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; }
+  .src-grid label { cursor: pointer; color: var(--muted); }
+  .src-grid input { margin-right: 5px; }
+  .upsell { background: linear-gradient(135deg, rgba(201,168,76,0.15), rgba(29,158,117,0.10)); border: 1px solid var(--gold); }
+  .upsell .name { font-weight: 700; color: var(--gold); font-size: 13px; }
+  .at-glance .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
+  .at-glance .total { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; font-weight: 700; color: var(--gold); }
+  .expandable summary { cursor: pointer; padding: 10px 0; font-weight: 700; font-size: 13px; }
+  .expandable summary::-webkit-details-marker { color: var(--gold); }
+  .footer { text-align: center; color: var(--muted); font-size: 11px; padding: 20px 0; }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-wrap.tall { height: 280px; }
+  .drawer { position: fixed; top: 0; right: -360px; width: 360px; height: 100vh; background: var(--bg2); border-left: 1px solid var(--line); transition: right .2s; overflow-y: auto; z-index: 50; padding: 20px; }
+  .drawer.open { right: 0; }
+  .drawer .close { float: right; font-size: 24px; cursor: pointer; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- 1. TOPBAR                                                                -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div class="topbar">
+  <h1>{{ property.name }}</h1>
+  <span class="addr">{{ property.address }} · {{ property.city }}, {{ property.state }}</span>
+  <span class="grow"></span>
+  <input type="date" id="datePicker" value="{{ check_in_date }}" />
+  <button class="btn" id="todayBtn">Today</button>
+  <span class="badge">{{ property.plan_tier | upper }}</span>
+  <button class="btn" onclick="window.location.reload()">↻ Refresh</button>
+  <a class="btn" href="/legacy/export">⇩ Export CSV</a>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- 2. KPI BAR                                                               -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div class="kpi-bar">
+  <div class="kpi"><div class="lbl">Avg Rate</div>
+    <div class="val">${{ kpis.avg_rate }}</div>
+    <div class="sub">across {{ kpis.total_rooms }} rooms</div></div>
+  <div class="kpi"><div class="lbl">RevPAR</div>
+    <div class="val">${{ kpis.revpar }}</div>
+    <div class="sub">at 75% occupancy</div></div>
+  <div class="kpi"><div class="lbl">Premium</div>
+    <div class="val">{{ kpis.premium_rooms }} / {{ kpis.total_rooms }}</div>
+    <div class="sub">rooms priced above rack</div></div>
+  <div class="kpi"><div class="lbl">Active Event</div>
+    <div class="val" style="font-size:15px; padding-top:4px;">{{ kpis.active_event }}</div>
+    <div class="sub">on selected date</div></div>
+  <div class="kpi"><div class="lbl">Market Pressure</div>
+    <div class="val">{{ kpis.pressure_score }}/10</div>
+    <div class="sub">{{ kpis.pressure_label }}</div></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- CONTAINER — main + sidebar                                               -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div class="container">
+  <main>
+
+    <!-- 3. TODAY'S RECOMMENDED RATES — ALL 14 ROOMS -->
+    <section class="card">
+      <h2><span class="accent">★</span> Today's Recommended Rates · {{ kpis.check_in_date }}</h2>
+      <div class="room-grid">
+        {% for r in room_rates %}
+        <div class="room" data-reasoning="{{ r.reasoning }}" data-name="{{ r.name }}" onclick="openDrawer(this)">
+          <div class="icon">{{ r.icon }}</div>
+          <div class="name">{{ r.name }}</div>
+          <div class="price">${{ r.price }}</div>
+          <div class="rack">Rack ${{ r.rack_low }}–${{ r.rack_high }}</div>
+          <span class="delta {{ r.delta_sign }}">{{ r.delta_pct }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- 4. RATE CALENDAR -->
+    <section class="card">
+      <h2><span class="accent">📅</span> Rate Calendar</h2>
+      <div class="range-buttons">
+        <button class="btn" data-days="1">1 Day</button>
+        <button class="btn active" data-days="7">7 Days</button>
+        <button class="btn" data-days="14">2 Weeks</button>
+        <button class="btn" data-days="30">Month</button>
+        <button class="btn" data-days="{{ features.calendar_days }}">Quarter</button>
+        <button class="btn" data-days="custom">Custom</button>
+      </div>
+      <div class="custom-range" id="customRange">
+        <label>From: <input type="date" id="customFrom" /></label>
+        <label>To: <input type="date" id="customTo" /></label>
+        <button class="btn primary" onclick="applyCustom()">Apply</button>
+      </div>
+      <div class="calendar" id="calendarGrid"></div>
+    </section>
+
+    <!-- 5. 7-DAY COMPETITOR COMPARISON -->
+    <section class="card">
+      <h2><span class="accent">🎯</span> 7-Day Competitor Comparison</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Avail</th>
+            <th class="num" id="comp-d0">Day 1</th>
+            <th class="num" id="comp-d1">Day 2</th>
+            <th class="num" id="comp-d2">Day 3</th>
+            <th class="num" id="comp-d3">Day 4</th>
+            <th class="num" id="comp-d4">Day 5</th>
+            <th class="num" id="comp-d5">Day 6</th>
+            <th class="num" id="comp-d6">Day 7</th>
+          </tr>
+        </thead>
+        <tbody id="comp-tbody"></tbody>
+      </table>
+      <div class="chart-wrap" style="margin-top:14px;"><canvas id="compChart"></canvas></div>
+    </section>
+
+    <!-- 6. 90-DAY REVENUE FORECAST -->
+    <section class="card">
+      <h2><span class="accent">📈</span> 90-Day Revenue Forecast</h2>
+      <div class="chart-wrap tall"><canvas id="forecastChart"></canvas></div>
+    </section>
+
+    <!-- 7. OPTIMIZATION RECOMMENDATIONS -->
+    <section class="card">
+      <h2><span class="accent">⚡</span> Optimization Recommendations
+        {% if opt_recs.total_est_uplift > 0 %}
+        <span class="badge teal" style="margin-left:auto;">+${{ "{:,}".format(opt_recs.total_est_uplift) }} est. uplift</span>
+        {% endif %}
+      </h2>
+      <div class="opt-grid">
+        <div>
+          <div class="opt-card">
+            <div class="title">Midweek Specials</div>
+            <div class="body">{{ opt_recs.midweek_specials.message }}</div>
+            {% if opt_recs.midweek_specials.triggered %}
+              <div class="action">→ Estimated +${{ opt_recs.midweek_specials.est_uplift }}/month uplift</div>
+            {% endif %}
+          </div>
+          {% for a in opt_recs.rate_alerts %}
+          <div class="opt-card">
+            <div class="title">{{ a.icon }} {{ a.title }}</div>
+            <div class="body">{{ a.message }}</div>
+            {% if a.est_uplift %}<div class="action">→ +${{ a.est_uplift }}/mo</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <div>
+          {% for p in opt_recs.package_opportunities %}
+          <div class="opt-card">
+            <div class="title">{{ p.icon }} {{ p.name }}</div>
+            <div class="body">{{ p.components }}</div>
+            <div class="body" style="color:var(--muted)">Best date: {{ p.best_date }}</div>
+            <span class="badge teal">+${{ "{:,}".format(p.est_uplift_monthly) }}/mo</span>
+            <div class="action">→ {{ p.action }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. MARKET INTELLIGENCE -->
+    <section class="card">
+      <h2><span class="accent">📊</span> Market Intelligence · Rate Compression Tracker</h2>
+      <div style="display:grid; grid-template-columns: 200px 1fr; gap: 20px; align-items:center;">
+        <div style="text-align:center;">
+          <div style="font-size:48px; font-weight:700; color:var(--gold);">{{ kpis.pressure_score }}/10</div>
+          <div style="color:var(--muted); font-size:12px; letter-spacing:1px; text-transform:uppercase;">{{ kpis.pressure_label }}</div>
+          <div style="font-size:11px; color:var(--muted); margin-top:6px;">Comp set pressure index</div>
+        </div>
+        <table>
+          <thead><tr><th>Property</th><th class="num">Now</th><th class="num">14D Ago</th><th class="num">30D Ago</th><th>Trend</th></tr></thead>
+          <tbody>
+          {% for row in mi.rows %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td class="num">{{ row.rate_now }}</td>
+            <td class="num">{{ row.rate_14d }}</td>
+            <td class="num">{{ row.rate_30d }}</td>
+            <td>{{ row.trend }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="chart-wrap" style="margin-top:14px;"><canvas id="miChart"></canvas></div>
+    </section>
+
+    <!-- 9. GUEST PACKAGES -->
+    <section class="card">
+      <h2><span class="accent">🎁</span> Guest Packages &amp; Enhancements
+        <span class="badge muted" style="margin-left:auto;">{{ packages | selectattr('active','equalto',True) | list | length }} active · {{ packages | selectattr('coming_soon','equalto',True) | list | length }} coming soon</span>
+      </h2>
+      <div class="pkg-grid">
+        {% for p in packages %}
+        <div class="pkg">
+          {% if p.coming_soon %}<span class="coming">Coming soon</span>{% endif %}
+          <div class="icon">{{ p.icon }}</div>
+          <div class="name">{{ p.name }}</div>
+          <div class="comp">{{ p.components }}</div>
+          <div class="desc">{{ p.description }}</div>
+          {% if p.seasonal %}<span class="badge amber" style="margin-top:6px;">{{ p.seasonal }}</span>{% endif %}
+          <div class="price">+${{ p.upsell_price }} per stay</div>
+          <div class="rev">{{ p.est_monthly_label }}</div>
+          {% if p.room_restriction_label %}<div class="restr">{{ p.room_restriction_label }}</div>{% endif %}
+          {% if not p.coming_soon %}
+          <div class="toggle">
+            <input type="checkbox" id="tog-{{ p.id }}" data-pkg="{{ p.id }}"{% if p.active %} checked{% endif %} onchange="togglePkg(this)" />
+            <label for="tog-{{ p.id }}"></label>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- 10. GIFT SHOP -->
+    <section class="card">
+      <h2><span class="accent">🛍️</span> Gift Shop &amp; Online Store</h2>
+      <div class="shop-banner">🔗 Integration ready — connect to Square POS or Shopify to sync inventory and revenue automatically.</div>
+      <div class="shop-grid">
+        {% for s in gift_shop %}
+        <div class="shop-item">
+          <div class="icon">{{ s.icon }}</div>
+          <div class="name">{{ s.name }}</div>
+          <div class="items">{{ s.items }}</div>
+          <div class="stats">
+            <span class="ct">{{ s.item_count }} items</span>
+            <span class="rev">${{ "{:,}".format(s.est_monthly_rev) }}/mo est.</span>
+          </div>
+          <div class="note">{{ s.note }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- 12. COMPETITOR RADIUS SETTINGS -->
+    <details class="card expandable">
+      <summary>📍 Competitor Tracking Settings</summary>
+      <div style="margin-top:10px;">
+        <div style="margin-bottom:10px;">
+          <strong style="font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase;">Tracking Mode</strong><br/>
+          <label style="margin-right:14px;"><input type="radio" name="trackmode" value="ota" checked/> OTA Scraping</label>
+          <label style="margin-right:14px;"><input type="radio" name="trackmode" value="manual"/> Manual</label>
+          <label><input type="radio" name="trackmode" value="both"/> Both</label>
+        </div>
+        <div style="margin-bottom:10px;">
+          <strong style="font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase;">Search Radius</strong><br/>
+          <select style="background:var(--card); color:var(--text); border:1px solid var(--line); padding:4px 8px; border-radius:4px;">
+            <option>5 miles</option><option selected>10 miles</option><option>25 miles</option><option>50 miles</option>
+          </select>
+        </div>
+        <div>
+          <strong style="font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase;">Active Competitors ({{ competitors | length }} / {{ features.max_competitors }})</strong>
+          <ul style="list-style:none; padding:0; margin-top:6px;">
+          {% for c in competitors %}
+            <li style="padding:5px 0;"><span class="avail-dot {{ c.avail_color }}"></span>{{ c.name }} <span class="badge muted" style="margin-left:6px;">active</span></li>
+          {% endfor %}
+            <li style="padding:5px 0; color:var(--muted);">+ Add competitor ({{ features.max_competitors - competitors | length }} slots remaining)</li>
+          </ul>
+        </div>
+      </div>
+    </details>
+
+  </main>
+
+  <!-- ════════════════════════════════════════════════════════════════════════ -->
+  <!-- 11. SIDEBAR                                                              -->
+  <!-- ════════════════════════════════════════════════════════════════════════ -->
+  <aside>
+    <div class="card">
+      <h2><span class="accent">📌</span> Upcoming Events</h2>
+      {% for e in events %}
+      <div class="event-item">
+        <div class="date">{{ e.date_str }} <span class="badge" style="background:{{ e.color }}; color:#1a1a1a;">{{ e.nudge_label }}</span></div>
+        <div class="name">{{ e.name }}</div>
+        <div class="meta">In {{ e.days_away }} days · {{ e.source }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="card">
+      <h2><span class="accent">📡</span> Event Sources</h2>
+      <div class="src-grid">
+        {% for k, v in event_sources.items() %}
+        <label><input type="checkbox"{% if v.enabled %} checked{% endif %}/> {{ v.label }}</label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card upsell">
+      <div class="name">You're on Professional</div>
+      <div style="font-size:11px; color:var(--muted); margin-top:6px;">
+        Upgrade to <strong style="color:var(--gold);">Portfolio</strong> ($1,199/mo) to unlock:
+      </div>
+      <ul style="font-size:11px; margin: 6px 0 10px 16px; padding: 0;">
+        <li>Multi-property management console</li>
+        <li>365-day calendar view</li>
+        <li>White-label dashboard</li>
+        <li>API access</li>
+      </ul>
+      <button class="btn primary" style="width:100%;">Upgrade to Portfolio →</button>
+    </div>
+
+    <div class="card at-glance">
+      <h2>Monthly At-A-Glance</h2>
+      <div class="row"><span>Rooms</span><span>{{ room_rev_monthly }}</span></div>
+      <div class="row"><span>F&amp;B</span><span>{{ fb_rev_monthly }}</span></div>
+      <div class="row"><span>Packages</span><span>{{ pkg_rev_monthly }}</span></div>
+      <div class="row"><span>Gift Shop</span><span>{{ shop_rev_monthly }}</span></div>
+      <div class="row total"><span>TOTAL</span><span>{{ total_monthly }}</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Essentials Plan ($399/mo)</h2>
+      <div style="font-size:11px; color:var(--muted);">
+        Locked on Essentials: F&amp;B module, Packages, Gift Shop, Optimization Engine, Autopilot, &gt;30-day calendar, 90-day forecast.
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- Reasoning drawer -->
+<div class="drawer" id="drawer">
+  <span class="close" onclick="closeDrawer()">×</span>
+  <h3 id="drawer-title" style="color:var(--gold);"></h3>
+  <p id="drawer-body" style="font-size:13px; line-height:1.5; color:var(--text);"></p>
+</div>
+
+<div class="footer">
+  Generated {{ kpis.check_in_date }} · {{ property.name }} Pricing Dashboard ·
+  Auto-refreshes every 5 min ·
+  Powered by The Gracious Collection AI Pricing Engine
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT                                                                -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<script>
+  const CAL_DATA  = {{ calendar_json | safe }};
+  const COMP_DATA = {{ comp7_json    | safe }};
+  const FC_DATA   = {{ forecast_json | safe }};
+
+  // ── Date picker / Today ────────────────────────────────────────────
+  document.getElementById('datePicker').addEventListener('change', e => {
+    const v = e.target.value;
+    window.location = '/?date=' + v;
+  });
+  document.getElementById('todayBtn').addEventListener('click', () => {
+    const today = new Date().toISOString().slice(0,10);
+    window.location = '/?date=' + today;
+  });
+
+  // ── Calendar range ────────────────────────────────────────────────
+  function renderCalendar(days) {
+    const grid = document.getElementById('calendarGrid');
+    let html = '';
+    const slice = CAL_DATA.slice(0, days);
+    slice.forEach(c => {
+      const cls = ['cal-cell'];
+      if (c.is_weekend) cls.push('weekend');
+      if (c.has_event)  cls.push('event');
+      html += '<div class="' + cls.join(' ') + '" title="' + (c.event_name || '') + '">';
+      if (c.has_event) html += '<div class="event-dot">★</div>';
+      html += '<div class="dow">' + c.dow + '</div>';
+      html += '<div class="date">' + c.label + '</div>';
+      html += '<div class="rate-wf">$' + c.waterfront_rate + '</div>';
+      html += '<div class="rate-other">WV $' + c.waterview_rate + ' · GD $' + c.garden_rate + '</div>';
+      html += '</div>';
+    });
+    grid.innerHTML = html;
+  }
+  function renderCalendarRange(from, to) {
+    const grid = document.getElementById('calendarGrid');
+    let html = '';
+    CAL_DATA.forEach(c => {
+      if (c.date >= from && c.date <= to) {
+        const cls = ['cal-cell'];
+        if (c.is_weekend) cls.push('weekend');
+        if (c.has_event)  cls.push('event');
+        html += '<div class="' + cls.join(' ') + '" title="' + (c.event_name || '') + '">';
+        if (c.has_event) html += '<div class="event-dot">★</div>';
+        html += '<div class="dow">' + c.dow + '</div>';
+        html += '<div class="date">' + c.label + '</div>';
+        html += '<div class="rate-wf">$' + c.waterfront_rate + '</div>';
+        html += '<div class="rate-other">WV $' + c.waterview_rate + ' · GD $' + c.garden_rate + '</div>';
+        html += '</div>';
+      }
+    });
+    grid.innerHTML = html;
+  }
+  document.querySelectorAll('.range-buttons .btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.range-buttons .btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      const days = b.getAttribute('data-days');
+      const customRange = document.getElementById('customRange');
+      if (days === 'custom') {
+        customRange.classList.add('show');
+      } else {
+        customRange.classList.remove('show');
+        renderCalendar(parseInt(days));
+      }
+    });
+  });
+  function applyCustom() {
+    const f = document.getElementById('customFrom').value;
+    const t = document.getElementById('customTo').value;
+    if (f && t) renderCalendarRange(f, t);
+  }
+  renderCalendar(7);
+
+  // ── 7-day competitor table ────────────────────────────────────────
+  (function buildComp(){
+    const labels = COMP_DATA.date_labels || [];
+    labels.forEach((l, i) => {
+      const h = document.getElementById('comp-d' + i);
+      if (h) h.textContent = l;
+    });
+    const tbody = document.getElementById('comp-tbody');
+    let html = '';
+    // Anchorage row first (star)
+    const anch = COMP_DATA.competitors['Anchorage 1770 Inn (avg)'] || COMP_DATA.property_avg || [];
+    html += '<tr><td>⭐ <strong>Anchorage 1770 Inn (avg)</strong></td><td><span class="avail-dot green"></span></td>';
+    for (let i=0; i<7; i++) html += '<td class="num"><strong>$' + (anch[i] || '—') + '</strong></td>';
+    html += '</tr>';
+    Object.entries(COMP_DATA.competitors).forEach(([name, rates]) => {
+      if (name === 'Anchorage 1770 Inn (avg)') return;
+      const avail = (COMP_DATA.avail || {})[name] || 'green';
+      html += '<tr><td>' + name + '</td><td><span class="avail-dot ' + avail + '"></span></td>';
+      for (let i=0; i<7; i++) html += '<td class="num">$' + (rates[i] || '—') + '</td>';
+      html += '</tr>';
+    });
+    tbody.innerHTML = html;
+  })();
+
+  // ── Comp chart ────────────────────────────────────────────────────
+  (function compChart(){
+    const colors = ['#3498db', '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c', '#f39c12'];
+    const datasets = [];
+    datasets.push({
+      label: 'Anchorage 1770 Inn (avg)',
+      data:  COMP_DATA.competitors['Anchorage 1770 Inn (avg)'] || COMP_DATA.property_avg || [],
+      borderColor: '#c9a84c', backgroundColor: 'rgba(201,168,76,0.1)',
+      borderWidth: 2.5, fill: false, tension: 0.3,
+    });
+    let i = 0;
+    Object.entries(COMP_DATA.competitors).forEach(([name, rates]) => {
+      if (name === 'Anchorage 1770 Inn (avg)') return;
+      datasets.push({
+        label: name, data: rates,
+        borderColor: colors[i % colors.length],
+        borderDash: [4,4], borderWidth: 1.5, fill: false, tension: 0.3,
+      });
+      i++;
+    });
+    new Chart(document.getElementById('compChart'), {
+      type: 'line',
+      data: { labels: COMP_DATA.date_labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#98a4b6', font: { size: 10 } } } },
+        scales: {
+          x: { ticks: { color: '#98a4b6' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#98a4b6', callback: v => '$' + v }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        }
+      }
+    });
+  })();
+
+  // ── 90-day forecast ───────────────────────────────────────────────
+  (function forecastChart(){
+    new Chart(document.getElementById('forecastChart'), {
+      type: 'line',
+      data: {
+        labels: FC_DATA.labels,
+        datasets: [
+          { label: 'Projected daily revenue',
+            data: FC_DATA.projected,
+            borderColor: '#c9a84c',
+            backgroundColor: 'rgba(201,168,76,0.25)',
+            borderWidth: 2, fill: true, tension: 0.25, pointRadius: 0 },
+          { label: '90-day average ($' + FC_DATA.avg_val + ')',
+            data: FC_DATA.avg,
+            borderColor: '#1d9e75', borderDash: [6,4], borderWidth: 1.5, fill: false, pointRadius: 0 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#98a4b6', font: { size: 10 } } } },
+        scales: {
+          x: { ticks: { color: '#98a4b6', callback: function(v,i){ return i % 10 === 0 ? this.getLabelForValue(v) : ''; } },
+               grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#98a4b6', callback: v => '$' + (v/1000).toFixed(1) + 'k' },
+               grid: { color: 'rgba(255,255,255,0.05)' } },
+        }
+      }
+    });
+  })();
+
+  // ── Market intelligence chart (anchorage vs comp avg, daily) ──────
+  (function miChart(){
+    const labels = COMP_DATA.date_labels;
+    const anch = COMP_DATA.competitors['Anchorage 1770 Inn (avg)'] || COMP_DATA.property_avg || [];
+    const compNames = Object.keys(COMP_DATA.competitors).filter(n => n !== 'Anchorage 1770 Inn (avg)');
+    const compAvg = labels.map((_, i) => {
+      const vals = compNames.map(n => COMP_DATA.competitors[n][i]).filter(v => v != null);
+      return Math.round(vals.reduce((a,b) => a+b, 0) / Math.max(1, vals.length));
+    });
+    new Chart(document.getElementById('miChart'), {
+      type: 'line',
+      data: { labels, datasets: [
+        { label: 'Anchorage 1770', data: anch, borderColor: '#c9a84c', borderWidth: 2.5, fill: false, tension: 0.3 },
+        { label: 'Comp avg', data: compAvg, borderColor: '#3498db', borderDash: [4,4], borderWidth: 2, fill: false, tension: 0.3 },
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#98a4b6', font: { size: 10 } } } },
+        scales: {
+          x: { ticks: { color: '#98a4b6' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#98a4b6', callback: v => '$' + v }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        }
+      }
+    });
+  })();
+
+  // ── Room reasoning drawer ────────────────────────────────────────
+  function openDrawer(el) {
+    document.getElementById('drawer-title').textContent = el.getAttribute('data-name');
+    document.getElementById('drawer-body').textContent  = el.getAttribute('data-reasoning');
+    document.getElementById('drawer').classList.add('open');
+  }
+  function closeDrawer() { document.getElementById('drawer').classList.remove('open'); }
+
+  // ── Package toggle ───────────────────────────────────────────────
+  function togglePkg(input) {
+    fetch('/api/package-toggle', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: input.getAttribute('data-pkg'), active: input.checked }),
+    }).catch(() => {});
+  }
+</script>
+</body>
+</html>
