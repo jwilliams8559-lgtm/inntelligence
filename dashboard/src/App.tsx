@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import type { Tenant, Property, Screen, AppRole } from './lib/types'
 import { PlanFeaturesProvider } from './hooks/usePlanFeatures'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import LoginScreen from './screens/LoginScreen'
 import Layout from './components/Layout'
 import RateCalendar from './screens/RateCalendar'
 import DemandDashboard from './screens/DemandDashboard'
@@ -19,6 +21,27 @@ const SLUG = import.meta.env.VITE_TENANT_SLUG || 'anchorage-1770-demo'
 const APP_ROLE: AppRole = (import.meta.env.VITE_APP_ROLE as AppRole) || 'shg_admin'
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
+  )
+}
+
+function AppInner() {
+  const { user, isLoading: authLoading } = useAuth()
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-cream">
+        <div className="w-8 h-8 border-4 border-navy border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+  if (!user) return <LoginScreen />
+  return <Authenticated />
+}
+
+function Authenticated() {
   const [screen, setScreen] = useState<Screen>('calendar')
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [property, setProperty] = useState<Property | null>(null)

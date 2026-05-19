@@ -28,6 +28,16 @@ from typing import Any, Dict, List, Optional
 import requests
 from flask import Flask, jsonify, make_response, render_template, request
 
+# Auth + plan-tier enforcement — imported up top so decorators are available
+# before any route that uses @require_feature is evaluated.
+from modules.auth.auth import (
+    DEMO_ACCOUNTS as _AUTH_ACCOUNTS,
+    create_token as _auth_create_token,
+    get_current_user as _auth_current_user,
+    get_plan_features as _auth_plan_features,
+    require_feature,
+)
+
 from modules.hospitality.anchorage_pricing import (
     ROOM_INVENTORY,
     AnchoragePricingEngine,
@@ -1087,6 +1097,7 @@ def _waterfall_to_dict(wf) -> dict:
 # ── 1. Pocket Price Waterfall ─────────────────────────────────────────
 
 @app.route("/api/waterfall")
+@require_feature("packages_module")
 def v2_api_waterfall():
     rate   = float(request.args.get("rate", 380))
     nights = int(request.args.get("nights", 1))
@@ -1095,6 +1106,7 @@ def v2_api_waterfall():
 
 
 @app.route("/api/waterfall/parity")
+@require_feature("packages_module")
 def v2_api_waterfall_parity():
     rate   = float(request.args.get("rate", 380))
     nights = int(request.args.get("nights", 1))
@@ -1132,6 +1144,7 @@ def v2_api_price_fence_patch(fence_id: str):
 # ── 4. Economic Value Estimation ──────────────────────────────────
 
 @app.route("/api/eve")
+@require_feature("eve_analysis")
 def v2_api_eve():
     from config.settings import EVE_CONFIG
     room_cat  = request.args.get("room_category", "all")
@@ -1147,6 +1160,7 @@ def v2_api_eve():
 # ── 5. Annual Price Review ────────────────────────────────────────
 
 @app.route("/api/price-review")
+@require_feature("annual_review")
 def v2_api_price_review():
     from config.settings import ROOM_TYPES
     comp_snap = _v2_scraper.get_current_snapshot()
@@ -1260,15 +1274,51 @@ def v2_api_optimization_recs():
     ))
 
 
+@app.route("/api/auth/login", methods=["POST"])
+def v2_api_login():
+    body = request.get_json(force=True) or {}
+    email = (body.get("email", "") or "").lower().strip()
+    pwd   = body.get("password", "")
+    acct  = _AUTH_ACCOUNTS.get(email)
+    if not acct or acct["password_hash"] != pwd:
+        return jsonify({"error": "Invalid credentials"}), 401
+    token = _auth_create_token(email)
+    return jsonify({
+        "token":         token,
+        "email":         email,
+        "tenant_id":     acct["tenant_id"],
+        "plan_tier":     acct["plan_tier"],
+        "property_name": acct["property_name"],
+        "role":          acct["role"],
+        "features":      _auth_plan_features(acct["plan_tier"]),
+    })
+
+
+@app.route("/api/auth/me")
+def v2_api_me():
+    user = _auth_current_user()
+    if not user:
+        return jsonify({"error": "Not authenticated"}), 401
+    return jsonify({**user, "features": _auth_plan_features(user.get("plan_tier", "essentials"))})
+
+
+@app.route("/api/auth/plans")
+def v2_api_plans():
+    from config.settings import FEATURE_GATES
+    return jsonify(FEATURE_GATES)
+
+
 @app.route("/api/property-config")
 def v2_api_property_config():
-    """Returns the current property + plan_tier + active feature gates."""
-    tier = V2_PROPERTY.get("plan_tier", "professional")
+    """Property + plan_tier (from authenticated user) + active feature gates."""
+    user = _auth_current_user() or {}
+    tier = user.get("plan_tier", V2_PROPERTY.get("plan_tier", "professional"))
     return jsonify({
-        "property":  V2_PROPERTY,
+        "property":  {**V2_PROPERTY, "name": user.get("property_name", V2_PROPERTY["name"])},
         "plan_tier": tier,
         "features":  V2_FEATURE_GATES.get(tier, V2_FEATURE_GATES["professional"]),
         "all_tiers": V2_FEATURE_GATES,
+        "user":      {"email": user.get("email"), "role": user.get("role")},
     })
 
 
@@ -1287,6 +1337,7 @@ def _get_package_engine() -> PackageIntelligenceEngine:
 
 
 @app.route("/api/packages/national")
+@require_feature("packages_module")
 def api_packages_national():
     """All 20 national packages with per-property fit_score + est revenue."""
     return jsonify(_get_package_engine().get_top_20_ranked())
