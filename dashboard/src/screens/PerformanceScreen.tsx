@@ -68,7 +68,7 @@ function Body() {
       </div>
 
       {/* HERO ROI CARD */}
-      <div className="bg-white rounded-xl shadow-lg border-2 border-gold p-6">
+      <div data-tour="roi-hero" className="bg-white rounded-xl shadow-lg border-2 border-gold p-6">
         <div className="text-[10px] uppercase tracking-[2px] text-gold-dark font-bold mb-2">Your subscription ROI this month</div>
         <div className="grid grid-cols-2 gap-6 items-center">
           <div className="space-y-1.5 text-sm">

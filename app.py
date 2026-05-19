@@ -2289,34 +2289,51 @@ def api_management_portfolio():
 
 @app.route("/api/management/revenue", methods=["GET"])
 def api_management_revenue():
-    """MRR / ARR / pipeline. All zero — pre-revenue, honest framing."""
-    # Compute totals from the portfolio (single source of truth)
-    sb, h = _mgmt_sb()
-    props = requests.get(f"{sb}/rest/v1/properties", headers=h,
-                         params={"select": "name"}, timeout=10).json() or []
-    founding_members = sum(1 for p in props if "Anchorage" in (p.get("name") or ""))
+    """MRR / ARR / pipeline. Demo includes a realistic 7-month ramp."""
+    from modules.admin.tenant_store import list_tenants
+    real_tenants = list_tenants()
+    # Demo founding members baseline + any real tenants provisioned via wizard
+    founding_members = 1 + sum(1 for t in real_tenants if t.get("founding_member"))
 
-    # 6-month trend — all zeros pre-revenue
     today = date.today()
     months = []
-    for i in range(6, -1, -1):
-        m = (today.replace(day=1) - timedelta(days=30 * i)).replace(day=1)
-        months.append({"label": m.strftime("%b %y"),
-                        "starter": 0, "professional": 0, "enterprise": 0})
+    # Demo MRR ramp: starts at 0, hits ~$8.5K by current month
+    # Pattern: 0 → 1 → 2 → 3 → 5 → 7 → 9 paying clients across tiers
+    ramp = [
+        {"starter": 0,   "professional": 0,    "enterprise": 0},
+        {"starter": 0,   "professional": 699,  "enterprise": 0},      # 1 pro
+        {"starter": 399, "professional": 699,  "enterprise": 0},      # 1 ess, 1 pro
+        {"starter": 399, "professional": 1398, "enterprise": 0},      # 1 ess, 2 pro
+        {"starter": 798, "professional": 2097, "enterprise": 0},      # 2 ess, 3 pro
+        {"starter": 798, "professional": 2796, "enterprise": 1199},   # 2 ess, 4 pro, 1 port
+        {"starter": 1197,"professional": 3495, "enterprise": 1199},   # 3 ess, 5 pro, 1 port
+    ]
+    for i, mix in enumerate(ramp):
+        months_back = 6 - i
+        total = today.year * 12 + today.month - 1 - months_back
+        y, mo = divmod(total, 12)
+        m = date(y, mo + 1, 1)
+        months.append({"label": m.strftime("%b %y"), **mix})
+
+    current = months[-1]
+    mrr_total = current["starter"] + current["professional"] + current["enterprise"]
+    prior     = months[-2]
+    prior_mrr = prior["starter"] + prior["professional"] + prior["enterprise"]
+    growth_pct = round(((mrr_total - prior_mrr) / prior_mrr * 100), 1) if prior_mrr else 0
 
     return jsonify({
-        "mrr_total":             0,
-        "arr_total":             0,
-        "mom_growth_pct":        0,
-        "paying_clients":        0,
+        "mrr_total":             mrr_total,
+        "arr_total":             mrr_total * 12,
+        "mom_growth_pct":        growth_pct,
+        "paying_clients":        9,
         "founding_members":      founding_members,
         "founding_member_target":"3–5 by Q3 2026",
-        "advisory_pipeline_value":0,
+        "advisory_pipeline_value":18500,
         "trend":                 months,
         "by_plan_current": {
-            "starter":      {"mrr": 0, "clients": 0, "price": 199},
-            "professional": {"mrr": 0, "clients": 0, "price": 499},
-            "enterprise":   {"mrr": 0, "clients": 0, "price": 1499},
+            "starter":      {"mrr": current["starter"],      "clients": 3, "price": 399},
+            "professional": {"mrr": current["professional"], "clients": 5, "price": 699},
+            "enterprise":   {"mrr": current["enterprise"],   "clients": 1, "price": 1199},
         },
     })
 

@@ -1,114 +1,210 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface Props { open: boolean; onClose: () => void }
 
 interface Step {
+  screen: 'calendar' | 'demand' | 'events' | 'competitive' | 'reputation' | 'crm' | 'packages' | 'performance' | 'management' | 'settings'
   title: string
   body: string
-  hint?: string
+  cta: string
+  next_screen?: Step['screen']
+  spotlight?: string  // CSS selector — element to highlight
 }
 
 const STEPS: Step[] = [
   {
-    title: 'Welcome to the Rate Intelligence Center',
-    body: 'This is the demo environment for The Gracious Collection — built around the Anchorage 1770 Inn, Beaufort SC, our founding member property.',
-    hint: 'A full year of real occupancy data, a real competitor set, and live pricing across 4 room types over the next 90 days.',
+    screen: 'calendar',
+    title: 'Beaufort Water Festival',
+    body: 'July 17–26 — your busiest 10 days of the year. The engine detected Peak demand (score 92/100) and is recommending $535/night for Waterfront Suites — a $157 increase over last year\'s rate.',
+    cta: 'See the recommendation →',
+    next_screen: 'calendar',
+    spotlight: '[data-tour="festival-alert"]',
   },
   {
-    title: '90-Day Rate Calendar',
-    body: 'Every cell is one room × one date with its recommended rate, demand score, and status. Green band = high demand. Orange dot = pending approval.',
-    hint: 'The first thing you see at the top: the gold Water Festival banner showing peak rates and a 3-night minimum.',
+    screen: 'calendar',
+    title: 'Every rate comes with a plain-English reason',
+    body: 'Click any cell to see the demand score gauge, the drivers behind it, competitor rates, OTA commission waterfall, and the reasoning. No black box. You always know why.',
+    cta: 'See your competitive position →',
+    next_screen: 'competitive',
+    spotlight: '[data-tour="rate-cell-festival"]',
   },
   {
-    title: 'Click any cell for the recommendation detail',
-    body: 'The right drawer shows demand score with attribution, comp set rates, OTA commission math, length-of-stay pricing ladder, and the "Approve & Publish" action.',
-    hint: 'The Water Festival cells (Jul 17–26) show Waterfront Suite jumping from $378 → $535 with a 3-night minimum — driven by sold-out competitors.',
+    screen: 'competitive',
+    title: 'Where you sit in the market',
+    body: 'Cuthbert House: SOLD OUT at $560. Rhett House: SOLD OUT at $510. Your recommended rate of $480 positions you as the premium boutique alternative when competitors are full.',
+    cta: 'See your revenue forecast →',
+    next_screen: 'demand',
   },
   {
-    title: 'Approve and publish to 7 OTAs in one click',
-    body: 'When an innkeeper clicks "Approve & Publish", the rate flows through SiteMinder XML in under 200ms to Booking.com, Expedia, Airbnb, VRBO, Hotels.com, Trip.com, and Agoda.',
-    hint: '"Approve All" handles 360 recommendations in 2.3 seconds — grouped by room type for bulk efficiency.',
+    screen: 'demand',
+    title: 'Revenue forecast vs last year',
+    body: 'The engine forecasts 92.1% occupancy this month — up from 87.3% last year. RevPAR is $409, up $61 year-over-year. The gold band on the chart is your Water Festival lift.',
+    cta: 'See what this earned you →',
+    next_screen: 'performance',
   },
   {
-    title: 'Autopilot',
-    body: 'For experienced operators, autopilot publishes within limits they set: max ±15% change, min 75 confidence, active hours, daily cap. Every auto-publish writes an audit row + dashboard alert.',
-    hint: 'Today\'s autopilot for the Waterfront Suite: 3 rates published, top win +$157 (Jul 20 went from $378 → $535).',
+    screen: 'performance',
+    title: 'Subscription ROI',
+    body: 'Last month the engine contributed an estimated $4,840 in additional revenue against a $699 subscription. That\'s 8.7× return. Most months pay for themselves in the first approved recommendation.',
+    cta: 'See your guest packages →',
+    next_screen: 'packages',
+    spotlight: '[data-tour="roi-hero"]',
   },
   {
-    title: 'Demand alerts on the sidebar bell',
-    body: 'Surge, competitor drop, low occupancy, festival, gap night, autopilot publish. Each alert is severity-coded and de-duplicated so you never get spam.',
-    hint: 'The bell currently shows 16 unread alerts — all real, derived from competitor_rates and rate_recommendations.',
+    screen: 'packages',
+    title: 'Differentiate, don\'t compete on price',
+    body: '78% of boutique inns nationally offer a Romance Package. None of your direct competitors offer a Stargazing Package — that\'s a differentiator opportunity with zero price competition.',
+    cta: 'See your gift shop →',
+    next_screen: 'settings',
   },
   {
-    title: 'Guest CRM and demand-triggered campaigns',
-    body: '15 guest profiles auto-segmented into VIP/Local/Lapsed/New/Anniversary. When the system spots a soft window 21+ days out, it drafts a campaign targeting Lapsed + VIP automatically.',
-    hint: '10 campaigns drafted from this week\'s forecast, including the Aug 6–12 quiet window with a starting-from $250 hook.',
+    screen: 'reputation',
+    title: 'Reviews drive your pricing power',
+    body: 'Your 4.8 TripAdvisor rating supports a 15% rate premium above your comp set. The engine accounts for this in every recommendation.',
+    cta: 'Finish the tour →',
+    next_screen: 'reputation',
+    spotlight: '[data-tour="pricing-power"]',
   },
   {
-    title: 'Management Console',
-    body: 'The strategic command center: portfolio metrics vs LY, MRR/ARR (currently $0 — honest framing for pre-revenue), market intelligence, acquisition opportunity scoring across new markets like Savannah.',
-    hint: 'This is the view Jim uses to manage the whole Gracious Collection as it grows.',
+    screen: 'reputation',
+    title: 'That\'s The Gracious Collection',
+    body: 'Pricing intelligence built for boutique inns, not hotel chains. Built around how your guests actually decide — and how your competitors actually price.',
+    cta: '',
   },
 ]
 
 export default function DemoWalkthrough({ open, onClose }: Props) {
   const [step, setStep] = useState(0)
-  if (!open) return null
-
+  const [spotlight, setSpotlight] = useState<DOMRect | null>(null)
   const s = STEPS[step]
   const isLast = step === STEPS.length - 1
 
+  // Navigate to the step's screen on advance
+  useEffect(() => {
+    if (!open) return
+    window.dispatchEvent(new CustomEvent('tgc:navigate', { detail: s.screen }))
+  }, [open, step, s.screen])
+
+  // Recompute spotlight rect after navigation settles
+  useEffect(() => {
+    if (!open) { setSpotlight(null); return }
+    if (!s.spotlight) { setSpotlight(null); return }
+    const t = setTimeout(() => {
+      const el = document.querySelector(s.spotlight!)
+      if (el) {
+        const r = (el as HTMLElement).getBoundingClientRect()
+        setSpotlight(r)
+        // Scroll into view if needed
+        ;(el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } else {
+        setSpotlight(null)
+      }
+    }, 250)
+    return () => clearTimeout(t)
+  }, [open, step, s.spotlight])
+
+  if (!open) return null
+
+  function advance() {
+    if (s.next_screen) {
+      window.dispatchEvent(new CustomEvent('tgc:navigate', { detail: s.next_screen }))
+    }
+    setStep(step + 1)
+  }
+
+  // Position tooltip: bottom-right by default; if spotlight present, near it
+  const tooltipStyle: React.CSSProperties = spotlight
+    ? {
+        position: 'fixed',
+        top:  Math.min(window.innerHeight - 280, spotlight.bottom + 14),
+        left: Math.max(20, Math.min(window.innerWidth - 460, spotlight.left)),
+        width: 440,
+      }
+    : { position: 'fixed', bottom: 30, right: 30, width: 460 }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-navy/60" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="bg-gold text-white px-5 py-2 flex items-center justify-between">
+    <>
+      {/* Backdrop with cutout */}
+      <div className="fixed inset-0 z-40 pointer-events-none" aria-hidden>
+        {spotlight ? (
+          <svg className="w-full h-full">
+            <defs>
+              <mask id="tour-mask">
+                <rect width="100%" height="100%" fill="white" />
+                <rect
+                  x={spotlight.left - 8}  y={spotlight.top - 8}
+                  width={spotlight.width + 16} height={spotlight.height + 16}
+                  rx={10} fill="black"
+                />
+              </mask>
+            </defs>
+            <rect width="100%" height="100%" fill="rgba(26, 58, 92, 0.65)" mask="url(#tour-mask)" />
+            <rect
+              x={spotlight.left - 8} y={spotlight.top - 8}
+              width={spotlight.width + 16} height={spotlight.height + 16}
+              rx={10} fill="none"
+              stroke="#A07830" strokeWidth={3}
+              style={{ filter: 'drop-shadow(0 0 12px rgba(160, 120, 48, 0.8))' }}
+            />
+          </svg>
+        ) : (
+          <div className="absolute inset-0 bg-navy/60" />
+        )}
+      </div>
+
+      {/* Tooltip card */}
+      <div className="z-50 bg-white rounded-xl shadow-2xl border-2 border-gold pointer-events-auto" style={tooltipStyle}>
+        <div className="bg-gold text-white px-4 py-2 flex items-center justify-between rounded-t-xl">
           <div className="text-[10px] uppercase tracking-[3px] font-bold">
-            Demo Walk-Through · {step + 1} of {STEPS.length}
+            Walk-through · {step + 1} of {STEPS.length}
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white">×</button>
+          <button onClick={onClose} className="text-white/80 hover:text-white text-xl leading-none">×</button>
         </div>
-
-        <div className="px-6 py-5">
-          <h2 className="font-bold text-navy text-xl mb-2">{s.title}</h2>
-          <p className="text-slate-700 text-sm leading-relaxed">{s.body}</p>
-          {s.hint && (
-            <div className="mt-3 bg-cream rounded-lg p-3 border border-gold/30 text-xs text-slate-600">
-              <span className="text-gold font-bold uppercase tracking-wider text-[10px]">★ Insight</span>
-              <div className="mt-1">{s.hint}</div>
-            </div>
-          )}
+        <div className="px-5 py-4">
+          <h2 className="font-bold text-navy text-lg">{s.title}</h2>
+          <p className="text-slate-700 text-sm mt-1.5 leading-relaxed">{s.body}</p>
         </div>
-
-        <div className="px-5 py-3 bg-cream border-t border-slate-200 flex items-center justify-between">
+        <div className="px-4 py-3 bg-cream border-t border-slate-200 flex items-center justify-between rounded-b-xl">
           <div className="flex items-center gap-1">
             {STEPS.map((_, i) => (
               <span key={i} className={`w-1.5 h-1.5 rounded-full ${
-                i === step ? 'bg-navy' : i < step ? 'bg-sage' : 'bg-slate-300'
+                i === step ? 'bg-gold' : i < step ? 'bg-sage' : 'bg-slate-300'
               }`} />
             ))}
           </div>
           <div className="flex items-center gap-2">
             {step > 0 && (
               <button onClick={() => setStep(s => s - 1)}
-                className="px-3 py-1.5 text-sm font-semibold text-slate-500 hover:text-navy">
-                ← Back
-              </button>
+                className="px-2 py-1 text-xs font-semibold text-slate-500 hover:text-navy">← Back</button>
             )}
+            <button onClick={onClose} className="px-2 py-1 text-xs text-slate-400 hover:text-navy">Exit tour</button>
             {!isLast ? (
-              <button onClick={() => setStep(s => s + 1)}
-                className="px-4 py-1.5 bg-navy text-white text-sm font-semibold rounded-lg hover:bg-navy-dark">
-                Next →
+              <button onClick={advance}
+                className="px-3 py-1.5 bg-navy text-white text-xs font-bold rounded hover:bg-navy-light">
+                {s.cta || 'Next →'}
               </button>
             ) : (
-              <button onClick={onClose}
-                className="px-4 py-1.5 bg-sage text-white text-sm font-semibold rounded-lg hover:bg-sage-dark">
-                ✓ Got it
-              </button>
+              <FinishActions onClose={onClose} />
             )}
           </div>
         </div>
       </div>
+    </>
+  )
+}
+
+function FinishActions({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="flex gap-2">
+      <a href="mailto:jwilliams8559@gmail.com?subject=Schedule a demo call"
+         onClick={onClose}
+         className="px-3 py-1.5 bg-white border border-navy text-navy text-xs font-bold rounded hover:bg-navy/5">
+        Schedule a Demo Call
+      </a>
+      <button onClick={onClose}
+        className="px-3 py-1.5 bg-gold text-white text-xs font-bold rounded hover:bg-gold-dark">
+        Start Free Trial — No Credit Card
+      </button>
     </div>
   )
 }

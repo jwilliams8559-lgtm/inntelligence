@@ -346,6 +346,7 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
         const peakRoom = peakRec ? roomTypes.find(rt => rt.id === peakRec.room_type_id) : null
         return (
           <div
+            data-tour="festival-alert"
             onClick={() => peakRec && setSelected(peakRec)}
             className="bg-gold text-white px-4 py-2 flex items-center gap-3 shadow-md cursor-pointer hover:bg-gold-dark transition-colors flex-shrink-0"
           >
@@ -431,12 +432,14 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
                 <th className="sticky left-0 z-30 bg-navy text-white text-xs font-semibold px-3 py-2 w-36 min-w-36 text-left border-r border-navy-dark">
                   Room Type
                 </th>
-                {dates.map(d => {
+                {dates.map((d, idx) => {
                   const wf = isWaterFestival(d)
                   const dateStr = format(d, 'yyyy-MM-dd')
                   const isWeekend = [0, 6].includes(d.getDay())
+                  const isFirstFest = wf && dates.findIndex(x => isWaterFestival(x)) === idx
                   return (
                     <th key={dateStr}
+                        {...(isFirstFest ? { 'data-tour': 'rate-cell-festival' } : {})}
                         className={`text-xs font-medium px-1 py-1.5 w-20 min-w-20 border-r text-center ${
                           wf
                             ? 'bg-gold text-white border-gold-dark'

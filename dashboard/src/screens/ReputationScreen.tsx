@@ -70,7 +70,7 @@ function Body() {
       <p className="text-slate-500 text-sm mb-4">How your ratings affect your pricing power.</p>
 
       {/* Pricing Power Card */}
-      <div className="bg-white rounded-xl shadow-sm border-2 border-gold/30 p-5 mb-4">
+      <div data-tour="pricing-power" className="bg-white rounded-xl shadow-sm border-2 border-gold/30 p-5 mb-4">
         <div className="flex items-baseline justify-between flex-wrap gap-4">
           <div>
             <div className="text-[10px] uppercase tracking-[2px] text-gold font-bold">Pricing Power Score</div>
