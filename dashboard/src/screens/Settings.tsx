@@ -540,6 +540,16 @@ export default function Settings({ tenant, property }: Props) {
               {/* Pre-discovery controls */}
               {!isDiscovering && !discoveryResult && !discoveryError && (
                 <>
+                  {/* B4 — Always-verify warning banner */}
+                  <div className="mb-3 bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-3 py-2 text-xs text-amber-800">
+                    <strong>⚠ Always verify discovered properties are active lodging businesses</strong>
+                    <div className="mt-0.5 text-amber-700">
+                      Google Places may return private residences, vacation rentals, or
+                      closed properties. Check each result before saving — for example,
+                      601 Bay Street appears as &ldquo;Bay Street Inn&rdquo; in some feeds but is a private home.
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-sm text-slate-500 shrink-0">Search radius:</span>
                     {[10, 25, 50].map(r => (

@@ -124,6 +124,9 @@ ROOM_TYPES = [
     {"id": "garden_104",      "name": "Garden Room 104", "icon": "🌿", "count": 1, "base": 279, "min": 225, "max": 495, "category": "garden"},
 ]
 
+# NOTE: All competitors verified as active lodging properties.
+# 601 Bay Street ("Bay Street Inn") removed 2026-05-19 — private residence, not a hotel.
+# Always verify Google Places results before adding to competitor set.
 COMPETITORS = [
     {"id": "c1", "name": "607 Bay Inn",            "city": "Beaufort", "state": "SC", "avail_color": "yellow"},
     {"id": "c2", "name": "Airbnb Near Bay (avg)",  "city": "Beaufort", "state": "SC", "avail_color": "green"},
