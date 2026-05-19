@@ -452,6 +452,154 @@ def v2_api_forecast():
     return jsonify(_v2_90day_forecast(date.fromisoformat(check_in_str)))
 
 
+# ── Section E — Dual confirmed vs projected revenue forecast ──────────
+
+def _generate_demo_bookings(start: date, days: int = 90) -> list:
+    """
+    Synthetic advance bookings shaped like real PMS advance pace:
+      - 7 days out:    85% booked
+      - 8-30 days:     55%
+      - 31-60 days:    30%
+      - 61-90 days:    15%
+      - Water Festival Jul 17-26: 70%
+      - First week of July:        50%
+      - Rest of July:              40%
+    """
+    import random as _r
+    rng = _r.Random(20260519)
+    total_rooms = V2_PROPERTY["total_rooms"]
+    bookings: list = []
+    for i in range(days):
+        d = start + timedelta(days=i)
+        days_out = (d - date.today()).days
+
+        # Base pace by lead time
+        if days_out <= 7:                pace = 0.85
+        elif days_out <= 30:             pace = 0.55
+        elif days_out <= 60:             pace = 0.30
+        else:                            pace = 0.15
+
+        # July overrides
+        if d.month == 7:
+            if 17 <= d.day <= 26:        pace = 0.70   # Water Festival
+            elif d.day <= 7:             pace = 0.50
+            else:                        pace = 0.40
+
+        n_rooms_booked = max(0, min(total_rooms, round(total_rooms * pace + rng.gauss(0, 0.7))))
+        # Representative rate at this date
+        fc  = _v2_demand.forecast(d)
+        rep = next((r for r in V2_ROOM_TYPES if "waterfront" in r["id"]), V2_ROOM_TYPES[0])
+        rec = _v2_rate.recommend(rep, fc.score, fc.label, fc.drivers, fc.confidence, None, d)
+        rate = float(rec.recommended_rate)
+
+        for n in range(n_rooms_booked):
+            los = rng.choices([1, 2, 3, 4], weights=[35, 35, 20, 10])[0]
+            bookings.append({
+                "check_in":   d,
+                "check_out":  d + timedelta(days=los),
+                "rate":       rate,
+                "los":        los,
+            })
+    return bookings
+
+
+@app.route("/api/forecast/dual")
+def v2_api_forecast_dual():
+    """90-day dual revenue forecast: confirmed vs projected additional."""
+    try:
+        check_in = date.fromisoformat(request.args.get("date", date.today().isoformat()))
+    except ValueError:
+        check_in = date.today()
+
+    total_rooms = V2_PROPERTY["total_rooms"]
+    labels:    list = []
+    confirmed: list = []
+    projected: list = []
+    conf_occ:  list = []
+    proj_occ:  list = []
+
+    bookings = _generate_demo_bookings(check_in, 90)
+
+    for i in range(90):
+        d = check_in + timedelta(days=i)
+        labels.append(d.strftime("%b %-d"))
+
+        # Confirmed: rooms already booked for this date
+        day_b = [b for b in bookings if b["check_in"] <= d < b["check_out"]]
+        confirmed_rooms = min(total_rooms, len(day_b))
+        confirmed_rev   = sum(b["rate"] for b in day_b[:confirmed_rooms])
+        confirmed.append(int(confirmed_rev))
+        conf_occ.append(round(confirmed_rooms / total_rooms * 100, 1))
+
+        # Projected additional fill
+        fc = _v2_demand.forecast(d)
+        days_out = (d - date.today()).days
+        if days_out <= 7:                fill = 0.95
+        elif days_out <= 30:             fill = 0.80 + (fc.score / 1000)
+        elif days_out <= 60:             fill = 0.65 + (fc.score / 1000)
+        else:                            fill = 0.50 + (fc.score / 1000)
+        if fc.event_name:                fill = min(0.98, fill * 1.15)
+        projected_total_occ = min(fill, 1.0)
+        additional_rooms = max(0, int(projected_total_occ * total_rooms) - confirmed_rooms)
+
+        rep = next((r for r in V2_ROOM_TYPES if "waterfront" in r["id"]), V2_ROOM_TYPES[0])
+        rec = _v2_rate.recommend(rep, fc.score, fc.label, fc.drivers, fc.confidence, None, d)
+        additional_rev = int(additional_rooms * rec.recommended_rate)
+        projected.append(additional_rev)
+        proj_occ.append(round(projected_total_occ * 100, 1))
+
+    return jsonify({
+        "labels":                   labels,
+        "confirmed_revenue":        confirmed,
+        "projected_additional":     projected,
+        "total_projected":          [c + p for c, p in zip(confirmed, projected)],
+        "confirmed_occupancy_pct":  conf_occ,
+        "projected_occupancy_pct":  proj_occ,
+        "avg_confirmed_daily":      int(sum(confirmed) / 90),
+        "avg_total_daily":          int(sum(c + p for c, p in zip(confirmed, projected)) / 90),
+        "summary": {
+            "confirmed_90day_total":  sum(confirmed),
+            "projected_90day_total":  sum(projected),
+            "combined_90day_total":   sum(confirmed) + sum(projected),
+        },
+        "monthly": _v2_monthly_summary(check_in, confirmed, projected, conf_occ, proj_occ),
+    })
+
+
+def _v2_monthly_summary(check_in: date, confirmed: list, projected: list,
+                        conf_occ: list, proj_occ: list) -> list:
+    """Aggregate the 90-day series into monthly buckets for the table."""
+    from collections import defaultdict
+    by_month: dict = defaultdict(lambda: {"conf": 0, "proj": 0, "occ_sum": 0.0, "days": 0, "wf": False})
+    for i in range(90):
+        d = check_in + timedelta(days=i)
+        key = d.strftime("%Y-%m")
+        b = by_month[key]
+        b["conf"]    += confirmed[i]
+        b["proj"]    += projected[i]
+        b["occ_sum"] += proj_occ[i]
+        b["days"]    += 1
+        if d.month == 7 and 17 <= d.day <= 26:
+            b["wf"] = True
+
+    out: list = []
+    for key in sorted(by_month):
+        b = by_month[key]
+        year, mo = key.split("-")
+        mo_name = date(int(year), int(mo), 1).strftime("%b")
+        out.append({
+            "month_key":      key,
+            "month_label":    mo_name,
+            "confirmed":      b["conf"],
+            "projected":      b["proj"],
+            "combined":       b["conf"] + b["proj"],
+            "projected_occ":  round(b["occ_sum"] / max(1, b["days"]), 1),
+            "is_water_fest":  b["wf"],
+            "days":           b["days"],
+        })
+    return out
+
+
 @app.route("/api/competitors")
 def v2_api_competitors():
     check_in_str = request.args.get("date", date.today().isoformat())

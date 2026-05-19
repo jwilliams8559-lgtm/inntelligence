@@ -130,6 +130,129 @@ function RevenueStreamsPanel({ propertyTotalRooms }: { propertyTotalRooms: numbe
   )
 }
 
+// ── Section E: Dual revenue forecast ──
+interface DualForecast {
+  labels: string[]
+  confirmed_revenue: number[]
+  projected_additional: number[]
+  total_projected: number[]
+  confirmed_occupancy_pct: number[]
+  projected_occupancy_pct: number[]
+  avg_confirmed_daily: number
+  avg_total_daily: number
+  summary: { confirmed_90day_total: number; projected_90day_total: number; combined_90day_total: number }
+  monthly: { month_key: string; month_label: string; confirmed: number; projected: number;
+    combined: number; projected_occ: number; is_water_fest: boolean; days: number }[]
+}
+
+function DualRevenueForecast() {
+  const [data, setData] = useState<DualForecast | null>(null)
+  useEffect(() => {
+    fetch('/api/forecast/dual').then(r => r.json()).then(setData).catch(() => setData(null))
+  }, [])
+  if (!data) return null
+
+  // Build chart-friendly arrays
+  const chartData = data.labels.map((label, i) => ({
+    label,
+    confirmed:  data.confirmed_revenue[i],
+    projected:  data.projected_additional[i],
+    total:      data.total_projected[i],
+    conf_occ:   data.confirmed_occupancy_pct[i],
+    proj_occ:   data.projected_occupancy_pct[i],
+  }))
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h2 className="font-bold text-navy">90-Day Revenue Forecast — Confirmed vs Projected</h2>
+        <div className="text-xs text-slate-600 space-x-4">
+          <span><span className="text-slate-500">Confirmed:</span> <span className="font-bold text-navy">${data.summary.confirmed_90day_total.toLocaleString()}</span></span>
+          <span><span className="text-slate-500">Projected:</span> <span className="font-bold text-gold">${data.summary.projected_90day_total.toLocaleString()}</span></span>
+          <span><span className="text-slate-500">Combined:</span> <span className="font-bold text-sage">${data.summary.combined_90day_total.toLocaleString()}</span></span>
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={chartData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 9 }} interval={9} tickLine={false} />
+          <YAxis tick={{ fontSize: 9 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+          <Tooltip formatter={(v: any) => `$${v.toLocaleString()}`} />
+          <Legend iconType="square" iconSize={9} wrapperStyle={{ fontSize: 10 }} />
+          <Bar dataKey="confirmed" stackId="rev" fill="#1A3A5C" name="Confirmed Bookings" />
+          <Bar dataKey="projected" stackId="rev" fill="#A07830" name="Projected Additional" radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+
+      {/* Occupancy chart */}
+      <div className="mt-4">
+        <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+          Occupancy: Confirmed vs Projected · target zone 70-85%
+        </div>
+        <ResponsiveContainer width="100%" height={160}>
+          <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 9 }} interval={9} tickLine={false} />
+            <YAxis tick={{ fontSize: 9 }} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} />
+            <Tooltip formatter={(v: any) => `${v}%`} />
+            <ReferenceArea y1={70} y2={85} fill="#A07830" fillOpacity={0.08} />
+            <ReferenceLine y={70} stroke="#A07830" strokeDasharray="4 3" />
+            <ReferenceLine y={85} stroke="#A07830" strokeDasharray="4 3" />
+            <Legend iconType="square" iconSize={9} wrapperStyle={{ fontSize: 10 }} />
+            <Line type="monotone" dataKey="conf_occ" stroke="#1A3A5C" strokeWidth={2} dot={false} name="Confirmed %" />
+            <Line type="monotone" dataKey="proj_occ" stroke="#A07830" strokeWidth={2} dot={false} name="Projected %" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* 12-month summary table */}
+      <div className="mt-4 border-t border-slate-100 pt-3">
+        <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+          Monthly Summary (next 90 days)
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50">
+              <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
+                <th className="px-3 py-1.5">Month</th>
+                <th className="px-2 py-1.5 text-right">Confirmed Rev</th>
+                <th className="px-2 py-1.5 text-right">Projected Rev</th>
+                <th className="px-2 py-1.5 text-right">Combined</th>
+                <th className="px-2 py-1.5 text-right">Proj Occ %</th>
+                <th className="px-2 py-1.5 text-left">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.monthly.map(m => {
+                const confPct = m.combined > 0 ? Math.round((m.confirmed / m.combined) * 100) : 0
+                const lowConf = confPct < 40
+                return (
+                  <tr key={m.month_key} className="border-t border-slate-100">
+                    <td className="px-3 py-1.5 font-bold text-navy">
+                      {m.month_label}
+                      {m.is_water_fest && <span className="ml-1 text-gold" title="Water Festival">★</span>}
+                    </td>
+                    <td className="px-2 py-1.5 text-right text-navy">${m.confirmed.toLocaleString()}</td>
+                    <td className="px-2 py-1.5 text-right text-gold">${m.projected.toLocaleString()}</td>
+                    <td className="px-2 py-1.5 text-right font-bold text-sage">${m.combined.toLocaleString()}</td>
+                    <td className="px-2 py-1.5 text-right">{m.projected_occ.toFixed(0)}%</td>
+                    <td className={`px-2 py-1.5 text-[11px] ${lowConf ? 'text-amber-700 bg-amber-50/60' : 'text-slate-400'}`}>
+                      {lowConf
+                        ? `⚡ Low confirmed (${confPct}%) — last-minute fill pricing`
+                        : `${confPct}% confirmed`}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Row({ label, value, locked, description }:
   { label: string; value: number; locked: boolean; description?: string }) {
   return (
@@ -391,6 +514,9 @@ export default function DemandDashboard({ tenant, property, pendingCount }: Prop
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* E — Dual revenue forecast (confirmed vs projected) */}
+      <DualRevenueForecast />
 
       {/* D1 — Optimization Recommendations */}
       <LockedFeature
