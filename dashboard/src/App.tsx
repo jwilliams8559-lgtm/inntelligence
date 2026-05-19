@@ -9,6 +9,7 @@ import RateCalendar from './screens/RateCalendar'
 import DemandDashboard from './screens/DemandDashboard'
 import EventsScreen from './screens/EventsScreen'
 import CompetitiveIntel from './screens/CompetitiveIntel'
+import ReputationScreen from './screens/ReputationScreen'
 import GuestCRM from './screens/GuestCRM'
 import Packages from './screens/Packages'
 import ManagementConsole from './screens/ManagementConsole'
@@ -108,6 +109,7 @@ function Authenticated() {
         {screen === 'demand'       && <DemandDashboard  {...screenProps} />}
         {screen === 'events'       && <EventsScreen     {...screenProps} />}
         {screen === 'competitive'  && <CompetitiveIntel {...screenProps} />}
+        {screen === 'reputation'   && <ReputationScreen {...screenProps} />}
         {screen === 'crm'          && <GuestCRM         {...screenProps} />}
         {screen === 'packages'     && <Packages         {...screenProps} />}
         {screen === 'management'   && APP_ROLE === 'shg_admin' && <ManagementConsole {...screenProps} />}

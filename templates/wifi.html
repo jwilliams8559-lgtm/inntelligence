@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>{{ property_name or 'WiFi' }} · Connect to WiFi</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      background: linear-gradient(160deg, #FAF6EE 0%, #E8DCC4 100%);
+      min-height: 100vh; margin: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #1F3A5F;
+    }
+    .card {
+      background: white; border-radius: 16px; padding: 36px 32px;
+      box-shadow: 0 20px 60px rgba(31, 58, 95, 0.18);
+      width: 100%; max-width: 420px;
+    }
+    .brand {
+      font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+      color: #B8973E; font-weight: bold; margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 26px; margin: 0 0 4px; line-height: 1.2;
+    }
+    .subtitle {
+      color: #64748B; font-size: 14px; margin-bottom: 24px;
+    }
+    label {
+      display: block; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+      color: #64748B; margin-top: 16px; margin-bottom: 4px;
+    }
+    input[type="text"], input[type="email"] {
+      width: 100%; padding: 11px 12px; font-size: 16px; font-family: inherit;
+      border: 1px solid #E2E8F0; border-radius: 8px; background: #FAFBFC;
+      color: #1F3A5F;
+    }
+    input:focus { outline: none; border-color: #1F3A5F; background: white; }
+    .row { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+    .consent {
+      margin-top: 18px; padding: 12px; background: #FAF6EE; border-radius: 8px;
+      font-size: 13px; line-height: 1.4; color: #475569;
+      display: flex; gap: 10px; align-items: start;
+    }
+    .consent input { margin-top: 3px; }
+    button {
+      width: 100%; margin-top: 22px; padding: 14px; font-family: inherit;
+      font-size: 15px; font-weight: bold; letter-spacing: 0.5px;
+      color: white; background: #1F3A5F; border: none; border-radius: 10px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    button:hover { background: #15294A; }
+    .error {
+      background: #FEF2F2; color: #B91C1C; padding: 10px 12px;
+      border-radius: 8px; font-size: 13px; margin-bottom: 16px;
+      border-left: 3px solid #DC2626;
+    }
+    .success {
+      background: #ECFDF5; color: #047857; padding: 18px;
+      border-radius: 10px; font-size: 15px; text-align: center;
+      border-left: 3px solid #10B981;
+    }
+    .footer {
+      margin-top: 20px; text-align: center;
+      font-size: 11px; color: #94A3B8; letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    {% if unsubscribed %}
+      <div class="brand">The Gracious Collection</div>
+      <h1>You're unsubscribed</h1>
+      <p class="subtitle">You won't receive marketing emails from us anymore. If this was a mistake, reply to any prior email and we'll add you back.</p>
+    {% elif success_message %}
+      <div class="brand">{{ property_name }}</div>
+      <h1>Connected!</h1>
+      <div class="success">{{ success_message }}</div>
+      <p class="subtitle" style="margin-top:18px;">Enjoy your stay. The lounge serves complimentary pastries until 10:30am.</p>
+    {% else %}
+      <div class="brand">{{ property_name or 'Guest WiFi' }}</div>
+      <h1>Welcome.</h1>
+      <p class="subtitle">A moment of your details and you're connected — we'll skip the captive portal next time.</p>
+
+      {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+      <form method="POST" action="/wifi/{{ slug }}/submit">
+        <div class="row">
+          <div>
+            <label for="first_name">First Name</label>
+            <input id="first_name" name="first_name" type="text" required autocomplete="given-name" />
+          </div>
+          <div>
+            <label for="last_name">Last Name</label>
+            <input id="last_name" name="last_name" type="text" required autocomplete="family-name" />
+          </div>
+        </div>
+
+        <label for="email">Email Address</label>
+        <input id="email" name="email" type="email" required autocomplete="email" />
+
+        <div class="row">
+          <div>
+            <label for="home_city">Home City</label>
+            <input id="home_city" name="home_city" type="text" autocomplete="address-level2" />
+          </div>
+          <div>
+            <label for="home_state">State</label>
+            <input id="home_state" name="home_state" type="text" maxlength="2"
+                   autocomplete="address-level1" style="text-transform:uppercase;" />
+          </div>
+        </div>
+
+        <label class="consent">
+          <input type="checkbox" name="marketing_consent" value="on" checked />
+          <span>Yes — send me occasional emails about quiet weeks and special rates. We never share your address.</span>
+        </label>
+
+        <button type="submit">Connect to WiFi</button>
+      </form>
+    {% endif %}
+
+    <div class="footer">
+      The Gracious Collection · Boutique Hospitality Intelligence
+    </div>
+  </div>
+</body>
+</html>

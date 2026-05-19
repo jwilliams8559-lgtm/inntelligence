@@ -14,12 +14,14 @@ const TIER_PRICE: Record<PlanTier, string> = {
   essentials:   '$399/mo',
   professional: '$699/mo',
   portfolio:    '$1,199/mo',
+  enterprise:   '$2,400/mo',
 }
 
 const TIER_LABEL: Record<PlanTier, string> = {
   essentials:   'Essentials',
   professional: 'Professional',
   portfolio:    'Portfolio',
+  enterprise:   'Enterprise',
 }
 
 /**
@@ -45,7 +47,7 @@ export default function LockedFeature({
   if (unlocked) return <>{children}</>
 
   // Find the lowest tier that unlocks this feature
-  const tiers: PlanTier[] = ['essentials', 'professional', 'portfolio']
+  const tiers: PlanTier[] = ['essentials', 'professional', 'portfolio', 'enterprise']
   const idxNow = tiers.indexOf(planTier)
   const recommendedTier: PlanTier = upgradeTo ?? (() => {
     for (let i = idxNow + 1; i < tiers.length; i++) {

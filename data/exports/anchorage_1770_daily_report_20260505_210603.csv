@@ -1,0 +1,15 @@
+room_id,room_name,tier,check_in_date,day_of_week,days_out,rate,rack_low,rack_high,rack_mid,rack_floor,seasonal_index,event_multiplier,active_events,is_weekend,occupancy_rate,effective_demand,competitor_avg,rate_vs_rack_pct,rate_vs_comp_pct,reasoning,Rhett House Inn,City Loft Hotel,Beaufort Inn,Cuthbert House Inn,607 Bay Inn,Airbnb Near Bay Street (avg)
+201,Waterfront 201,waterfront,2026-05-05,Tuesday,0,450,389,459,424.0,330.65,1.1,1.0,[],False,0.75,0.97,310.83,6.1,44.8,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+202,Waterfront 202,waterfront,2026-05-05,Tuesday,0,450,389,459,424.0,330.65,1.1,1.0,[],False,0.75,0.97,310.83,6.1,44.8,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+203,Waterfront 203,waterfront,2026-05-05,Tuesday,0,460,399,459,429.0,339.15,1.1,1.0,[],False,0.75,0.97,310.83,7.2,48.0,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+204,Waterfront 204,waterfront,2026-05-05,Tuesday,0,465,409,459,434.0,347.65,1.1,1.0,[],False,0.75,0.97,310.83,7.1,49.6,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+301,Water View 301,water_view,2026-05-05,Tuesday,0,365,319,369,344.0,271.15,1.1,1.0,[],False,0.75,0.97,310.83,6.1,17.4,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+302,Water View 302,water_view,2026-05-05,Tuesday,0,365,319,369,344.0,271.15,1.1,1.0,[],False,0.75,0.97,310.83,6.1,17.4,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+303,Water View 303,water_view,2026-05-05,Tuesday,0,370,329,369,349.0,279.65,1.1,1.0,[],False,0.75,0.97,310.83,6.0,19.0,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+304,Water View 304,water_view,2026-05-05,Tuesday,0,360,319,359,339.0,271.15,1.1,1.0,[],False,0.75,0.97,310.83,6.2,15.8,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+305,Water View 305,water_view,2026-05-05,Tuesday,0,370,329,369,349.0,279.65,1.1,1.0,[],False,0.75,0.97,310.83,6.0,19.0,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+101,Garden Room 101,garden,2026-05-05,Tuesday,0,305,269,299,284.0,228.65,1.1,1.0,[],False,0.75,0.97,310.83,7.4,-1.9,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+102,Garden Room 102,garden,2026-05-05,Tuesday,0,305,269,299,284.0,228.65,1.1,1.0,[],False,0.75,0.97,310.83,7.4,-1.9,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+103,Garden Room 103,garden,2026-05-05,Tuesday,0,310,279,299,289.0,237.15,1.1,1.0,[],False,0.75,0.97,310.83,7.3,-0.3,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+104,Garden Room 104,garden,2026-05-05,Tuesday,0,300,269,289,279.0,228.65,1.1,1.0,[],False,0.75,0.97,310.83,7.5,-3.5,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255
+cottage,Private Cottage,cottage,2026-05-05,Tuesday,0,555,489,549,519.0,415.65,1.1,1.0,[],False,0.75,0.97,310.83,6.9,78.6,"Last-minute (0d), slight −3% to close",365,255,325,365,300,255

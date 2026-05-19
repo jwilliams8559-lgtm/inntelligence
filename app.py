@@ -1206,6 +1206,13 @@ def v2_api_price_review():
 
 # ── 6. Price Banding ──────────────────────────────────────────────
 
+@app.route("/api/reputation")
+@require_feature("reputation")
+def v2_api_reputation():
+    from modules.hospitality.reputation_engine import ReputationEngine
+    return jsonify(ReputationEngine().get_reputation_summary(V2_PROPERTY, V2_COMPETITORS))
+
+
 @app.route("/api/price-bands")
 def v2_api_price_bands():
     from config.settings import ROOM_TYPES

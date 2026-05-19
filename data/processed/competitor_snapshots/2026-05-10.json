@@ -1,0 +1,1387 @@
+{
+  "snapshot_date": "2026-05-10",
+  "scraped_at": "2026-05-10T06:00:00Z",
+  "synthetic": true,
+  "rates": {
+    "Rhett House Inn": {
+      "2026-05-17": {
+        "rate": 385,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.89,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-18": {
+        "rate": 385,
+        "availability_status": "available",
+        "est_occupancy": 0.69,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-05-19": {
+        "rate": 385,
+        "availability_status": "limited",
+        "est_occupancy": 0.72,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-20": {
+        "rate": 405,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-21": {
+        "rate": 380,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.92,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-22": {
+        "rate": 395,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-23": {
+        "rate": 410,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-24": {
+        "rate": 410,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-25": {
+        "rate": 415,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-26": {
+        "rate": 415,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.94,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-27": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.73,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-28": {
+        "rate": 380,
+        "availability_status": "limited",
+        "est_occupancy": 0.76,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-29": {
+        "rate": 435,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.91,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-30": {
+        "rate": 440,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-31": {
+        "rate": 385,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-01": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-02": {
+        "rate": 375,
+        "availability_status": "available",
+        "est_occupancy": 0.66,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-03": {
+        "rate": 375,
+        "availability_status": "available",
+        "est_occupancy": 0.69,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-04": {
+        "rate": 355,
+        "availability_status": "limited",
+        "est_occupancy": 0.72,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-05": {
+        "rate": 380,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-06": {
+        "rate": 415,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-07": {
+        "rate": 360,
+        "availability_status": "limited",
+        "est_occupancy": 0.81,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-08": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-09": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.87,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-10": {
+        "rate": 365,
+        "availability_status": "available",
+        "est_occupancy": 0.67,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-11": {
+        "rate": 370,
+        "availability_status": "limited",
+        "est_occupancy": 0.7,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-12": {
+        "rate": 425,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-13": {
+        "rate": 425,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.94,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-14": {
+        "rate": 370,
+        "availability_status": "limited",
+        "est_occupancy": 0.79,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-15": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.82,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-16": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-17": {
+        "rate": 380,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-18": {
+        "rate": 380,
+        "availability_status": "limited",
+        "est_occupancy": 0.76,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-19": {
+        "rate": 375,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-20": {
+        "rate": 375,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-21": {
+        "rate": 375,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.96,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-22": {
+        "rate": 375,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-23": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      }
+    },
+    "City Loft Hotel": {
+      "2026-05-17": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 260,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-19": {
+        "rate": 265,
+        "availability_status": "available",
+        "est_occupancy": 0.67,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-05-20": {
+        "rate": 270,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-21": {
+        "rate": 270,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-22": {
+        "rate": 280,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-23": {
+        "rate": 290,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-24": {
+        "rate": 280,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-25": {
+        "rate": 280,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-26": {
+        "rate": 280,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-27": {
+        "rate": 255,
+        "availability_status": "available",
+        "est_occupancy": 0.68,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-05-28": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.71,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-29": {
+        "rate": 295,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-30": {
+        "rate": 300,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.96,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-31": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.81,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-01": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.81,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-02": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-03": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.87,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-04": {
+        "rate": 260,
+        "availability_status": "available",
+        "est_occupancy": 0.67,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-05": {
+        "rate": 270,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-06": {
+        "rate": 300,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.91,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-07": {
+        "rate": 245,
+        "availability_status": "limited",
+        "est_occupancy": 0.76,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-08": {
+        "rate": 245,
+        "availability_status": "limited",
+        "est_occupancy": 0.79,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-09": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.82,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-10": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-11": {
+        "rate": 250,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-12": {
+        "rate": 290,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-13": {
+        "rate": 290,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.89,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-14": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.74,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-15": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.77,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-16": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-17": {
+        "rate": 260,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.94,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-18": {
+        "rate": 260,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-19": {
+        "rate": 270,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.95,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-20": {
+        "rate": 270,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-21": {
+        "rate": 255,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.9,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-22": {
+        "rate": 255,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.94,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-23": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      }
+    },
+    "Beaufort Inn": {
+      "2026-05-17": {
+        "rate": 310,
+        "availability_status": "limited",
+        "est_occupancy": 0.73,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 315,
+        "availability_status": "limited",
+        "est_occupancy": 0.76,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-19": {
+        "rate": 315,
+        "availability_status": "limited",
+        "est_occupancy": 0.79,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-20": {
+        "rate": 330,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.96,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-21": {
+        "rate": 330,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-22": {
+        "rate": 340,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-23": {
+        "rate": 350,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-24": {
+        "rate": 355,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.95,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-25": {
+        "rate": 355,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-26": {
+        "rate": 355,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-27": {
+        "rate": 325,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-28": {
+        "rate": 325,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-29": {
+        "rate": 375,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-30": {
+        "rate": 380,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-31": {
+        "rate": 310,
+        "availability_status": "available",
+        "est_occupancy": 0.68,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-01": {
+        "rate": 305,
+        "availability_status": "available",
+        "est_occupancy": 0.69,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-02": {
+        "rate": 305,
+        "availability_status": "limited",
+        "est_occupancy": 0.72,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-03": {
+        "rate": 305,
+        "availability_status": "limited",
+        "est_occupancy": 0.75,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-04": {
+        "rate": 310,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-05": {
+        "rate": 330,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-06": {
+        "rate": 355,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-07": {
+        "rate": 310,
+        "availability_status": "limited",
+        "est_occupancy": 0.87,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-08": {
+        "rate": 315,
+        "availability_status": "available",
+        "est_occupancy": 0.67,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-09": {
+        "rate": 315,
+        "availability_status": "limited",
+        "est_occupancy": 0.7,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-10": {
+        "rate": 315,
+        "availability_status": "limited",
+        "est_occupancy": 0.73,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-11": {
+        "rate": 315,
+        "availability_status": "limited",
+        "est_occupancy": 0.76,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-12": {
+        "rate": 365,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.91,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-13": {
+        "rate": 365,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-14": {
+        "rate": 305,
+        "availability_status": "limited",
+        "est_occupancy": 0.85,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-15": {
+        "rate": 305,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-16": {
+        "rate": 305,
+        "availability_status": "available",
+        "est_occupancy": 0.68,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-17": {
+        "rate": 310,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-18": {
+        "rate": 310,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-19": {
+        "rate": 325,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-20": {
+        "rate": 325,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-21": {
+        "rate": 325,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-22": {
+        "rate": 325,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-23": {
+        "rate": 315,
+        "availability_status": "available",
+        "est_occupancy": 0.66,
+        "indicator": "\ud83d\udfe2"
+      }
+    },
+    "Cuthbert House Inn": {
+      "2026-05-17": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-19": {
+        "rate": 380,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.89,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-20": {
+        "rate": 395,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-21": {
+        "rate": 400,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-22": {
+        "rate": 410,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-23": {
+        "rate": 425,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-24": {
+        "rate": 425,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-25": {
+        "rate": 405,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-26": {
+        "rate": 405,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-27": {
+        "rate": 370,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.9,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-28": {
+        "rate": 370,
+        "availability_status": "available",
+        "est_occupancy": 0.69,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-05-29": {
+        "rate": 425,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-30": {
+        "rate": 430,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.94,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-31": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.79,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-01": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-02": {
+        "rate": 370,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-03": {
+        "rate": 370,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-04": {
+        "rate": 370,
+        "availability_status": "available",
+        "est_occupancy": 0.65,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-05": {
+        "rate": 395,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.95,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-06": {
+        "rate": 430,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.89,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-07": {
+        "rate": 375,
+        "availability_status": "limited",
+        "est_occupancy": 0.74,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-08": {
+        "rate": 355,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-09": {
+        "rate": 355,
+        "availability_status": "limited",
+        "est_occupancy": 0.81,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-10": {
+        "rate": 360,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-11": {
+        "rate": 360,
+        "availability_status": "limited",
+        "est_occupancy": 0.87,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-12": {
+        "rate": 415,
+        "availability_status": "limited",
+        "est_occupancy": 0.76,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-13": {
+        "rate": 415,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-14": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.72,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-15": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.75,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-16": {
+        "rate": 365,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-17": {
+        "rate": 370,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.92,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-18": {
+        "rate": 370,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.95,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-19": {
+        "rate": 385,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-20": {
+        "rate": 390,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-21": {
+        "rate": 390,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-22": {
+        "rate": 370,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.92,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-23": {
+        "rate": 355,
+        "availability_status": "limited",
+        "est_occupancy": 0.76,
+        "indicator": "\ud83d\udfe1"
+      }
+    },
+    "607 Bay Inn": {
+      "2026-05-17": {
+        "rate": 305,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 305,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.89,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-19": {
+        "rate": 305,
+        "availability_status": "available",
+        "est_occupancy": 0.69,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-05-20": {
+        "rate": 320,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-21": {
+        "rate": 320,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-22": {
+        "rate": 330,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-23": {
+        "rate": 325,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-24": {
+        "rate": 325,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-25": {
+        "rate": 325,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-26": {
+        "rate": 330,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-27": {
+        "rate": 300,
+        "availability_status": "limited",
+        "est_occupancy": 0.7,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-28": {
+        "rate": 300,
+        "availability_status": "limited",
+        "est_occupancy": 0.73,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-29": {
+        "rate": 345,
+        "availability_status": "limited",
+        "est_occupancy": 0.87,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-30": {
+        "rate": 345,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-31": {
+        "rate": 305,
+        "availability_status": "limited",
+        "est_occupancy": 0.82,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-01": {
+        "rate": 295,
+        "availability_status": "limited",
+        "est_occupancy": 0.83,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-02": {
+        "rate": 295,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-03": {
+        "rate": 300,
+        "availability_status": "available",
+        "est_occupancy": 0.66,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-04": {
+        "rate": 300,
+        "availability_status": "available",
+        "est_occupancy": 0.69,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-05": {
+        "rate": 320,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-06": {
+        "rate": 325,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.93,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-07": {
+        "rate": 285,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-08": {
+        "rate": 285,
+        "availability_status": "limited",
+        "est_occupancy": 0.81,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-09": {
+        "rate": 290,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-10": {
+        "rate": 290,
+        "availability_status": "limited",
+        "est_occupancy": 0.87,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-11": {
+        "rate": 290,
+        "availability_status": "available",
+        "est_occupancy": 0.67,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-12": {
+        "rate": 335,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-13": {
+        "rate": 335,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.9,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-14": {
+        "rate": 295,
+        "availability_status": "limited",
+        "est_occupancy": 0.76,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-15": {
+        "rate": 295,
+        "availability_status": "limited",
+        "est_occupancy": 0.79,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-16": {
+        "rate": 295,
+        "availability_status": "limited",
+        "est_occupancy": 0.82,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-17": {
+        "rate": 300,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.95,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-18": {
+        "rate": 300,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-19": {
+        "rate": 310,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-20": {
+        "rate": 295,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-21": {
+        "rate": 295,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.92,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-22": {
+        "rate": 295,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.96,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-23": {
+        "rate": 290,
+        "availability_status": "limited",
+        "est_occupancy": 0.8,
+        "indicator": "\ud83d\udfe1"
+      }
+    },
+    "Airbnb Near Bay Street (avg)": {
+      "2026-05-17": {
+        "rate": 275,
+        "availability_status": "limited",
+        "est_occupancy": 0.71,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-18": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.74,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-19": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.77,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-20": {
+        "rate": 270,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.94,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-21": {
+        "rate": 270,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-22": {
+        "rate": 275,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-23": {
+        "rate": 290,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-24": {
+        "rate": 290,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.93,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-25": {
+        "rate": 290,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-26": {
+        "rate": 290,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-27": {
+        "rate": 270,
+        "availability_status": "limited",
+        "est_occupancy": 0.78,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-28": {
+        "rate": 270,
+        "availability_status": "limited",
+        "est_occupancy": 0.81,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-05-29": {
+        "rate": 310,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-30": {
+        "rate": 310,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-05-31": {
+        "rate": 275,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.91,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-01": {
+        "rate": 250,
+        "availability_status": "available",
+        "est_occupancy": 0.68,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-02": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.71,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-03": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.74,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-04": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.77,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-05": {
+        "rate": 270,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-06": {
+        "rate": 295,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-07": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.86,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-08": {
+        "rate": 260,
+        "availability_status": "available",
+        "est_occupancy": 0.66,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-09": {
+        "rate": 260,
+        "availability_status": "available",
+        "est_occupancy": 0.69,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-10": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.72,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-11": {
+        "rate": 260,
+        "availability_status": "limited",
+        "est_occupancy": 0.75,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-12": {
+        "rate": 300,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.9,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-13": {
+        "rate": 305,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-14": {
+        "rate": 265,
+        "availability_status": "limited",
+        "est_occupancy": 0.84,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-15": {
+        "rate": 250,
+        "availability_status": "limited",
+        "est_occupancy": 0.87,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-16": {
+        "rate": 250,
+        "availability_status": "available",
+        "est_occupancy": 0.67,
+        "indicator": "\ud83d\udfe2"
+      },
+      "2026-06-17": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.79,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-18": {
+        "rate": 255,
+        "availability_status": "limited",
+        "est_occupancy": 0.82,
+        "indicator": "\ud83d\udfe1"
+      },
+      "2026-06-19": {
+        "rate": 265,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-20": {
+        "rate": 265,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-21": {
+        "rate": 265,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-22": {
+        "rate": 270,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.97,
+        "indicator": "\ud83d\udd34"
+      },
+      "2026-06-23": {
+        "rate": 260,
+        "availability_status": "sold_out",
+        "est_occupancy": 0.88,
+        "indicator": "\ud83d\udd34"
+      }
+    }
+  }
+}
