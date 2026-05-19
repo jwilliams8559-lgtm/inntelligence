@@ -86,104 +86,122 @@ function OptimizationRecsPanel() {
 
 // ── D2: Gap-Night Optimizer ──
 interface GapNight {
-  date: string; room_name: string; gap_length: number
-  prior_checkout: string; next_checkin: string
-  current_rate: number; recommended_rate: number; discount_pct: number
-  lost_if_empty: number; captured_if_sold: number
-  alternative_min_stay_extension: number
+  date: string; room_id: string; room_name: string
+  gap_length_nights: number
+  booking_before_end: string; booking_after_start: string
+  recommended_action: string; recommended_price: number
+  urgency: 'immediate' | 'soon' | 'planning'
 }
 interface MinStayRec {
-  date: string; weekday: string; orphan_count: number; total_rooms: number
-  recommendation: string; reason: string
+  room_id: string; start_date: string; end_date: string
+  recommended_min_stay: number; reason: string; demand_score: number
 }
-interface GapData {
-  property: string; horizon_days: number
-  gap_count: number; revenue_at_risk: number; revenue_captured: number
-  fill_uplift_monthly: number
-  gaps: GapNight[]
-  min_stay_recs: MinStayRec[]
+
+function UrgencyBadge({ urgency }: { urgency: GapNight['urgency'] }) {
+  const cfg = {
+    immediate: { cls: 'bg-coral text-white',         label: 'IMMEDIATE' },
+    soon:      { cls: 'bg-amber-400 text-white',     label: 'SOON' },
+    planning:  { cls: 'bg-slate-300 text-slate-700', label: 'PLANNING' },
+  }[urgency]
+  return <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${cfg.cls}`}>{cfg.label}</span>
 }
 
 function GapNightPanel() {
-  const [data, setData] = useState<GapData | null>(null)
+  const [gaps, setGaps] = useState<GapNight[] | null>(null)
+  const [minStay, setMinStay] = useState<MinStayRec[] | null>(null)
+  const [showPlanning, setShowPlanning] = useState(false)
   useEffect(() => {
-    fetch('/api/los/gaps').then(r => r.json()).then(setData).catch(() => setData(null))
+    fetch('/api/los/gaps').then(r => r.json()).then(setGaps).catch(() => setGaps([]))
+    fetch('/api/los/min-stay').then(r => r.json()).then(setMinStay).catch(() => setMinStay([]))
   }, [])
-  if (!data) return (
+  if (!gaps || !minStay) return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 text-sm text-slate-400">
       Loading gap-night analysis…
     </div>
   )
+
+  const byUrgency = {
+    immediate: gaps.filter(g => g.urgency === 'immediate'),
+    soon:      gaps.filter(g => g.urgency === 'soon'),
+    planning:  gaps.filter(g => g.urgency === 'planning'),
+  }
+
+  // Dedupe min-stay recs by date+min-stay (engine returns one per room — collapse)
+  const minByDate = new Map<string, MinStayRec & { room_count: number }>()
+  for (const m of minStay) {
+    const key = `${m.start_date}::${m.recommended_min_stay}`
+    const cur = minByDate.get(key)
+    if (cur) cur.room_count += 1
+    else minByDate.set(key, { ...m, room_count: 1 })
+  }
+  const minRows = [...minByDate.values()].sort((a, b) => a.start_date.localeCompare(b.start_date)).slice(0, 8)
+
+  function GapRow({ g }: { g: GapNight }) {
+    return (
+      <div className="px-3 py-2 text-xs">
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="font-semibold text-navy">{g.date} · {g.room_name}</div>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500 text-[10px]">{g.gap_length_nights}-night gap</span>
+            <UrgencyBadge urgency={g.urgency} />
+          </div>
+        </div>
+        <div className="text-slate-600 mt-0.5">{g.recommended_action}</div>
+        <div className="flex items-center justify-between mt-1">
+          <strong className="text-sage-dark">Apply ${g.recommended_price}</strong>
+          <span className="text-[10px] text-slate-500">After {g.booking_before_end} checkout · next stay {g.booking_after_start}</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
         <h2 className="font-bold text-navy">Gap-Night Optimizer</h2>
-        <div className="flex items-center gap-3 text-xs">
-          <span className="text-slate-500">{data.gap_count} orphan nights · next {data.horizon_days} days</span>
-          <span className="bg-sage/15 text-sage-dark font-bold px-2 py-0.5 rounded-full">
-            +${data.fill_uplift_monthly.toLocaleString()}/mo if filled
-          </span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-coral/5 border border-coral/20 rounded-lg p-3">
-          <div className="text-[10px] uppercase text-coral font-bold">At risk if empty</div>
-          <div className="text-xl font-bold text-coral mt-0.5">${data.revenue_at_risk.toLocaleString()}</div>
-          <div className="text-[10px] text-slate-500">{data.horizon_days}-day total</div>
-        </div>
-        <div className="bg-sage/5 border border-sage/20 rounded-lg p-3">
-          <div className="text-[10px] uppercase text-sage-dark font-bold">Captured if filled</div>
-          <div className="text-xl font-bold text-sage-dark mt-0.5">${data.revenue_captured.toLocaleString()}</div>
-          <div className="text-[10px] text-slate-500">After avg 17% discount</div>
-        </div>
-        <div className="bg-navy/5 border border-navy/20 rounded-lg p-3">
-          <div className="text-[10px] uppercase text-navy font-bold">Recovery rate</div>
-          <div className="text-xl font-bold text-navy mt-0.5">
-            {data.revenue_at_risk > 0 ? Math.round((data.revenue_captured / data.revenue_at_risk) * 100) : 0}%
-          </div>
-          <div className="text-[10px] text-slate-500">Avg revenue captured per gap</div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-coral font-bold">{byUrgency.immediate.length} immediate</span>
+          <span className="text-amber-600 font-bold">{byUrgency.soon.length} soon</span>
+          <span className="text-slate-500">{byUrgency.planning.length} planning</span>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <div className="text-xs font-semibold text-slate-600 mb-2">Next orphan nights</div>
-          <div className="max-h-80 overflow-auto divide-y divide-slate-100 border border-slate-100 rounded-lg">
-            {data.gaps.slice(0, 10).map((g, i) => (
-              <div key={i} className="px-3 py-2 text-xs">
-                <div className="flex items-baseline justify-between">
-                  <div className="font-semibold text-navy">{g.date} · {g.room_name}</div>
-                  <div className="text-slate-500 text-[10px]">{g.gap_length}-night gap</div>
-                </div>
-                <div className="text-slate-500 mt-0.5">
-                  After {g.prior_checkout} checkout, next stay {g.next_checkin}
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <div>
-                    <span className="line-through text-slate-400">${g.current_rate}</span>{' '}
-                    <strong className="text-sage-dark">${g.recommended_rate}</strong>
-                    <span className="text-[10px] text-slate-400"> (–{g.discount_pct}%)</span>
-                  </div>
-                  <span className="text-[10px] text-slate-500">or set {g.alternative_min_stay_extension + 1}-night min</span>
-                </div>
+          <div className="text-xs font-semibold text-slate-600 mb-2">Gap nights · next 60 days</div>
+          <div className="max-h-96 overflow-auto divide-y divide-slate-100 border border-slate-100 rounded-lg">
+            {byUrgency.immediate.length === 0 && byUrgency.soon.length === 0 && (
+              <div className="px-3 py-3 text-xs text-slate-400">No immediate or upcoming gaps. ✓</div>
+            )}
+            {byUrgency.immediate.map((g, i) => <GapRow key={`i${i}`} g={g} />)}
+            {byUrgency.soon.map((g, i)      => <GapRow key={`s${i}`} g={g} />)}
+            {byUrgency.planning.length > 0 && (
+              <div className="px-3 py-2 text-xs">
+                <button onClick={() => setShowPlanning(!showPlanning)}
+                  className="text-slate-500 font-semibold hover:text-navy">
+                  {showPlanning ? '▼' : '▶'} {byUrgency.planning.length} planning-horizon gaps
+                </button>
               </div>
-            ))}
+            )}
+            {showPlanning && byUrgency.planning.map((g, i) => <GapRow key={`p${i}`} g={g} />)}
           </div>
         </div>
         <div>
           <div className="text-xs font-semibold text-slate-600 mb-2">Minimum-stay recommendations</div>
-          {data.min_stay_recs.length === 0 ? (
+          {minRows.length === 0 ? (
             <div className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg p-3">
-              No orphan-clustered dates detected — current rules are sufficient.
+              No high-demand dates require min-stay overrides.
             </div>
           ) : (
             <div className="space-y-2">
-              {data.min_stay_recs.map((r, i) => (
+              {minRows.map((r, i) => (
                 <div key={i} className="border border-gold/30 bg-gold/5 rounded-lg p-3 text-xs">
-                  <div className="font-semibold text-navy">{r.date} ({r.weekday})</div>
+                  <div className="flex items-baseline justify-between">
+                    <div className="font-semibold text-navy">{r.start_date}</div>
+                    <div className="text-[10px] text-gold-dark font-bold">Demand {r.demand_score}</div>
+                  </div>
                   <div className="text-slate-600 mt-0.5">{r.reason}</div>
-                  <div className="text-gold-dark font-semibold mt-1">→ {r.recommendation}</div>
+                  <div className="text-gold-dark font-semibold mt-1">→ Set {r.recommended_min_stay}-night minimum ({r.room_count} room types)</div>
                 </div>
               ))}
             </div>

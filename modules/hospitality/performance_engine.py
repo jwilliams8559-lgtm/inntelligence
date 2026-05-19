@@ -1,114 +1,127 @@
 """Monthly ROI performance report.
 
-Aggregates the revenue impact this engine has produced for the property in
-the last 30 days and divides by the subscription price to produce the
-all-important retention metric: the subscription ROI multiple.
+Concrete-metric shape: this-month vs last-year on occupancy/RevPAR/revenue,
+engine contribution counts, top 3 wins, missed opportunities, and a
+subscription ROI multiple. Demo data is deterministic per tier so the
+report stays consistent across reloads.
 """
 from __future__ import annotations
 
-import calendar
-from datetime import date, timedelta
+from datetime import date
 from typing import Any
 
-
-def _avg_adr() -> float:
-    from config.settings import ROOM_TYPES
-    total = sum(r.get("count", 1) for r in ROOM_TYPES)
-    return sum(r["base"] * r.get("count", 1) for r in ROOM_TYPES) / total if total else 380.0
-
-
-def _monthly_bookings(property_config: dict[str, Any]) -> int:
-    rooms = property_config.get("total_rooms", 14)
-    occupancy = (property_config.get("target_occupancy_min", 0.70)
-                 + property_config.get("target_occupancy_max", 0.85)) / 2
-    return round(rooms * occupancy * 30)
+SUBSCRIPTION_COST = {
+    "essentials":   399,
+    "professional": 699,
+    "portfolio":   1199,
+    "enterprise":  2400,
+}
 
 
-def attribution(property_config: dict[str, Any], tier: str = "professional") -> list[dict[str, Any]]:
-    """Per-stream monthly revenue impact attributed to the platform.
+def get_report(property_config: dict[str, Any] | None = None, tier: str = "professional") -> dict[str, Any]:
+    today = date.today()
+    period = today.strftime("%B %Y")
+    subscription_cost = SUBSCRIPTION_COST.get(tier, 699)
 
-    Only streams unlocked by the tier are counted toward the total. Locked
-    streams are still surfaced with locked=True so the report doubles as
-    an upgrade prompt.
-    """
-    from config.settings import FEATURE_GATES
-    from modules.hospitality import direct_booking_engine, los_engine
-    features = FEATURE_GATES.get(tier, {})
-    adr = _avg_adr()
-    monthly_bookings = _monthly_bookings(property_config)
+    # Scale demo numbers slightly per tier so each demo account sees consistent figures
+    scale = {"essentials": 0.65, "professional": 1.0, "portfolio": 1.5, "enterprise": 2.4}.get(tier, 1.0)
 
-    rate_opt = round(adr * 0.07 * monthly_bookings)
-    festival_uplift = round(adr * 0.20 * monthly_bookings * 0.10)
+    occupancy_this_month = round(92.1, 1)
+    occupancy_last_year  = round(87.3, 1)
+    revpar_this_month    = round(409 * scale)
+    revpar_last_year     = round(348 * scale)
+    revenue_this_month   = round(66906 * scale)
+    revenue_last_year    = round(57240 * scale)
 
-    los = los_engine.get_summary(property_config) if features.get("gap_night_analysis") else {"revenue_captured": 0, "gap_count": 0}
-    gap_fill = round(los.get("revenue_captured", 0) / 3)
+    revenue_change = revenue_this_month - revenue_last_year
+    occupancy_change_pct = round(occupancy_this_month - occupancy_last_year, 1)
+    revpar_change_pct = round((revpar_this_month - revpar_last_year) / revpar_last_year * 100, 1) if revpar_last_year else 0.0
 
-    if features.get("direct_booking_tools"):
-        db = direct_booking_engine.get_summary(property_config)
-        db_shift_annual = next((s["annual_savings"] for s in db["commission_math"]["shift_scenarios"]
-                                if s["shift_pct"] == 10), 0)
-        direct_shift = round(db_shift_annual / 12)
-    else:
-        direct_shift = 0
+    # Engine contribution counts — scale with tier
+    rates_recommended = round(360 * scale)
+    rates_approved    = round(312 * scale)
+    rates_auto        = round(48  * scale)
+    approval_rate_pct = round(rates_approved / rates_recommended * 100) if rates_recommended else 0
+    estimated_revenue_lift = round(4840 * scale)
 
-    packages = 480 if features.get("packages_module") else 0
+    direct_pct_this_month = 38
+    direct_pct_last_month = 33
+    commission_saved      = round(1240 * scale)
 
-    return [
-        {"stream": "Dynamic rate optimization",   "monthly_impact": rate_opt,         "icon": "📈",
-         "feature_key": "optimization_engine", "locked": not features.get("optimization_engine", True),
-         "detail": f"~7% ADR lift across {monthly_bookings} bookings/mo (avg ADR ${round(adr)})"},
-        {"stream": "Event & weekend pricing",     "monthly_impact": festival_uplift,  "icon": "★",
-         "feature_key": "max_events", "locked": False,
-         "detail": "20% premium on ~10% of bookings during festivals & peak weekends"},
-        {"stream": "Gap-night recovery",          "monthly_impact": gap_fill,         "icon": "🌙",
-         "feature_key": "gap_night_analysis", "locked": not features.get("gap_night_analysis"),
-         "detail": (f"{los.get('gap_count', 0)} orphan nights detected over 90 days; ~{round(los.get('gap_count',0)/3)}/mo filled at 17% discount"
-                    if features.get("gap_night_analysis") else "Unlock to recover orphan-night revenue")},
-        {"stream": "Direct booking shift",        "monthly_impact": direct_shift,     "icon": "🌐",
-         "feature_key": "direct_booking_tools", "locked": not features.get("direct_booking_tools"),
-         "detail": ("10% of OTA bookings shifted to direct — recovers commission"
-                    if features.get("direct_booking_tools") else "Unlock to shift OTA bookings direct")},
-        {"stream": "Package & add-on revenue",    "monthly_impact": packages,         "icon": "🎁",
-         "feature_key": "packages_module", "locked": not features.get("packages_module"),
-         "detail": ("Romance, sunset cruise, and culinary add-ons sold at booking"
-                    if features.get("packages_module") else "Unlock to sell packages and add-ons")},
+    top_wins = [
+        {
+            "date":              "Jul 20",
+            "event":             "Water Festival",
+            "rate_recommended":  round(535 * scale),
+            "rate_prior_year":   round(378 * scale),
+            "lift_per_night":    round(157 * scale),
+            "room":              "Waterfront Suite",
+        },
+        {
+            "date":              "May 23",
+            "event":             "Memorial Day Weekend",
+            "rate_recommended":  round(495 * scale),
+            "rate_prior_year":   round(378 * scale),
+            "lift_per_night":    round(117 * scale),
+            "room":              "Waterfront Suite",
+        },
+        {
+            "date":              "Jun 5",
+            "event":             "First Friday Art Walk",
+            "rate_recommended":  round(450 * scale),
+            "rate_prior_year":   round(378 * scale),
+            "lift_per_night":    round(72  * scale),
+            "room":              "Multiple rooms",
+        },
     ]
 
+    missed_opportunities = [
+        {
+            "date":                      "Jun 14-15",
+            "reason":                    "Rate recommendation not approved in time",
+            "estimated_missed_revenue":  round(340 * scale),
+        },
+    ]
 
-def get_report(property_config: dict[str, Any], tier: str = "professional") -> dict[str, Any]:
-    streams = attribution(property_config, tier)
-    # Locked streams cannot be delivering value — exclude from the ROI total
-    total_monthly_impact = sum(s["monthly_impact"] for s in streams if not s["locked"])
-    locked_potential = sum(s["monthly_impact"] for s in streams if s["locked"])
-    annual_impact = total_monthly_impact * 12
-
-    from config.settings import FEATURE_GATES
-    subscription = FEATURE_GATES.get(tier, {}).get("price_per_month", 699)
-    roi_multiple = round(total_monthly_impact / subscription, 1) if subscription else 0
-    payback_days = round(subscription / (total_monthly_impact / 30), 1) if total_monthly_impact else 999
-
-    today = date.today()
-    days_in_month = calendar.monthrange(today.year, today.month)[1]
-    days_elapsed  = today.day
-    month_to_date = round(total_monthly_impact * days_elapsed / days_in_month)
+    total_value = estimated_revenue_lift + commission_saved
+    roi_multiple = round(total_value / subscription_cost, 1) if subscription_cost else 0.0
+    roi_pct      = round((total_value - subscription_cost) / subscription_cost * 100) if subscription_cost else 0
 
     return {
-        "property":             property_config.get("name", "Property"),
-        "report_date":          today.isoformat(),
-        "month_label":          today.strftime("%B %Y"),
-        "subscription_monthly": subscription,
-        "tier":                 tier,
-        "total_monthly_impact": total_monthly_impact,
-        "locked_potential":     locked_potential,
-        "annual_impact":        annual_impact,
-        "roi_multiple":         roi_multiple,
-        "payback_days":         payback_days,
-        "month_to_date":        month_to_date,
-        "streams":              streams,
-        "headline":             f"${total_monthly_impact:,}/mo in attributed revenue — {roi_multiple}x your ${subscription} subscription.",
-        "compare_to": {
-            "pms_typical":      199,
-            "rate_shopper":     349,
-            "industry_avg_roi": 2.5,
+        "period":             period,
+        "subscription_cost":  subscription_cost,
+        "tier":               tier,
+        "metrics": {
+            "occupancy_this_month":     occupancy_this_month,
+            "occupancy_last_year":      occupancy_last_year,
+            "occupancy_change_pct":     occupancy_change_pct,
+            "revpar_this_month":        revpar_this_month,
+            "revpar_last_year":         revpar_last_year,
+            "revpar_change_pct":        revpar_change_pct,
+            "total_revenue_this_month": revenue_this_month,
+            "total_revenue_last_year":  revenue_last_year,
+            "revenue_change":           revenue_change,
+        },
+        "engine_contribution": {
+            "rates_recommended":      rates_recommended,
+            "rates_approved":         rates_approved,
+            "rates_auto_published":   rates_auto,
+            "approval_rate_pct":      approval_rate_pct,
+            "estimated_revenue_lift": estimated_revenue_lift,
+        },
+        "direct_booking": {
+            "direct_pct_this_month":  direct_pct_this_month,
+            "direct_pct_last_month":  direct_pct_last_month,
+            "commission_saved":       commission_saved,
+        },
+        "top_wins":             top_wins,
+        "missed_opportunities": missed_opportunities,
+        "subscription_roi": {
+            "engine_revenue_contribution": estimated_revenue_lift,
+            "direct_booking_savings":      commission_saved,
+            "total_value":                 total_value,
+            "subscription_cost":           subscription_cost,
+            "roi_multiple":                roi_multiple,
+            "roi_pct":                     roi_pct,
         },
     }

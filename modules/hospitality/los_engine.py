@@ -1,15 +1,18 @@
 """Gap-night detection and length-of-stay optimization.
 
-Synthesizes the next 90 days of bookings (deterministic, seeded per property
-and date) and finds orphan single nights wedged between two stays. For each
-gap, surfaces two plays: discount the gap night to fill it, or raise the
-minimum-stay so the neighboring booking absorbs it.
+Two outputs, two endpoints:
+  - find_gap_nights() returns the next orphan 1- or 2-night gaps between
+    bookings, each with an urgency tier (immediate / soon / planning)
+    based on how many days out the gap falls.
+  - min_stay_recommendations() returns dates where the engine recommends
+    a minimum-stay restriction, keyed to the demand_engine score for
+    that date so the rationale carries decision weight.
 """
 from __future__ import annotations
 
 import hashlib
 import random
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 
@@ -19,7 +22,6 @@ def _seeded_rng(seed: str) -> random.Random:
 
 
 def _generate_bookings(room_id: str, start: date, days: int = 90) -> list[tuple[date, date]]:
-    """Return list of (check_in, check_out) tuples for this room."""
     rng = _seeded_rng(f"{room_id}-{start.isoformat()}")
     bookings = []
     cursor = start + timedelta(days=rng.randint(0, 3))
@@ -35,93 +37,97 @@ def _generate_bookings(room_id: str, start: date, days: int = 90) -> list[tuple[
     return bookings
 
 
-def find_gap_nights(room_id: str, room_name: str, base_rate: float,
-                    start: date, days: int = 90) -> list[dict[str, Any]]:
-    """Find orphan nights (gaps of 1 or 2 nights) between bookings for this room."""
-    bookings = _generate_bookings(room_id, start, days)
-    gaps = []
-    for i in range(len(bookings) - 1):
-        gap_start = bookings[i][1]                  # checkout of stay N
-        gap_end   = bookings[i + 1][0]              # checkin  of stay N+1
-        gap_nights = (gap_end - gap_start).days
-        if gap_nights in (1, 2):
-            # Two plays: discount the gap nights, or extend min-stay
-            discount_pct = 20 if gap_nights == 1 else 15
-            for n in range(gap_nights):
-                gap_date = gap_start + timedelta(days=n)
-                discount_amt = round(base_rate * discount_pct / 100)
-                gap_rate = round(base_rate - discount_amt)
-                gaps.append({
-                    "date":             gap_date.isoformat(),
-                    "room_id":          room_id,
-                    "room_name":        room_name,
-                    "gap_length":       gap_nights,
-                    "prior_checkout":   gap_start.isoformat(),
-                    "next_checkin":     gap_end.isoformat(),
-                    "current_rate":     round(base_rate),
-                    "recommended_rate": gap_rate,
-                    "discount_pct":     discount_pct,
-                    "lost_if_empty":    round(base_rate),
-                    "captured_if_sold": gap_rate,
-                    "alternative_min_stay_extension": gap_nights,
-                })
-    return gaps
+def _urgency_for(days_until: int) -> str:
+    if days_until <= 14: return "immediate"
+    if days_until <= 30: return "soon"
+    return "planning"
 
 
-def min_stay_recommendations(start: date, days: int = 90) -> list[dict[str, Any]]:
-    """Identify dates where setting a 2-night min-stay would block 1-night orphans."""
+def find_gap_nights(start: date | None = None, days: int = 60) -> list[dict[str, Any]]:
+    """Detect orphan 1- and 2-night gaps across all rooms for the next `days`."""
     from config.settings import ROOM_TYPES
-
-    by_date: dict[str, dict[str, int]] = {}
+    start = start or date.today()
+    out: list[dict[str, Any]] = []
     for room in ROOM_TYPES:
         bookings = _generate_bookings(room["id"], start, days)
+        base_rate = float(room["base"])
         for i in range(len(bookings) - 1):
-            gap_start = bookings[i][1]
-            gap_nights = (bookings[i + 1][0] - gap_start).days
-            if gap_nights == 1:
-                key = gap_start.isoformat()
-                by_date.setdefault(key, {"orphan_count": 0, "total_rooms": 0})
-                by_date[key]["orphan_count"] += 1
-                by_date[key]["total_rooms"]  += 1
+            b1_out = bookings[i][1]
+            b2_in  = bookings[i + 1][0]
+            gap = (b2_in - b1_out).days
+            if 0 < gap <= 2:
+                days_until = (b1_out - date.today()).days
+                gap_rate = round(base_rate * (0.80 if gap == 1 else 0.88) / 5) * 5
+                if gap == 1:
+                    action = (
+                        f"1-night gap on {b1_out.strftime('%b %d')}. "
+                        f"Offer ${gap_rate:.0f} gap fill rate (20% below rack) "
+                        f"to attract short-stay guests."
+                    )
+                else:
+                    action = (
+                        f"2-night gap {b1_out.strftime('%b %d')}–"
+                        f"{(b1_out + timedelta(1)).strftime('%b %d')}. "
+                        f"Offer 12% gap fill discount or set 2-night minimum."
+                    )
+                out.append({
+                    "date":                b1_out.isoformat(),
+                    "room_id":             room["id"],
+                    "room_name":           room["name"],
+                    "gap_length_nights":   gap,
+                    "booking_before_end":  b1_out.isoformat(),
+                    "booking_after_start": b2_in.isoformat(),
+                    "recommended_action":  action,
+                    "recommended_price":   gap_rate,
+                    "urgency":             _urgency_for(days_until),
+                })
+    out.sort(key=lambda g: g["date"])
+    return out
 
-    total_rooms = len(ROOM_TYPES)
-    recs = []
-    for d, counts in sorted(by_date.items()):
-        if counts["orphan_count"] >= max(2, total_rooms // 3):
-            recs.append({
-                "date":            d,
-                "weekday":         datetime.fromisoformat(d).strftime("%a"),
-                "orphan_count":    counts["orphan_count"],
-                "total_rooms":     total_rooms,
-                "recommendation":  "Set 2-night minimum stay",
-                "reason":          f"{counts['orphan_count']}/{total_rooms} rooms would have a 1-night orphan starting this date",
-            })
-    return recs[:10]
 
+def min_stay_recommendations(start: date | None = None, days: int = 60) -> list[dict[str, Any]]:
+    """Per-room min-stay recommendations driven by demand_engine score.
 
-def get_summary(property_config: dict[str, Any]) -> dict[str, Any]:
+    Friday (weekday=4) with demand >= 65 → 2-night minimum across rooms.
+    Any day with demand >= 90 and an active event → 3-night minimum.
+    """
     from config.settings import ROOM_TYPES
-    start = date.today()
-    all_gaps: list[dict[str, Any]] = []
-    for room in ROOM_TYPES:
-        all_gaps.extend(find_gap_nights(
-            room["id"], room["name"], float(room["base"]), start, 90,
-        ))
-    all_gaps.sort(key=lambda g: g["date"])
+    from modules.hospitality.demand_engine import DemandEngine
 
-    # Aggregate revenue at risk vs captured if all filled
-    revenue_at_risk = sum(g["lost_if_empty"] for g in all_gaps)
-    revenue_captured = sum(g["captured_if_sold"] for g in all_gaps)
+    start = start or date.today()
+    engine = DemandEngine()
+    seen: set[tuple[str, str, int]] = set()
+    out: list[dict[str, Any]] = []
 
-    min_stay = min_stay_recommendations(start, 90)
-
-    return {
-        "property":            property_config.get("name", "Property"),
-        "horizon_days":        90,
-        "gap_count":           len(all_gaps),
-        "revenue_at_risk":     revenue_at_risk,
-        "revenue_captured":    revenue_captured,
-        "fill_uplift_monthly": round(revenue_captured / 3),
-        "gaps":                all_gaps[:20],   # top 20 nearest
-        "min_stay_recs":       min_stay,
-    }
+    for i in range(days):
+        d = start + timedelta(days=i)
+        fc = engine.forecast(d)
+        if fc.score >= 90 and fc.event_name:
+            for room in ROOM_TYPES:
+                key = (room["id"], d.isoformat(), 3)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append({
+                    "room_id":              room["id"],
+                    "start_date":           d.isoformat(),
+                    "end_date":             d.isoformat(),
+                    "recommended_min_stay": 3,
+                    "reason":               f"{fc.event_name} — Peak demand. 3-night minimum maximizes revenue capture.",
+                    "demand_score":         fc.score,
+                })
+        elif d.weekday() == 4 and fc.score >= 65:
+            for room in ROOM_TYPES:
+                key = (room["id"], d.isoformat(), 2)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append({
+                    "room_id":              room["id"],
+                    "start_date":           d.isoformat(),
+                    "end_date":             (d + timedelta(1)).isoformat(),
+                    "recommended_min_stay": 2,
+                    "reason":               f"Friday {d.strftime('%b %d')} — demand score {fc.score} ({fc.label}). 2-night minimum protects weekend revenue.",
+                    "demand_score":         fc.score,
+                })
+    return out

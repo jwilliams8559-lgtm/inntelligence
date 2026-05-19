@@ -1,19 +1,38 @@
 import { useEffect, useState } from 'react'
 import LockedFeature from '../components/LockedFeature'
 
-interface Stream {
-  stream: string; monthly_impact: number; icon: string
-  feature_key: string; locked: boolean; detail: string
+interface Metrics {
+  occupancy_this_month: number; occupancy_last_year: number; occupancy_change_pct: number
+  revpar_this_month: number;    revpar_last_year: number;    revpar_change_pct: number
+  total_revenue_this_month: number; total_revenue_last_year: number; revenue_change: number
+}
+interface EngineContribution {
+  rates_recommended: number; rates_approved: number; rates_auto_published: number
+  approval_rate_pct: number; estimated_revenue_lift: number
+}
+interface DirectBooking {
+  direct_pct_this_month: number; direct_pct_last_month: number; commission_saved: number
+}
+interface TopWin {
+  date: string; event: string; rate_recommended: number; rate_prior_year: number
+  lift_per_night: number; room: string
+}
+interface MissedOpp {
+  date: string; reason: string; estimated_missed_revenue: number
+}
+interface SubscriptionRoi {
+  engine_revenue_contribution: number; direct_booking_savings: number
+  total_value: number; subscription_cost: number
+  roi_multiple: number; roi_pct: number
 }
 interface Report {
-  property: string; report_date: string; month_label: string
-  subscription_monthly: number; tier: string
-  total_monthly_impact: number; locked_potential: number
-  annual_impact: number; roi_multiple: number; payback_days: number
-  month_to_date: number
-  streams: Stream[]
-  headline: string
-  compare_to: { pms_typical: number; rate_shopper: number; industry_avg_roi: number }
+  period: string; subscription_cost: number; tier: string
+  metrics: Metrics
+  engine_contribution: EngineContribution
+  direct_booking: DirectBooking
+  top_wins: TopWin[]
+  missed_opportunities: MissedOpp[]
+  subscription_roi: SubscriptionRoi
 }
 
 export default function PerformanceScreen() {
@@ -25,108 +44,153 @@ export default function PerformanceScreen() {
   )
 }
 
+function Delta({ pct, suffix = '%' }: { pct: number; suffix?: string }) {
+  const positive = pct >= 0
+  return (
+    <span className={`text-xs font-semibold ${positive ? 'text-sage-dark' : 'text-coral'}`}>
+      {positive ? '+' : ''}{pct}{suffix} vs LY
+    </span>
+  )
+}
+
 function Body() {
   const [r, setR] = useState<Report | null>(null)
   useEffect(() => { fetch('/api/performance-report').then(x => x.json()).then(setR) }, [])
   if (!r) return <div className="flex-1 bg-cream flex items-center justify-center text-slate-400">Loading performance report…</div>
 
-  const maxImpact = Math.max(...r.streams.map(s => s.monthly_impact), 1)
+  const roi = r.subscription_roi
 
   return (
     <div className="flex-1 overflow-y-auto bg-cream p-5 pb-20 space-y-5">
       <div>
-        <h1 className="text-navy font-bold text-xl">ROI Performance Report</h1>
-        <p className="text-slate-500 text-sm">{r.month_label} · {r.property}</p>
+        <h1 className="text-navy font-bold text-xl">Monthly Performance Report — {r.period}</h1>
+        <p className="text-slate-500 text-sm">What The Gracious Collection engine earned you this month.</p>
       </div>
 
-      {/* Hero ROI card */}
-      <div className="bg-gradient-to-br from-navy to-navy-light rounded-xl shadow-lg p-6 text-white">
-        <div className="text-[10px] uppercase tracking-[2px] text-gold font-bold">Subscription ROI multiple</div>
-        <div className="flex items-baseline gap-2 mt-1">
-          <div className="text-6xl font-bold text-gold">{r.roi_multiple}x</div>
-          <div className="text-white/70 text-lg">return on your ${r.subscription_monthly}/mo</div>
-        </div>
-        <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
-          <div>
-            <div className="text-[10px] uppercase text-white/60 tracking-wide">Monthly impact</div>
-            <div className="text-2xl font-bold text-white">${r.total_monthly_impact.toLocaleString()}</div>
+      {/* HERO ROI CARD */}
+      <div className="bg-white rounded-xl shadow-lg border-2 border-gold p-6">
+        <div className="text-[10px] uppercase tracking-[2px] text-gold-dark font-bold mb-2">Your subscription ROI this month</div>
+        <div className="grid grid-cols-2 gap-6 items-center">
+          <div className="space-y-1.5 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Subscription cost</span>
+              <span className="font-semibold text-navy">${roi.subscription_cost.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Engine revenue contribution</span>
+              <span className="font-semibold text-sage-dark">+${roi.engine_revenue_contribution.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Direct booking savings</span>
+              <span className="font-semibold text-sage-dark">+${roi.direct_booking_savings.toLocaleString()}</span>
+            </div>
+            <div className="border-t border-slate-200 pt-1.5 flex justify-between">
+              <span className="font-bold text-navy">Total value</span>
+              <span className="font-bold text-navy">${roi.total_value.toLocaleString()}</span>
+            </div>
           </div>
-          <div>
-            <div className="text-[10px] uppercase text-white/60 tracking-wide">Annualized</div>
-            <div className="text-2xl font-bold text-white">${r.annual_impact.toLocaleString()}</div>
+          <div className="text-center bg-gradient-to-br from-navy to-navy-light rounded-lg p-5 text-white">
+            <div className="text-[10px] uppercase tracking-wider text-gold">Return on investment</div>
+            <div className="text-6xl font-bold text-gold mt-1">{roi.roi_multiple}×</div>
+            <div className="text-sm text-white/80 mt-1">your subscription cost</div>
+            <div className="text-[10px] text-white/60 mt-2">{roi.roi_pct.toLocaleString()}% return this month</div>
           </div>
-          <div>
-            <div className="text-[10px] uppercase text-white/60 tracking-wide">Payback period</div>
-            <div className="text-2xl font-bold text-white">{r.payback_days} days</div>
-          </div>
-        </div>
-        <div className="text-white/60 text-xs mt-3">
-          Month-to-date: <strong className="text-white">${r.month_to_date.toLocaleString()}</strong> attributed so far.
-          Industry average is {r.compare_to.industry_avg_roi}x — you are <strong className="text-gold">{(r.roi_multiple / r.compare_to.industry_avg_roi).toFixed(1)}x</strong> the industry average.
         </div>
       </div>
 
-      {/* Revenue stream breakdown */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
-        <h2 className="font-bold text-navy mb-1">Where the impact comes from</h2>
-        <p className="text-xs text-slate-500 mb-4">Each stream is a feature we attribute revenue to. Locked streams show potential available if you upgrade.</p>
-        <div className="space-y-3">
-          {r.streams.map(s => (
-            <div key={s.stream} className={`p-3 rounded-lg border ${s.locked ? 'border-slate-200 bg-slate-50 opacity-70' : 'border-slate-100'}`}>
-              <div className="flex items-baseline justify-between gap-3">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-base">{s.icon}</span>
-                  <div>
-                    <div className={`font-semibold text-sm ${s.locked ? 'text-slate-500' : 'text-navy'}`}>
-                      {s.stream} {s.locked && <span className="text-[10px] uppercase ml-1 bg-gold/20 text-gold-dark px-1.5 py-0.5 rounded">Locked</span>}
-                    </div>
-                    <div className="text-[11px] text-slate-500">{s.detail}</div>
-                  </div>
-                </div>
-                <div className="text-right whitespace-nowrap">
-                  <div className={`text-lg font-bold ${s.locked ? 'text-slate-400' : 'text-sage-dark'}`}>
-                    {s.locked ? `+$${s.monthly_impact.toLocaleString()}` : `$${s.monthly_impact.toLocaleString()}`}
-                  </div>
-                  <div className="text-[10px] text-slate-400">{s.locked ? 'potential/mo' : 'per month'}</div>
-                </div>
+      {/* KPI METRICS */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+          <div className="text-[10px] uppercase text-slate-400 font-bold">Occupancy</div>
+          <div className="text-2xl font-bold text-navy mt-0.5">{r.metrics.occupancy_this_month}%</div>
+          <div className="text-[11px] text-slate-500">vs {r.metrics.occupancy_last_year}% last year</div>
+          <div className="mt-1"><Delta pct={r.metrics.occupancy_change_pct} suffix=" pts" /></div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+          <div className="text-[10px] uppercase text-slate-400 font-bold">RevPAR</div>
+          <div className="text-2xl font-bold text-navy mt-0.5">${r.metrics.revpar_this_month}</div>
+          <div className="text-[11px] text-slate-500">vs ${r.metrics.revpar_last_year} last year</div>
+          <div className="mt-1"><Delta pct={r.metrics.revpar_change_pct} /></div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+          <div className="text-[10px] uppercase text-slate-400 font-bold">Revenue</div>
+          <div className="text-2xl font-bold text-navy mt-0.5">${r.metrics.total_revenue_this_month.toLocaleString()}</div>
+          <div className="text-[11px] text-slate-500">vs ${r.metrics.total_revenue_last_year.toLocaleString()} last year</div>
+          <div className="mt-1 text-xs font-semibold text-sage-dark">+${r.metrics.revenue_change.toLocaleString()} vs LY</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+          <div className="text-[10px] uppercase text-slate-400 font-bold">Approval Rate</div>
+          <div className="text-2xl font-bold text-navy mt-0.5">{r.engine_contribution.approval_rate_pct}%</div>
+          <div className="text-[11px] text-slate-500">{r.engine_contribution.rates_approved} of {r.engine_contribution.rates_recommended}</div>
+          <div className="mt-1 text-xs text-slate-500">{r.engine_contribution.rates_auto_published} auto-published</div>
+        </div>
+      </div>
+
+      {/* TOP WINS */}
+      <div>
+        <h2 className="font-bold text-navy mb-2">★ Top wins this month</h2>
+        <div className="grid grid-cols-3 gap-3">
+          {r.top_wins.map((w, i) => (
+            <div key={i} className="bg-white rounded-xl shadow-sm border-l-4 border-gold p-4">
+              <div className="flex items-baseline justify-between">
+                <div className="font-bold text-navy">{w.date}</div>
+                <div className="text-[10px] uppercase text-gold-dark font-bold">{w.event}</div>
               </div>
-              {/* Bar */}
-              <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${s.locked ? 'bg-slate-300' : 'bg-sage'}`}
-                  style={{ width: `${(s.monthly_impact / maxImpact) * 100}%` }} />
+              <div className="text-xs text-slate-500 mt-0.5">{w.room}</div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-slate-400 line-through">${w.rate_prior_year}</span>
+                <span className="text-slate-300">→</span>
+                <span className="text-2xl font-bold text-navy">${w.rate_recommended}</span>
               </div>
+              <div className="text-sm font-semibold text-sage-dark mt-1">+${w.lift_per_night}/night captured</div>
             </div>
           ))}
         </div>
-        {r.locked_potential > 0 && (
-          <div className="mt-4 bg-gold/10 border border-gold/30 rounded-lg p-3 text-sm">
-            <strong className="text-gold-dark">${r.locked_potential.toLocaleString()}/mo</strong>
-            <span className="text-slate-700"> in additional monthly revenue is locked behind your current tier. Upgrade to unlock.</span>
-          </div>
-        )}
       </div>
 
-      {/* Comparison */}
+      {/* DIRECT BOOKING WINS */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
-        <h2 className="font-bold text-navy mb-3">Compare to alternative spend</h2>
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="border border-slate-100 rounded-lg p-3">
-            <div className="text-[10px] uppercase text-slate-400">Typical PMS</div>
-            <div className="text-xl font-bold text-navy mt-0.5">${r.compare_to.pms_typical}/mo</div>
-            <div className="text-[10px] text-slate-500">Operations only — no revenue uplift</div>
+        <h2 className="font-bold text-navy mb-2">Direct booking shift</h2>
+        <div className="grid grid-cols-3 gap-4 text-sm">
+          <div>
+            <div className="text-[10px] uppercase text-slate-400 font-bold">Last month</div>
+            <div className="text-2xl font-bold text-navy mt-0.5">{r.direct_booking.direct_pct_last_month}%</div>
+            <div className="text-[11px] text-slate-500">direct share</div>
           </div>
-          <div className="border border-slate-100 rounded-lg p-3">
-            <div className="text-[10px] uppercase text-slate-400">Rate shopper</div>
-            <div className="text-xl font-bold text-navy mt-0.5">${r.compare_to.rate_shopper}/mo</div>
-            <div className="text-[10px] text-slate-500">Comp data only — you still pick the price</div>
+          <div>
+            <div className="text-[10px] uppercase text-slate-400 font-bold">This month</div>
+            <div className="text-2xl font-bold text-sage-dark mt-0.5">{r.direct_booking.direct_pct_this_month}%</div>
+            <div className="text-[11px] text-slate-500">direct share (+{r.direct_booking.direct_pct_this_month - r.direct_booking.direct_pct_last_month} pts)</div>
           </div>
-          <div className="border-2 border-gold rounded-lg p-3 bg-gold/5">
-            <div className="text-[10px] uppercase text-gold-dark font-bold">TGC Platform</div>
-            <div className="text-xl font-bold text-navy mt-0.5">${r.subscription_monthly}/mo</div>
-            <div className="text-[10px] text-sage-dark font-semibold">{r.roi_multiple}x ROI — pays for itself in {r.payback_days}d</div>
+          <div>
+            <div className="text-[10px] uppercase text-slate-400 font-bold">Commission saved</div>
+            <div className="text-2xl font-bold text-sage-dark mt-0.5">${r.direct_booking.commission_saved.toLocaleString()}</div>
+            <div className="text-[11px] text-slate-500">recovered from OTAs</div>
           </div>
         </div>
       </div>
+
+      {/* MISSED OPPORTUNITIES */}
+      {r.missed_opportunities.length > 0 && (
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
+          <h2 className="font-bold text-amber-900 mb-1">⚠ Missed opportunities</h2>
+          <p className="text-xs text-amber-800 mb-3">Approving recommendations within 48 hours captures ~94% of available demand premium.</p>
+          <table className="w-full text-sm">
+            <thead className="text-[10px] uppercase tracking-wide text-amber-700">
+              <tr><th className="text-left py-1">Date range</th><th className="text-left">Reason</th><th className="text-right">Est. not captured</th></tr>
+            </thead>
+            <tbody className="divide-y divide-amber-200">
+              {r.missed_opportunities.map((m, i) => (
+                <tr key={i}>
+                  <td className="py-1.5 font-semibold text-amber-900">{m.date}</td>
+                  <td className="text-amber-800">{m.reason}</td>
+                  <td className="text-right font-bold text-amber-900">${m.estimated_missed_revenue.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

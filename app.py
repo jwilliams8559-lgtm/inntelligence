@@ -1232,7 +1232,14 @@ def v2_api_direct_booking_save():
 @require_feature("gap_night_analysis")
 def v2_api_los_gaps():
     from modules.hospitality import los_engine
-    return jsonify(los_engine.get_summary(V2_PROPERTY))
+    return jsonify(los_engine.find_gap_nights(days=60))
+
+
+@app.route("/api/los/min-stay")
+@require_feature("gap_night_analysis")
+def v2_api_los_min_stay():
+    from modules.hospitality import los_engine
+    return jsonify(los_engine.min_stay_recommendations(days=60))
 
 
 @app.route("/api/weather")
@@ -1256,6 +1263,21 @@ def v2_api_performance_report():
 def v2_api_competitive_response():
     from modules.hospitality.competitor_scraper import CompetitorScraper
     return jsonify({"responses": CompetitorScraper().competitive_response_options()})
+
+
+@app.route("/api/competitors/rate-drop-response", methods=["POST"])
+@require_feature("competitive_response")
+def v2_api_rate_drop_response():
+    from modules.hospitality.competitor_scraper import CompetitorScraper
+    payload = request.get_json(force=True, silent=True) or {}
+    rec = CompetitorScraper().generate_response_recommendation(
+        competitor_name=payload.get("competitor_name", ""),
+        their_new_rate=float(payload.get("their_new_rate", 0)),
+        their_old_rate=float(payload.get("their_old_rate", 0)),
+        your_rate=float(payload.get("your_rate", 0)),
+        target_date=payload.get("target_date", ""),
+    )
+    return jsonify(rec)
 
 
 @app.route("/api/price-bands")

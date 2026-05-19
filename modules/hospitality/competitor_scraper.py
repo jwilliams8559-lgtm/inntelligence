@@ -124,66 +124,104 @@ class CompetitorScraper:
                 })
         return alerts
 
-    def competitive_response_options(self, our_rate: float = 419) -> list:
-        """For each rate-drop alert, emit three responses (match / hold / counter)."""
+    def generate_response_recommendation(self, competitor_name: str,
+                                         their_new_rate: float,
+                                         their_old_rate: float,
+                                         your_rate: float,
+                                         target_date: str) -> dict:
+        """Build a competitive-response recommendation gated on demand_engine score.
+
+        Decision logic (spec):
+          demand >= 75               → hold (premium supported)
+          55 <= demand < 75, prem<=20→ hold (acceptable gap)
+          55 <= demand < 75, prem>20 → partial_match (drop to 12% above)
+          demand < 55                → match (drop to 5% above)
+        """
+        from datetime import date as _date
+        from modules.hospitality.demand_engine import DemandEngine
+
+        engine = DemandEngine()
+        try:
+            tgt = _date.fromisoformat(target_date)
+        except (TypeError, ValueError):
+            tgt = _date.today()
+        fc = engine.forecast(tgt)
+        demand_score = fc.score
+        demand_label = fc.label
+
+        drop_pct = ((their_old_rate - their_new_rate) / their_old_rate * 100) if their_old_rate else 0
+        your_premium_pct = ((your_rate - their_new_rate) / their_new_rate * 100) if their_new_rate else 0
+
+        if demand_score >= 75:
+            action = "hold"
+            rationale = f"Demand score is {demand_score} ({demand_label}) — market supports your premium. Hold rate."
+        elif demand_score >= 55 and your_premium_pct <= 20:
+            action = "hold"
+            rationale = f"Normal demand ({demand_score}, {demand_label}). {your_premium_pct:.0f}% premium is within acceptable range given quality differential. Hold rate."
+        elif demand_score >= 55 and your_premium_pct > 20:
+            action = "partial_match"
+            partial_rate = round(their_new_rate * 1.12 / 5) * 5
+            rationale = (f"Premium of {your_premium_pct:.0f}% is high for normal demand ({demand_score}, {demand_label}). "
+                         f"Consider ${partial_rate} — still 12% above {competitor_name}.")
+        else:
+            action = "match"
+            match_rate = round(their_new_rate * 1.05 / 5) * 5
+            rationale = (f"Low demand ({demand_score}, {demand_label}) and large premium. "
+                         f"Consider matching at ${match_rate} — 5% above {competitor_name} to maintain positioning.")
+
+        options = [
+            {"id": "hold",    "label": "Hold Rate",
+             "rate":          round(your_rate),
+             "description":   f"Keep at ${round(your_rate)}. Premium position."},
+            {"id": "partial", "label": "Partial Adjustment",
+             "rate":          round(your_rate * 0.95 / 5) * 5,
+             "description":   "Narrow the gap without full match."},
+            {"id": "match",   "label": "Match + Small Premium",
+             "rate":          round(their_new_rate * 1.05 / 5) * 5,
+             "description":   f"Stay 5% above {competitor_name}."},
+        ]
+
+        return {
+            "competitor":         competitor_name,
+            "their_old_rate":     round(their_old_rate),
+            "their_new_rate":     round(their_new_rate),
+            "drop_pct":           round(drop_pct, 1),
+            "your_rate":          round(your_rate),
+            "your_premium_pct":   round(your_premium_pct, 1),
+            "demand_score":       demand_score,
+            "demand_label":       demand_label,
+            "recommended_action": action,
+            "rationale":          rationale,
+            "options":            options,
+            "target_date":        target_date,
+        }
+
+    def competitive_response_options(self) -> list:
+        """Wrap every detected rate-drop alert with a demand-gated recommendation."""
         from config.settings import ROOM_TYPES
-        avg_our_rate = sum(r["base"] * r.get("count", 1) for r in ROOM_TYPES) / sum(r.get("count", 1) for r in ROOM_TYPES) if ROOM_TYPES else our_rate
+        from datetime import date as _date, timedelta as _td
+
+        avg_our_rate = (sum(r["base"] * r.get("count", 1) for r in ROOM_TYPES) /
+                        sum(r.get("count", 1) for r in ROOM_TYPES)) if ROOM_TYPES else 419
         drops = self.detect_rate_drops()
         if not drops and COMPETITORS:
-            # Demo fallback: surface the lowest-priced competitor as a soft drop
-            today = date.today()
-            cheapest = min(COMPETITORS, key=lambda c: self._rate_for_date(c["name"], today + timedelta(days=14)))
-            now_rate = int(self._rate_for_date(cheapest["name"], today + timedelta(days=14)))
+            today = _date.today()
+            cheapest = min(COMPETITORS, key=lambda c: self._rate_for_date(c["name"], today + _td(days=14)))
+            now_rate = int(self._rate_for_date(cheapest["name"], today + _td(days=14)))
             drops = [{
                 "competitor":   cheapest["name"],
                 "rate_now":     now_rate,
                 "rate_14d_ago": int(now_rate / 0.83),
                 "drop_pct":     17,
             }]
-        responses = []
-        for drop in drops:
-            new_comp_rate = drop["rate_now"]
-            gap = avg_our_rate - new_comp_rate
-            match_rate    = round(new_comp_rate * 1.02)   # 2 percent above competitor
-            counter_rate  = round(avg_our_rate * 1.03)    # raise 3 percent and signal premium
-            responses.append({
-                "competitor":   drop["competitor"],
-                "competitor_now":   new_comp_rate,
-                "competitor_was":   drop["rate_14d_ago"],
-                "drop_pct":         drop["drop_pct"],
-                "our_rate":         round(avg_our_rate),
-                "our_premium_now":  round(gap),
-                "options": [
-                    {
-                        "key":          "match",
-                        "label":        "Match the drop",
-                        "icon":         "⚔",
-                        "new_rate":     match_rate,
-                        "delta":        match_rate - round(avg_our_rate),
-                        "rationale":    f"Stay {round(((match_rate - new_comp_rate) / new_comp_rate) * 100)}% above {drop['competitor']}. Defensive — preserves share if demand is soft.",
-                        "best_when":    "Occupancy < 60% the same week; gain-share critical",
-                        "risk":         "Trains guests to expect lower rates; thin margins",
-                    },
-                    {
-                        "key":          "hold",
-                        "label":        "Hold your rate",
-                        "icon":         "🛡",
-                        "new_rate":     round(avg_our_rate),
-                        "delta":        0,
-                        "rationale":    f"Maintain ${round(avg_our_rate)} — your ★4.8 rating justifies a premium over {drop['competitor']}. Their drop signals weakness, not the market.",
-                        "best_when":    "Strong forward bookings; star rating ≥ 4.5; brand premium",
-                        "risk":         "Lose price-sensitive bookings to the competitor",
-                    },
-                    {
-                        "key":          "counter",
-                        "label":        "Raise & differentiate",
-                        "icon":         "↑",
-                        "new_rate":     counter_rate,
-                        "delta":        counter_rate - round(avg_our_rate),
-                        "rationale":    "Raise 3% and lean into your distinct value (history, waterfront, F&B). Their cut becomes your widening gap — and a marketing story.",
-                        "best_when":    "High demand week; unique property attributes; F&B / package monetization",
-                        "risk":         "Higher resistance if guests comparison-shop on rate alone",
-                    },
-                ],
-            })
-        return responses
+        target_date = (_date.today() + _td(days=30)).isoformat()
+        return [
+            self.generate_response_recommendation(
+                competitor_name=d["competitor"],
+                their_new_rate=d["rate_now"],
+                their_old_rate=d["rate_14d_ago"],
+                your_rate=avg_our_rate,
+                target_date=target_date,
+            )
+            for d in drops
+        ]

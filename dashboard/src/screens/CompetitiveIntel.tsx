@@ -648,14 +648,16 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
 
 // ── Section G: Competitive Response Recommendations ──
 interface ResponseOption {
-  key: string; label: string; icon: string
-  new_rate: number; delta: number
-  rationale: string; best_when: string; risk: string
+  id: string; label: string; rate: number; description: string
 }
 interface ResponseAlert {
-  competitor: string; competitor_now: number; competitor_was: number
-  drop_pct: number; our_rate: number; our_premium_now: number
+  competitor: string; their_old_rate: number; their_new_rate: number
+  drop_pct: number; your_rate: number; your_premium_pct: number
+  demand_score: number; demand_label: string
+  recommended_action: 'hold' | 'partial_match' | 'match'
+  rationale: string
   options: ResponseOption[]
+  target_date: string
 }
 
 function CompetitiveResponsePanel() {
@@ -673,51 +675,59 @@ function CompetitiveResponsePanel() {
       </div>
     )
   }
+  // Map recommended_action to corresponding option id so the recommended card highlights
+  const recToOptId: Record<ResponseAlert['recommended_action'], string> = {
+    hold: 'hold', partial_match: 'partial', match: 'match',
+  }
   return (
     <div className="space-y-3">
       {data.responses.map(alert => {
-        const chosen = selected[alert.competitor]
+        const chosen = selected[alert.competitor] ?? recToOptId[alert.recommended_action]
         return (
           <div key={alert.competitor} className="bg-white rounded-xl shadow-sm border-2 border-coral/30 p-5">
             <div className="flex items-baseline justify-between flex-wrap gap-2 mb-1">
               <h3 className="font-bold text-navy text-base">⚠ {alert.competitor} dropped {alert.drop_pct}%</h3>
               <div className="text-xs text-slate-500">
-                Now <strong className="text-coral">${alert.competitor_now}</strong> (was ${alert.competitor_was}) ·
-                You at <strong className="text-navy">${alert.our_rate}</strong> (premium ${alert.our_premium_now})
+                ${alert.their_old_rate} → <strong className="text-coral">${alert.their_new_rate}</strong> ·
+                You at <strong className="text-navy">${alert.your_rate}</strong> (+{alert.your_premium_pct}%)
               </div>
             </div>
-            <p className="text-xs text-slate-500 mb-3">Choose a response — each option shows the rationale, when it works, and the trade-off.</p>
+
+            {/* Demand-gated recommendation rationale */}
+            <div className="mt-2 mb-3 bg-navy/5 border border-navy/20 rounded-lg p-3">
+              <div className="flex items-baseline gap-2 text-[11px] uppercase tracking-wide text-navy font-bold">
+                <span>Demand score: {alert.demand_score} ({alert.demand_label})</span>
+                <span className="text-slate-400">·</span>
+                <span className="text-gold-dark">Recommended: {alert.recommended_action.replace('_', ' ')}</span>
+              </div>
+              <div className="text-sm text-slate-700 mt-1 leading-snug">{alert.rationale}</div>
+            </div>
+
             <div className="grid grid-cols-3 gap-3">
-              {alert.options.map(opt => (
-                <button key={opt.key}
-                  onClick={() => setSelected({ ...selected, [alert.competitor]: opt.key })}
-                  className={`text-left rounded-lg p-3 border-2 transition-all ${
-                    chosen === opt.key
-                      ? 'border-gold bg-gold/5 shadow-md'
-                      : 'border-slate-100 hover:border-navy/30'
-                  }`}>
-                  <div className="flex items-baseline justify-between gap-1 mb-1">
-                    <div className="font-bold text-navy text-sm">{opt.icon} {opt.label}</div>
-                    {chosen === opt.key && <span className="text-[10px] text-gold font-bold">✓ SELECTED</span>}
-                  </div>
-                  <div className="text-2xl font-bold text-navy">${opt.new_rate}
-                    {opt.delta !== 0 && (
-                      <span className={`text-xs font-semibold ml-1 ${opt.delta > 0 ? 'text-sage' : 'text-coral'}`}>
-                        {opt.delta > 0 ? '+' : ''}{opt.delta}
-                      </span>
+              {alert.options.map(opt => {
+                const isRecommended = opt.id === recToOptId[alert.recommended_action]
+                const isSelected = chosen === opt.id
+                return (
+                  <button key={opt.id}
+                    onClick={() => setSelected({ ...selected, [alert.competitor]: opt.id })}
+                    className={`text-left rounded-lg p-3 border-2 transition-all relative ${
+                      isSelected
+                        ? 'border-gold bg-gold/5 shadow-md'
+                        : isRecommended
+                          ? 'border-sage/60 bg-sage/5'
+                          : 'border-slate-100 hover:border-navy/30'
+                    }`}>
+                    {isRecommended && (
+                      <span className="absolute top-1 right-2 text-[9px] uppercase font-bold bg-sage text-white px-1.5 py-0.5 rounded">★ Recommended</span>
                     )}
-                  </div>
-                  <div className="text-[11px] text-slate-600 mt-1.5 leading-snug">{opt.rationale}</div>
-                  <div className="text-[10px] text-sage-dark font-semibold mt-2">Best when: <span className="font-normal text-slate-600">{opt.best_when}</span></div>
-                  <div className="text-[10px] text-coral font-semibold mt-1">Risk: <span className="font-normal text-slate-600">{opt.risk}</span></div>
-                </button>
-              ))}
+                    <div className="font-bold text-navy text-sm">{opt.label}</div>
+                    <div className="text-2xl font-bold text-navy mt-1">${opt.rate}</div>
+                    <div className="text-[11px] text-slate-600 mt-1 leading-snug">{opt.description}</div>
+                    {isSelected && <div className="text-[10px] text-gold font-bold mt-2">✓ Selected — apply via Rate Calendar</div>}
+                  </button>
+                )
+              })}
             </div>
-            {chosen && (
-              <div className="mt-3 bg-gold/10 border border-gold/30 rounded-lg px-3 py-2 text-xs text-slate-700">
-                You picked <strong className="text-navy">{alert.options.find(o => o.key === chosen)?.label}</strong>. Apply via the Rate Calendar to publish at <strong>${alert.options.find(o => o.key === chosen)?.new_rate}</strong> through your channel manager.
-              </div>
-            )}
           </div>
         )
       })}
