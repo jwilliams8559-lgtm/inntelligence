@@ -289,6 +289,73 @@ FEATURE_GATES = {
                      "white_label": True, "api_access": True, "price_per_month": 1199},
 }
 
+# ── Gift Shop flexible model (2026-05-19) ────────────────────────────
+# Items and categories live in an in-memory store seeded by
+# modules.data.gift_shop_seed.init_demo_gift_shop(). The lists below
+# only enumerate the option values and templates shown to innkeepers.
+
+FULFILLMENT_TYPES = {
+    "in_person":     "In-Person (sold at inn, guest takes home)",
+    "ship_to_guest": "Ship to Guest's Home (inn ships)",
+    "drop_ship":     "Drop-Ship (vendor ships direct to guest)",
+    "digital":       "Digital / Experience (no physical product)",
+}
+
+ARRANGEMENT_TYPES = {
+    "owned":       "Owned Inventory (buy wholesale, sell retail)",
+    "consignment": "Consignment (vendor-owned, inn takes commission %)",
+    "resell":      "Authorized Reseller (brand resell agreement)",
+    "dropship":    "Drop-Ship Agreement (no inventory held)",
+    "gifted":      "Gifted/Donated (sell for charity or goodwill)",
+}
+
+SUGGESTED_CATEGORY_TEMPLATES = [
+    {"id": "tpl_local_food",         "icon": "🍯", "name": "Local Food & Pantry",
+     "description": "Locally sourced food products, jams, sauces, spices",
+     "default_arrangement": "owned",       "default_fulfillment": "in_person",
+     "default_margin": 0.55},
+    {"id": "tpl_branded",            "icon": "👕", "name": "Inn Branded Merchandise",
+     "description": "Items branded with your inn's name and logo",
+     "default_arrangement": "owned",       "default_fulfillment": "in_person",
+     "default_margin": 0.70},
+    {"id": "tpl_local_art",          "icon": "🎨", "name": "Local Art & Artisan Goods",
+     "description": "Work by local artists, craftspeople, and makers",
+     "default_arrangement": "consignment", "default_fulfillment": "in_person",
+     "default_margin": 0.30},
+    {"id": "tpl_wine_spirits",       "icon": "🍷", "name": "Wines & Spirits",
+     "description": "Local wines, spirits, craft beers",
+     "default_arrangement": "owned",       "default_fulfillment": "in_person",
+     "default_margin": 0.40,
+     "notes": "Verify local liquor license requirements before selling."},
+    {"id": "tpl_wellness",           "icon": "🛁", "name": "Wellness & Bath",
+     "description": "Bath products, candles, aromatherapy, skincare",
+     "default_arrangement": "owned",       "default_fulfillment": "in_person",
+     "default_margin": 0.60},
+    {"id": "tpl_bedding_linens",     "icon": "🛏️", "name": "Bedding & Linens",
+     "description": "Luxury bedding, robes, towels — often resell programs",
+     "default_arrangement": "resell",      "default_fulfillment": "drop_ship",
+     "default_margin": 0.25,
+     "notes": "Example: Comphy resell program. Guests can order the same bedding they slept on."},
+    {"id": "tpl_specialty_imports",  "icon": "🌍", "name": "Specialty & Imported Goods",
+     "description": "Unique imported items — glassware, ceramics, textiles",
+     "default_arrangement": "resell",      "default_fulfillment": "drop_ship",
+     "default_margin": 0.35,
+     "notes": "Example: Murano glass partnership. High-value items often ship direct from vendor."},
+    {"id": "tpl_books_media",        "icon": "📚", "name": "Books & Local Media",
+     "description": "Local history books, regional cookbooks, maps",
+     "default_arrangement": "owned",       "default_fulfillment": "in_person",
+     "default_margin": 0.45},
+    {"id": "tpl_jewelry",            "icon": "💎", "name": "Jewelry & Accessories",
+     "description": "Local jewelry, sea glass, handmade accessories",
+     "default_arrangement": "consignment", "default_fulfillment": "in_person",
+     "default_margin": 0.35},
+    {"id": "tpl_gift_cards",         "icon": "🎁", "name": "Gift Cards & Experiences",
+     "description": "Inn gift cards, future stay credits, experience vouchers",
+     "default_arrangement": "owned",       "default_fulfillment": "digital",
+     "default_margin": 1.00},
+]
+
+
 FB_CONFIG = {
     "restaurant_name":         "Ribaut Social Club",
     "covers_per_night":        40,

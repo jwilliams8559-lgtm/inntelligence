@@ -565,109 +565,186 @@ function PackagesPanel() {
   )
 }
 
-// ── D3: Gift Shop panel — full item CRUD ──
+// ── D3 (rebuilt 2026-05-19): Flexible Gift Shop with arrangement-aware UI ──
+
+type Arrangement = 'owned' | 'consignment' | 'resell' | 'dropship' | 'gifted'
+type Fulfillment = 'in_person' | 'ship_to_guest' | 'drop_ship' | 'digital'
+
 interface ShopItem {
-  id: string; name: string; category_id: string
-  price: number; est_monthly_units: number
-  active: boolean; notes: string
+  id: string; name: string
+  price: number; cost: number; monthly_units: number
+  active: boolean; notes: string; vendor: string
+  fulfillment?: Fulfillment | null
+  is_consignment?: boolean
+  est_monthly_rev?: number
+  margin_pct?: number
+  arrangement?: string
 }
+
+interface ConsignmentDetails {
+  inn_commission_pct: number; artist_pct: number
+  payment_terms?: string; display_agreement?: string
+}
+
+interface ResellDetails {
+  brand?: string; program_name?: string
+  account_rep?: string; website?: string
+  factory?: string
+  contact_marketing?: string; contact_sales?: string
+  ordering?: string; lead_time?: string
+  shipping_notes?: string; display?: string
+  notes?: string
+}
+
 interface ShopCategory {
-  id: string; icon: string; name: string; note: string
-  margin: number; integration: string | null
-  item_count: number; active_count: number; est_monthly_rev: number
-  items_detail: ShopItem[]
+  id: string; icon: string; name: string; description?: string
+  arrangement: Arrangement; fulfillment: Fulfillment
+  margin: number; active: boolean; notes?: string
+  item_count: number; total_item_count: number
+  est_monthly_rev: number; est_monthly_label: string
+  consignment_details?: ConsignmentDetails
+  resell_details?: ResellDetails
+}
+
+interface CategoryTemplate {
+  id: string; icon: string; name: string; description: string
+  default_arrangement: Arrangement; default_fulfillment: Fulfillment
+  default_margin: number; notes?: string
+}
+
+const ARRANGEMENT_BADGE: Record<Arrangement, { label: string; cls: string }> = {
+  owned:       { label: 'Owned Inventory',     cls: 'bg-navy/15 text-navy' },
+  consignment: { label: 'Consignment',         cls: 'bg-amber-100 text-amber-700' },
+  resell:      { label: 'Authorized Reseller', cls: 'bg-sage/15 text-sage-dark' },
+  dropship:    { label: 'Drop-Ship',           cls: 'bg-purple-100 text-purple-700' },
+  gifted:      { label: 'Gifted/Donated',      cls: 'bg-slate-100 text-slate-600' },
+}
+
+const FULFILLMENT_BADGE: Record<Fulfillment, { label: string; icon: string }> = {
+  in_person:     { label: 'In-Person',     icon: '🏪' },
+  ship_to_guest: { label: 'Ships from Inn', icon: '📦' },
+  drop_ship:     { label: 'Drop-Ships from Vendor', icon: '🚢' },
+  digital:       { label: 'Digital',       icon: '💻' },
 }
 
 function GiftShopPanel() {
-  const [cats, setCats] = useState<ShopCategory[]>([])
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [addingTo, setAddingTo] = useState<string | null>(null)
-  const [draftItem, setDraftItem] = useState({ name: '', price: '', est_monthly_units: '', notes: '' })
+  const [cats, setCats]           = useState<ShopCategory[]>([])
+  const [itemsByCat, setItemsByCat] = useState<Record<string, ShopItem[]>>({})
+  const [expanded, setExpanded]   = useState<Set<string>>(new Set())
+  const [addingTo, setAddingTo]   = useState<string | null>(null)
+  const [draftItem, setDraftItem] = useState({ name: '', price: '', monthly_units: '', notes: '', vendor: '' })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<Partial<ShopItem>>({})
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [showAddCat, setShowAddCat] = useState(false)
+  const [templates, setTemplates]   = useState<CategoryTemplate[]>([])
 
-  const reload = useCallback(() => {
+  const reloadCats = useCallback(() => {
     fetch('/api/gift-shop/categories').then(r => r.json()).then(setCats).catch(() => setCats([]))
   }, [])
-  useEffect(() => { reload() }, [reload])
+  const reloadItems = useCallback((cat_id: string) => {
+    fetch(`/api/gift-shop/categories/${cat_id}/items`)
+      .then(r => r.json())
+      .then(items => setItemsByCat(prev => ({ ...prev, [cat_id]: items })))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    reloadCats()
+    fetch('/api/gift-shop/categories/templates').then(r => r.json()).then(setTemplates).catch(() => {})
+  }, [reloadCats])
 
   function toggleExpand(id: string) {
     setExpanded(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
+      if (next.has(id)) next.delete(id)
+      else { next.add(id); reloadItems(id) }
       return next
     })
   }
 
   async function addItem(cat_id: string) {
     if (!draftItem.name || !draftItem.price) return
-    await fetch('/api/gift-shop/items', {
+    await fetch(`/api/gift-shop/categories/${cat_id}/items`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name:              draftItem.name,
-        category_id:       cat_id,
-        price:             Number(draftItem.price),
-        est_monthly_units: Number(draftItem.est_monthly_units || 10),
-        notes:             draftItem.notes,
+        name:          draftItem.name,
+        price:         Number(draftItem.price),
+        monthly_units: Number(draftItem.monthly_units || 5),
+        notes:         draftItem.notes,
+        vendor:        draftItem.vendor,
       }),
     })
-    setDraftItem({ name: '', price: '', est_monthly_units: '', notes: '' })
+    setDraftItem({ name: '', price: '', monthly_units: '', notes: '', vendor: '' })
     setAddingTo(null)
-    reload()
+    reloadItems(cat_id); reloadCats()
   }
 
-  async function toggleActive(item: ShopItem) {
-    await fetch(`/api/gift-shop/items/${item.id}`, {
+  async function toggleActive(cat_id: string, item: ShopItem) {
+    await fetch(`/api/gift-shop/categories/${cat_id}/items/${item.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active: !item.active }),
     })
-    reload()
+    reloadItems(cat_id); reloadCats()
   }
 
-  async function deleteItem(item: ShopItem) {
-    if (!confirm(`Remove "${item.name}" from gift shop? This cannot be undone.`)) return
-    await fetch(`/api/gift-shop/items/${item.id}`, { method: 'DELETE' })
-    reload()
+  async function confirmDelete(cat_id: string, item: ShopItem) {
+    await fetch(`/api/gift-shop/categories/${cat_id}/items/${item.id}`, { method: 'DELETE' })
+    setDeleteConfirmId(null)
+    reloadItems(cat_id); reloadCats()
   }
 
   function startEdit(item: ShopItem) {
     setEditingId(item.id)
-    setEditDraft({ name: item.name, price: item.price, est_monthly_units: item.est_monthly_units, notes: item.notes })
+    setEditDraft({ name: item.name, price: item.price, monthly_units: item.monthly_units, notes: item.notes, vendor: item.vendor })
   }
-  async function saveEdit() {
+  async function saveEdit(cat_id: string) {
     if (!editingId) return
-    await fetch(`/api/gift-shop/items/${editingId}`, {
+    await fetch(`/api/gift-shop/categories/${cat_id}/items/${editingId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editDraft),
     })
     setEditingId(null); setEditDraft({})
-    reload()
+    reloadItems(cat_id); reloadCats()
   }
 
   const grandTotal = cats.reduce((s, c) => s + c.est_monthly_rev, 0)
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div>
           <h2 className="text-navy font-bold text-sm">Gift Shop &amp; Online Store</h2>
           <div className="text-[11px] text-slate-500 mt-0.5">
-            {cats.length} categor{cats.length === 1 ? 'y' : 'ies'} · Total Est. ${grandTotal.toLocaleString()}/mo
+            Manage everything you sell — physical products, art, resell agreements, drop-ship items, and more.
           </div>
         </div>
+        <button onClick={() => setShowAddCat(true)}
+          className="bg-navy text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-navy-dark">
+          + Add Category
+        </button>
       </div>
 
       <div className="bg-gold/10 border border-gold/30 rounded-lg px-3 py-2 mb-3 text-xs text-gold-dark">
-        🔗 Integration ready — connect to Square POS or Shopify to sync sales data and inventory counts.
+        🔗 Square POS / Shopify — connect to import sales data and sync inventory counts automatically.
         <div className="text-[11px] text-slate-600 italic mt-1">
-          Syncing imports sales data from your POS. Manage what you sell in the categories below —
-          add, edit, or remove items at any time independent of any POS integration.
+          These integrations import data. Add and manage what you sell in the categories below.
         </div>
+      </div>
+
+      <div className="bg-cream rounded-lg p-3 mb-3 flex items-center justify-between">
+        <span className="text-xs text-slate-600">
+          Total est. monthly gift shop revenue across {cats.reduce((s, c) => s + c.item_count, 0)} active items in {cats.length} categories
+        </span>
+        <span className="font-bold text-gold text-lg">${grandTotal.toLocaleString()}/mo</span>
       </div>
 
       <div className="space-y-2">
         {cats.map(cat => {
-          const isOpen = expanded.has(cat.id)
+          const isOpen   = expanded.has(cat.id)
+          const items    = itemsByCat[cat.id] ?? []
+          const arrBadge = ARRANGEMENT_BADGE[cat.arrangement] ?? ARRANGEMENT_BADGE.owned
+          const fulBadge = FULFILLMENT_BADGE[cat.fulfillment] ?? FULFILLMENT_BADGE.in_person
           return (
             <div key={cat.id} className="border border-slate-200 rounded-lg overflow-hidden">
               <button onClick={() => toggleExpand(cat.id)}
@@ -675,8 +752,14 @@ function GiftShopPanel() {
                 <span className="text-xl">{cat.icon}</span>
                 <div className="flex-1">
                   <div className="font-bold text-navy text-sm">{cat.name}</div>
-                  <div className="text-[11px] text-slate-500">
-                    {cat.active_count} active of {cat.item_count} items · Est. ${cat.est_monthly_rev.toLocaleString()}/mo
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${arrBadge.cls}`}>
+                      {arrBadge.label}
+                    </span>
+                    <span className="text-[10px] text-slate-500">{fulBadge.icon} {fulBadge.label}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    {cat.item_count} active items · Est. ${cat.est_monthly_rev.toLocaleString()}/mo
                   </div>
                 </div>
                 <span className="text-slate-400 text-lg">{isOpen ? '▾' : '▸'}</span>
@@ -684,66 +767,160 @@ function GiftShopPanel() {
 
               {isOpen && (
                 <div className="bg-white">
+                  {cat.description && (
+                    <div className="px-3 py-2 text-xs text-slate-600 border-b border-slate-100">{cat.description}</div>
+                  )}
+
+                  {/* Arrangement-specific details panel */}
+                  {cat.consignment_details && (
+                    <div className="px-3 py-2 bg-amber-50/50 border-b border-amber-100 text-xs">
+                      <div className="font-bold text-amber-800">📋 Consignment Terms</div>
+                      <div className="text-slate-600 mt-1 space-y-0.5">
+                        <div>Commission: <strong>Inn {cat.consignment_details.inn_commission_pct}% / Artist {cat.consignment_details.artist_pct}%</strong></div>
+                        {cat.consignment_details.payment_terms &&
+                          <div>Payment terms: {cat.consignment_details.payment_terms}</div>}
+                        {cat.consignment_details.display_agreement &&
+                          <div className="italic">{cat.consignment_details.display_agreement}</div>}
+                      </div>
+                      {items.length > 0 && (() => {
+                        const totalSale = items.filter(i => i.active).reduce((s, i) => s + i.price * i.monthly_units, 0)
+                        const innShare  = totalSale * (cat.consignment_details!.inn_commission_pct / 100)
+                        const artShare  = totalSale - innShare
+                        return (
+                          <div className="mt-2 pt-2 border-t border-amber-200 text-[11px]">
+                            Monthly settlement: <strong className="text-amber-700">Est. ${artShare.toFixed(0)} to artists</strong>,
+                            <strong className="text-navy"> ${innShare.toFixed(0)} retained by inn</strong>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
+
+                  {cat.resell_details && (
+                    <div className="px-3 py-2 bg-sage/5 border-b border-sage/20 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-sage-dark">
+                          🤝 {cat.resell_details.program_name ?? `${cat.resell_details.brand} Resell Program`}
+                        </div>
+                        {cat.resell_details.contact_sales && (
+                          <a href={`mailto:${cat.resell_details.contact_sales}`}
+                             className="text-[10px] bg-navy text-white px-2 py-0.5 rounded hover:bg-navy-dark">
+                            📧 Contact Vendor
+                          </a>
+                        )}
+                      </div>
+                      <div className="text-slate-600 mt-1 space-y-0.5">
+                        {cat.resell_details.brand && <div>Brand: <strong>{cat.resell_details.brand}</strong></div>}
+                        {cat.resell_details.factory && <div>Factory: {cat.resell_details.factory}</div>}
+                        {cat.resell_details.website && <div>Website: {cat.resell_details.website}</div>}
+                        {cat.resell_details.ordering && <div className="italic mt-1">{cat.resell_details.ordering}</div>}
+                        {cat.resell_details.lead_time && <div>Lead time: <strong>{cat.resell_details.lead_time}</strong></div>}
+                      </div>
+                      <div className="mt-1.5 text-[11px] text-sage-dark italic">
+                        Items ship direct from vendor to guest — no inventory needed.
+                      </div>
+                    </div>
+                  )}
+
+                  {cat.notes && !cat.consignment_details && !cat.resell_details && (
+                    <div className="px-3 py-2 bg-slate-50 text-xs italic text-slate-600 border-b border-slate-100">
+                      {cat.notes}
+                    </div>
+                  )}
+
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50">
                       <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
-                        <th className="px-3 py-1.5">Item</th>
+                        <th className="px-3 py-1.5">Item / Vendor</th>
                         <th className="px-2 py-1.5 text-right">Price</th>
                         <th className="px-2 py-1.5 text-right">Mo Units</th>
-                        <th className="px-2 py-1.5 text-right">Est Rev</th>
+                        <th className="px-2 py-1.5 text-right">Rev/Mo</th>
+                        <th className="px-2 py-1.5 text-center">Fulfillment</th>
                         <th className="px-2 py-1.5 text-center">Active</th>
                         <th className="px-2 py-1.5"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {cat.items_detail.map(item => {
+                      {items.map(item => {
                         const isEditing = editingId === item.id
-                        const rev = item.price * item.est_monthly_units
+                        const rev = item.price * item.monthly_units
+                        const fulOverride = item.fulfillment && item.fulfillment !== cat.fulfillment
+                        const fulIcon = FULFILLMENT_BADGE[(item.fulfillment ?? cat.fulfillment) as Fulfillment]?.icon ?? '🏪'
                         return (
                           <tr key={item.id} className="border-t border-slate-100">
                             <td className="px-3 py-1.5">
                               {isEditing ? (
-                                <input value={editDraft.name as string ?? ''}
-                                  onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
-                                  className="border border-slate-200 rounded px-1.5 py-0.5 w-full" />
+                                <>
+                                  <input value={editDraft.name as string ?? ''}
+                                    onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
+                                    className="border border-slate-200 rounded px-1.5 py-0.5 w-full mb-1" />
+                                  <input placeholder="Vendor" value={editDraft.vendor as string ?? ''}
+                                    onChange={e => setEditDraft(d => ({ ...d, vendor: e.target.value }))}
+                                    className="border border-slate-200 rounded px-1.5 py-0.5 w-full text-[10px]" />
+                                </>
                               ) : (
                                 <>
                                   <div className="font-medium text-slate-700">{item.name}</div>
-                                  {item.notes && <div className="text-[10px] text-slate-400 italic">{item.notes}</div>}
+                                  {item.vendor && (
+                                    <div className="text-[10px] text-slate-400">{item.vendor}</div>
+                                  )}
+                                  {item.notes && (
+                                    <div className="text-[10px] text-slate-400 italic">{item.notes}</div>
+                                  )}
+                                  {item.is_consignment && (
+                                    <span className="inline-block mt-1 text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">
+                                      📋 Consignment
+                                    </span>
+                                  )}
                                 </>
                               )}
                             </td>
                             <td className="px-2 py-1.5 text-right">
                               {isEditing
-                                ? <input type="number" value={editDraft.price as number ?? 0}
+                                ? <input type="number" step="0.01" value={editDraft.price as number ?? 0}
                                     onChange={e => setEditDraft(d => ({ ...d, price: Number(e.target.value) }))}
                                     className="border border-slate-200 rounded px-1 py-0.5 w-16 text-right" />
                                 : `$${item.price.toFixed(2)}`}
+                              {item.margin_pct != null && !isEditing && (
+                                <div className="text-[10px] text-slate-400">{item.margin_pct.toFixed(0)}% margin</div>
+                              )}
                             </td>
                             <td className="px-2 py-1.5 text-right">
                               {isEditing
-                                ? <input type="number" value={editDraft.est_monthly_units as number ?? 0}
-                                    onChange={e => setEditDraft(d => ({ ...d, est_monthly_units: Number(e.target.value) }))}
+                                ? <input type="number" value={editDraft.monthly_units as number ?? 0}
+                                    onChange={e => setEditDraft(d => ({ ...d, monthly_units: Number(e.target.value) }))}
                                     className="border border-slate-200 rounded px-1 py-0.5 w-14 text-right" />
-                                : item.est_monthly_units}
+                                : item.monthly_units}
                             </td>
                             <td className="px-2 py-1.5 text-right text-sage font-semibold">${rev.toFixed(0)}</td>
+                            <td className="px-2 py-1.5 text-center text-base"
+                                title={FULFILLMENT_BADGE[(item.fulfillment ?? cat.fulfillment) as Fulfillment]?.label ?? ''}>
+                              {fulIcon}
+                              {fulOverride && <span className="block text-[9px] text-amber-600">override</span>}
+                            </td>
                             <td className="px-2 py-1.5 text-center">
                               <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" checked={item.active} onChange={() => toggleActive(item)} className="sr-only peer" />
+                                <input type="checkbox" checked={item.active}
+                                       onChange={() => toggleActive(cat.id, item)} className="sr-only peer" />
                                 <div className="w-7 h-3.5 bg-slate-200 peer-checked:bg-sage rounded-full after:absolute after:top-0.5 after:left-0.5 after:w-2.5 after:h-2.5 after:bg-white after:rounded-full peer-checked:after:translate-x-3.5 after:transition-transform" />
                               </label>
                             </td>
-                            <td className="px-2 py-1.5 text-right space-x-1.5 whitespace-nowrap">
-                              {isEditing ? (
+                            <td className="px-2 py-1.5 text-right space-x-1 whitespace-nowrap">
+                              {deleteConfirmId === item.id ? (
                                 <>
-                                  <button onClick={saveEdit} className="text-sage font-semibold">Save</button>
+                                  <span className="text-[10px] text-slate-500">Remove?</span>
+                                  <button onClick={() => confirmDelete(cat.id, item)} className="text-coral font-bold">Yes</button>
+                                  <button onClick={() => setDeleteConfirmId(null)} className="text-slate-400">No</button>
+                                </>
+                              ) : isEditing ? (
+                                <>
+                                  <button onClick={() => saveEdit(cat.id)} className="text-sage font-semibold">Save</button>
                                   <button onClick={() => setEditingId(null)} className="text-slate-400">Cancel</button>
                                 </>
                               ) : (
                                 <>
-                                  <button onClick={() => startEdit(item)} className="text-navy hover:underline">Edit</button>
-                                  <button onClick={() => deleteItem(item)} className="text-coral hover:underline">Delete</button>
+                                  <button onClick={() => startEdit(item)} title="Edit" className="text-navy hover:underline">✏</button>
+                                  <button onClick={() => setDeleteConfirmId(item.id)} title="Delete" className="text-coral hover:underline">🗑</button>
                                 </>
                               )}
                             </td>
@@ -758,21 +935,25 @@ function GiftShopPanel() {
                             <input placeholder="Item name" value={draftItem.name}
                               onChange={e => setDraftItem(d => ({ ...d, name: e.target.value }))}
                               className="border border-slate-200 rounded px-2 py-0.5 w-full" />
+                            <input placeholder={cat.arrangement === 'consignment' ? 'Artist / vendor name' : 'Vendor (optional)'}
+                              value={draftItem.vendor}
+                              onChange={e => setDraftItem(d => ({ ...d, vendor: e.target.value }))}
+                              className="border border-slate-200 rounded px-2 py-0.5 w-full mt-1 text-[10px]" />
                             <input placeholder="Notes (optional)" value={draftItem.notes}
                               onChange={e => setDraftItem(d => ({ ...d, notes: e.target.value }))}
                               className="border border-slate-200 rounded px-2 py-0.5 w-full mt-1 text-[10px]" />
                           </td>
                           <td className="px-2 py-2 text-right">
-                            <input type="number" placeholder="Price" value={draftItem.price}
+                            <input type="number" step="0.01" placeholder="Price" value={draftItem.price}
                               onChange={e => setDraftItem(d => ({ ...d, price: e.target.value }))}
                               className="border border-slate-200 rounded px-1 py-0.5 w-16 text-right" />
                           </td>
                           <td className="px-2 py-2 text-right">
-                            <input type="number" placeholder="Mo" value={draftItem.est_monthly_units}
-                              onChange={e => setDraftItem(d => ({ ...d, est_monthly_units: e.target.value }))}
+                            <input type="number" placeholder="Mo" value={draftItem.monthly_units}
+                              onChange={e => setDraftItem(d => ({ ...d, monthly_units: e.target.value }))}
                               className="border border-slate-200 rounded px-1 py-0.5 w-14 text-right" />
                           </td>
-                          <td colSpan={3} className="px-2 py-2 text-right space-x-2 whitespace-nowrap">
+                          <td colSpan={4} className="px-2 py-2 text-right space-x-2 whitespace-nowrap">
                             <button onClick={() => addItem(cat.id)}
                               className="bg-sage text-white font-semibold text-[11px] px-2 py-0.5 rounded">Save</button>
                             <button onClick={() => setAddingTo(null)} className="text-slate-400 text-[11px]">Cancel</button>
@@ -780,7 +961,7 @@ function GiftShopPanel() {
                         </tr>
                       ) : (
                         <tr>
-                          <td colSpan={6} className="px-3 py-1.5">
+                          <td colSpan={7} className="px-3 py-1.5">
                             <button onClick={() => setAddingTo(cat.id)}
                               className="text-[11px] text-navy hover:text-gold font-semibold">
                               + Add Item to {cat.name}
@@ -797,12 +978,237 @@ function GiftShopPanel() {
         })}
       </div>
 
-      <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-200">
-        <span className="text-xs text-slate-500 uppercase tracking-wider">Total est. gift shop revenue</span>
-        <span className="font-bold text-gold">${grandTotal.toLocaleString()}/mo</span>
-      </div>
-      <div className="text-[10px] text-slate-400 italic mt-1">
+      <div className="text-[10px] text-slate-400 italic mt-2">
         Based on current active items and estimated monthly unit sales.
+      </div>
+
+      {showAddCat && <AddCategoryModal templates={templates} onClose={() => setShowAddCat(false)} onCreated={reloadCats} />}
+    </div>
+  )
+}
+
+// ── Add Category — template picker + form ─────────────────────────────
+function AddCategoryModal({ templates, onClose, onCreated }:
+  { templates: CategoryTemplate[]; onClose: () => void; onCreated: () => void }) {
+  const [step, setStep] = useState<'pick' | 'form'>('pick')
+  const [chosen, setChosen] = useState<CategoryTemplate | null>(null)
+  const [form, setForm] = useState({
+    icon: '📦', name: '', description: '',
+    arrangement: 'owned' as Arrangement,
+    fulfillment: 'in_person' as Fulfillment,
+    margin: 0.50, notes: '',
+    inn_commission_pct: 30,
+    brand: '', contact_sales: '', website: '', ordering: '', lead_time: '',
+  })
+  function useTemplate(t: CategoryTemplate) {
+    setChosen(t)
+    setForm(f => ({
+      ...f,
+      icon:        t.icon,
+      name:        t.name,
+      description: t.description,
+      arrangement: t.default_arrangement,
+      fulfillment: t.default_fulfillment,
+      margin:      t.default_margin,
+      notes:       t.notes ?? '',
+    }))
+    setStep('form')
+  }
+  function startCustom() {
+    setChosen(null)
+    setForm(f => ({ ...f, icon: '📦', name: '', description: '', arrangement: 'owned', fulfillment: 'in_person', margin: 0.5, notes: '' }))
+    setStep('form')
+  }
+  async function submit() {
+    if (!form.name) return
+    const body: any = {
+      icon:        form.icon,
+      name:        form.name,
+      description: form.description,
+      arrangement: form.arrangement,
+      fulfillment: form.fulfillment,
+      margin:      form.margin,
+      notes:       form.notes,
+    }
+    if (form.arrangement === 'consignment') {
+      body.consignment_details = {
+        inn_commission_pct: form.inn_commission_pct,
+        artist_pct:         100 - form.inn_commission_pct,
+      }
+    }
+    if (form.arrangement === 'resell' || form.arrangement === 'dropship') {
+      body.resell_details = {
+        brand:          form.brand,
+        contact_sales:  form.contact_sales,
+        website:        form.website,
+        ordering:       form.ordering,
+        lead_time:      form.lead_time,
+        program_name:   form.brand ? `${form.brand} Resell Program` : '',
+      }
+    }
+    await fetch('/api/gift-shop/categories', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    onCreated(); onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/40" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+           onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
+          <h2 className="font-bold text-navy">
+            {step === 'pick' ? 'Add Category — choose a starting point' : 'Category details'}
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+        </div>
+
+        {step === 'pick' && (
+          <div className="p-5">
+            <p className="text-xs text-slate-500 mb-3">
+              Start from a template (pre-fills arrangement, fulfillment, margin) or build from scratch.
+            </p>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              {templates.map(t => (
+                <div key={t.id} className="border border-slate-200 rounded-lg p-3 bg-white hover:border-navy/40 transition-colors">
+                  <div className="text-2xl mb-1">{t.icon}</div>
+                  <div className="font-bold text-navy text-sm">{t.name}</div>
+                  <div className="text-[11px] text-slate-500 mt-1">{t.description}</div>
+                  <span className={`inline-block text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded mt-2 ${ARRANGEMENT_BADGE[t.default_arrangement].cls}`}>
+                    {ARRANGEMENT_BADGE[t.default_arrangement].label}
+                  </span>
+                  <button onClick={() => useTemplate(t)}
+                    className="w-full mt-3 bg-navy text-white text-[11px] font-bold py-1.5 rounded hover:bg-navy-dark">
+                    Use This Template
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-center">
+              <button onClick={startCustom} className="text-sm font-semibold text-navy underline hover:text-gold">
+                Create Custom Category →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'form' && (
+          <div className="p-5 space-y-3 text-sm">
+            {chosen && (
+              <div className="bg-cream rounded p-2 text-[11px] text-slate-600">
+                Starting from template: <strong>{chosen.name}</strong>
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-2">
+              <label className="block">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Icon</div>
+                <input value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))}
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xl text-center" />
+              </label>
+              <label className="block col-span-2">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Category Name</div>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full border border-slate-200 rounded px-2 py-1" />
+              </label>
+            </div>
+            <label className="block">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Description</div>
+              <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                rows={2} className="w-full border border-slate-200 rounded px-2 py-1 text-xs" />
+            </label>
+
+            <fieldset>
+              <legend className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Business Arrangement</legend>
+              {(['owned','consignment','resell','dropship','digital'] as Arrangement[]).map(a => (
+                <label key={a} className="flex items-center gap-2 py-1 cursor-pointer text-xs">
+                  <input type="radio" name="arrangement" checked={form.arrangement === a}
+                    onChange={() => setForm(f => ({ ...f, arrangement: a }))} />
+                  <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${ARRANGEMENT_BADGE[a].cls}`}>
+                    {ARRANGEMENT_BADGE[a].label}
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+
+            {form.arrangement === 'consignment' && (
+              <div className="bg-amber-50/50 border border-amber-200 rounded p-2 text-xs">
+                <div className="font-bold text-amber-800 mb-1">Consignment terms</div>
+                <label className="flex items-center gap-2">
+                  Inn commission %:
+                  <input type="number" min={0} max={100} value={form.inn_commission_pct}
+                    onChange={e => setForm(f => ({ ...f, inn_commission_pct: Number(e.target.value) }))}
+                    className="border border-slate-200 rounded px-1 py-0.5 w-14" />
+                  <span className="text-slate-500">
+                    Artist gets {100 - form.inn_commission_pct}%
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {(form.arrangement === 'resell' || form.arrangement === 'dropship') && (
+              <div className="bg-sage/5 border border-sage/30 rounded p-2 text-xs space-y-1">
+                <div className="font-bold text-sage-dark mb-1">Vendor / Brand details</div>
+                <input placeholder="Brand / vendor name" value={form.brand}
+                  onChange={e => setForm(f => ({ ...f, brand: e.target.value }))}
+                  className="w-full border border-slate-200 rounded px-2 py-0.5" />
+                <input placeholder="Sales contact email" value={form.contact_sales}
+                  onChange={e => setForm(f => ({ ...f, contact_sales: e.target.value }))}
+                  className="w-full border border-slate-200 rounded px-2 py-0.5" />
+                <input placeholder="Website" value={form.website}
+                  onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
+                  className="w-full border border-slate-200 rounded px-2 py-0.5" />
+                <input placeholder="Lead time (e.g. 3-5 weeks)" value={form.lead_time}
+                  onChange={e => setForm(f => ({ ...f, lead_time: e.target.value }))}
+                  className="w-full border border-slate-200 rounded px-2 py-0.5" />
+                <textarea placeholder="Ordering process / notes" value={form.ordering}
+                  onChange={e => setForm(f => ({ ...f, ordering: e.target.value }))}
+                  rows={2} className="w-full border border-slate-200 rounded px-2 py-0.5" />
+              </div>
+            )}
+
+            <fieldset>
+              <legend className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Fulfillment</legend>
+              {(['in_person','ship_to_guest','drop_ship','digital'] as Fulfillment[]).map(f => (
+                <label key={f} className="flex items-center gap-2 py-1 cursor-pointer text-xs">
+                  <input type="radio" name="fulfillment" checked={form.fulfillment === f}
+                    onChange={() => setForm(state => ({ ...state, fulfillment: f }))} />
+                  <span>{FULFILLMENT_BADGE[f].icon} {FULFILLMENT_BADGE[f].label}</span>
+                </label>
+              ))}
+            </fieldset>
+
+            <label className="block">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">
+                Default Margin {form.arrangement === 'consignment' ? '(set by commission)' : ''}
+              </div>
+              <input type="number" min={0} max={1} step={0.05} value={form.margin}
+                disabled={form.arrangement === 'consignment'}
+                onChange={e => setForm(f => ({ ...f, margin: Number(e.target.value) }))}
+                className="border border-slate-200 rounded px-2 py-1 w-24 disabled:bg-slate-100" />
+              <span className="text-xs text-slate-500 ml-2">{(form.margin * 100).toFixed(0)}%</span>
+            </label>
+
+            <label className="block">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Notes</div>
+              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                rows={2} className="w-full border border-slate-200 rounded px-2 py-1 text-xs" />
+            </label>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+              <button onClick={() => setStep('pick')} className="text-xs font-semibold text-slate-500 hover:text-navy">
+                ← Back to templates
+              </button>
+              <div className="flex gap-2">
+                <button onClick={onClose} className="text-xs text-slate-500 px-3 py-1.5">Cancel</button>
+                <button onClick={submit} disabled={!form.name}
+                  className="bg-navy text-white text-xs font-bold px-4 py-1.5 rounded-lg hover:bg-navy-dark disabled:opacity-40">
+                  Create Category
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

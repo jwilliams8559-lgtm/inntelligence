@@ -828,124 +828,229 @@ def v2_api_gift_shop():
     return jsonify(_v2_shop.categories())
 
 
-# ── Section D — Gift Shop item CRUD (in-memory store) ─────────────────
-# Mutations live in this dict for the session. In production these would
-# persist to the tenant's database. The initial state is seeded from
-# settings.GIFT_SHOP_CATEGORIES["items_detail"].
+# ── Flexible Gift Shop store (2026-05-19) ─────────────────────────────
+# Replaces the prior flat _gs_store. Categories now carry their own
+# items list plus optional arrangement details (consignment_details,
+# resell_details). One in-memory store; swap in a DB query layer in
+# production. Items are reached via /api/gift-shop/categories/<id>/items.
 
-from config.settings import GIFT_SHOP_CATEGORIES as _GS_CATS_INIT
+from modules.data.gift_shop_seed import init_demo_gift_shop
+from config.settings import (
+    FULFILLMENT_TYPES as _FULFILL_TYPES,
+    ARRANGEMENT_TYPES as _ARR_TYPES,
+    SUGGESTED_CATEGORY_TEMPLATES as _CAT_TEMPLATES,
+)
 
-_gs_store: dict = {
-    "items":      [],        # flat list of dicts {id, name, category_id, price, est_monthly_units, active, notes}
-    "categories": [],        # list of {id, icon, name, note, margin, integration}
-}
-
-def _gs_init_once():
-    if _gs_store["items"]:
-        return
-    for cat in _GS_CATS_INIT:
-        _gs_store["categories"].append({
-            "id":          cat["id"],
-            "icon":        cat["icon"],
-            "name":        cat["name"],
-            "note":        cat.get("note", ""),
-            "margin":      cat.get("margin", 0.5),
-            "integration": cat.get("integration"),
-        })
-        for item in cat.get("items_detail", []):
-            _gs_store["items"].append({**item, "category_id": cat["id"]})
-
-_gs_init_once()
+_gift_shop: dict = init_demo_gift_shop()
 
 
-def _gs_category_summary():
-    """Build per-category aggregates from current items."""
-    out = []
-    for cat in _gs_store["categories"]:
-        cat_items = [i for i in _gs_store["items"] if i["category_id"] == cat["id"]]
-        active = [i for i in cat_items if i.get("active", True)]
-        rev = sum(i["price"] * i["est_monthly_units"] for i in active)
-        out.append({
-            **cat,
-            "item_count":      len(cat_items),
-            "active_count":    len(active),
-            "est_monthly_rev": int(rev),
-            "items_detail":    cat_items,
-        })
+def _enriched_category(cat: dict) -> dict:
+    """Add per-category aggregates (item count, monthly rev) for list view."""
+    items        = cat.get("items", [])
+    active_items = [i for i in items if i.get("active", True)]
+    monthly_rev  = sum(i["price"] * i.get("monthly_units", 0) for i in active_items)
+    out = {k: v for k, v in cat.items() if k != "items"}
+    out.update({
+        "item_count":         len(active_items),
+        "total_item_count":   len(items),
+        "est_monthly_rev":    int(monthly_rev),
+        "est_monthly_label":  f"Est. ${int(monthly_rev):,}/mo",
+    })
     return out
 
 
+# ── Categories ─────────────────────────────────────────────────────
+
 @app.route("/api/gift-shop/categories", methods=["GET"])
 def api_gs_categories():
-    return jsonify(_gs_category_summary())
+    out = [_enriched_category(c) for c in _gift_shop.values()]
+    out.sort(key=lambda x: x.get("sort_order", 99))
+    return jsonify(out)
 
 
 @app.route("/api/gift-shop/categories", methods=["POST"])
-def api_gs_add_category():
-    body = request.get_json(force=True) or {}
-    if not body.get("name"):
+def api_gs_create_category():
+    data = request.get_json(force=True) or {}
+    if not data.get("name"):
         return jsonify({"error": "name required"}), 400
-    cat = {
-        "id":          body.get("id") or f"cat_{int(datetime.now().timestamp())}",
-        "icon":        body.get("icon", "🛍️"),
-        "name":        body["name"],
-        "note":        body.get("note", ""),
-        "margin":      float(body.get("margin", 0.50)),
-        "integration": None,
+    cat_id = (data.get("id") or
+              data["name"].lower().replace(" ", "_").replace("&", "and").replace("/", "_"))
+    if cat_id in _gift_shop:
+        return jsonify({"error": "Category ID already exists"}), 409
+    new_cat = {
+        "id":                  cat_id,
+        "icon":                data.get("icon", "📦"),
+        "name":                data["name"],
+        "description":         data.get("description", ""),
+        "arrangement":         data.get("arrangement", "owned"),
+        "fulfillment":         data.get("fulfillment", "in_person"),
+        "margin":              float(data.get("margin", 0.50)),
+        "active":              True,
+        "sort_order":          len(_gift_shop) + 1,
+        "notes":               data.get("notes", ""),
+        "items":               [],
+        "resell_details":      data.get("resell_details"),
+        "consignment_details": data.get("consignment_details"),
     }
-    _gs_store["categories"].append(cat)
-    return jsonify({"success": True, "category": cat}), 201
+    _gift_shop[cat_id] = new_cat
+    return jsonify({"success": True, "category": new_cat}), 201
 
 
-@app.route("/api/gift-shop/items", methods=["GET"])
-def api_gs_items():
-    return jsonify(_gs_store["items"])
+@app.route("/api/gift-shop/categories/<cat_id>", methods=["PATCH"])
+def api_gs_update_category(cat_id: str):
+    if cat_id not in _gift_shop:
+        return jsonify({"error": "Not found"}), 404
+    data = request.get_json(force=True) or {}
+    for k, v in data.items():
+        if k not in ("id", "items"):
+            _gift_shop[cat_id][k] = v
+    return jsonify({"success": True, "category": _gift_shop[cat_id]})
 
 
-@app.route("/api/gift-shop/items", methods=["POST"])
-def api_gs_add_item():
-    body = request.get_json(force=True) or {}
-    for k in ("name", "category_id", "price"):
-        if not body.get(k):
+@app.route("/api/gift-shop/categories/<cat_id>", methods=["DELETE"])
+def api_gs_delete_category(cat_id: str):
+    if cat_id not in _gift_shop:
+        return jsonify({"error": "Not found"}), 404
+    items = _gift_shop[cat_id].get("items", [])
+    force = request.args.get("force", "").lower() == "true"
+    if items and not force:
+        return jsonify({
+            "error":      f"Cannot delete category with {len(items)} items. "
+                          "Remove all items first or use force=true.",
+            "item_count": len(items),
+        }), 400
+    del _gift_shop[cat_id]
+    return jsonify({"success": True})
+
+
+@app.route("/api/gift-shop/categories/templates", methods=["GET"])
+def api_gs_category_templates():
+    return jsonify(_CAT_TEMPLATES)
+
+
+# ── Items ──────────────────────────────────────────────────────────
+
+@app.route("/api/gift-shop/categories/<cat_id>/items", methods=["GET"])
+def api_gs_get_items(cat_id: str):
+    if cat_id not in _gift_shop:
+        return jsonify({"error": "Not found"}), 404
+    cat   = _gift_shop[cat_id]
+    items = cat.get("items", [])
+    enriched: list = []
+    for item in items:
+        rev    = item["price"] * item.get("monthly_units", 0)
+        cost   = item.get("cost") if item.get("cost") is not None else item["price"] * (1 - cat.get("margin", 0.5))
+        margin = (item["price"] - cost) / item["price"] if item["price"] > 0 else 0
+        enriched.append({
+            **item,
+            "est_monthly_rev":  int(rev),
+            "margin_pct":       round(margin * 100, 1),
+            "category_id":      cat_id,
+            "category_name":    cat["name"],
+            "arrangement":      cat.get("arrangement"),
+            "fulfillment":      item.get("fulfillment") or cat.get("fulfillment"),
+        })
+    return jsonify(enriched)
+
+
+@app.route("/api/gift-shop/categories/<cat_id>/items", methods=["POST"])
+def api_gs_add_item_v2(cat_id: str):
+    if cat_id not in _gift_shop:
+        return jsonify({"error": "Category not found"}), 404
+    data = request.get_json(force=True) or {}
+    for k in ("name", "price"):
+        if not data.get(k):
             return jsonify({"error": f"{k} required"}), 400
+    import time
     new_item = {
-        "id":                 f"item_{int(datetime.now().timestamp())}",
-        "name":               body["name"],
-        "category_id":        body["category_id"],
-        "price":              float(body["price"]),
-        "est_monthly_units":  int(body.get("est_monthly_units", 10)),
-        "active":             bool(body.get("active", True)),
-        "notes":              body.get("notes", ""),
-        "source":             body.get("source", "manual"),
+        "id":              f"{cat_id}_{int(time.time() * 1000)}",
+        "name":            data["name"],
+        "price":           float(data["price"]),
+        "cost":            float(data.get("cost", 0)),
+        "monthly_units":   int(data.get("monthly_units", 5)),
+        "active":          bool(data.get("active", True)),
+        "notes":           data.get("notes", ""),
+        "vendor":          data.get("vendor", ""),
+        "fulfillment":     data.get("fulfillment"),
+        "is_consignment":  bool(data.get("is_consignment", False)),
+        "seasonal":        bool(data.get("seasonal", False)),
+        "seasonal_months": data.get("seasonal_months", []),
+        "source":          "manual",
     }
-    _gs_store["items"].append(new_item)
+    _gift_shop[cat_id]["items"].append(new_item)
     return jsonify({"success": True, "item": new_item}), 201
 
 
-@app.route("/api/gift-shop/items/<item_id>", methods=["PATCH"])
-def api_gs_update_item(item_id: str):
-    body = request.get_json(force=True) or {}
-    item = next((i for i in _gs_store["items"] if i["id"] == item_id), None)
+@app.route("/api/gift-shop/categories/<cat_id>/items/<item_id>", methods=["PATCH"])
+def api_gs_update_item_v2(cat_id: str, item_id: str):
+    if cat_id not in _gift_shop:
+        return jsonify({"error": "Category not found"}), 404
+    items = _gift_shop[cat_id]["items"]
+    item  = next((i for i in items if i["id"] == item_id), None)
     if not item:
-        return jsonify({"error": "not found"}), 404
-    for k in ("name", "category_id", "price", "est_monthly_units", "active", "notes"):
-        if k in body:
-            if k == "price":
-                item[k] = float(body[k])
-            elif k == "est_monthly_units":
-                item[k] = int(body[k])
-            elif k == "active":
-                item[k] = bool(body[k])
+        return jsonify({"error": "Item not found"}), 404
+    data = request.get_json(force=True) or {}
+    for k, v in data.items():
+        if k != "id":
+            if k == "price" or k == "cost":
+                item[k] = float(v)
+            elif k == "monthly_units":
+                item[k] = int(v)
+            elif k in ("active", "is_consignment", "seasonal"):
+                item[k] = bool(v)
             else:
-                item[k] = body[k]
+                item[k] = v
     return jsonify({"success": True, "item": item})
 
 
-@app.route("/api/gift-shop/items/<item_id>", methods=["DELETE"])
-def api_gs_delete_item(item_id: str):
-    before = len(_gs_store["items"])
-    _gs_store["items"] = [i for i in _gs_store["items"] if i["id"] != item_id]
-    return jsonify({"success": True, "deleted": before - len(_gs_store["items"])})
+@app.route("/api/gift-shop/categories/<cat_id>/items/<item_id>", methods=["DELETE"])
+def api_gs_delete_item_v2(cat_id: str, item_id: str):
+    if cat_id not in _gift_shop:
+        return jsonify({"error": "Category not found"}), 404
+    items  = _gift_shop[cat_id]["items"]
+    before = len(items)
+    _gift_shop[cat_id]["items"] = [i for i in items if i["id"] != item_id]
+    if len(_gift_shop[cat_id]["items"]) == before:
+        return jsonify({"error": "Item not found"}), 404
+    return jsonify({"success": True})
+
+
+# ── Summary + config ───────────────────────────────────────────────
+
+@app.route("/api/gift-shop/summary", methods=["GET"])
+def api_gs_summary():
+    total_rev   = 0
+    total_items = 0
+    cats_out: list = []
+    for cat in _gift_shop.values():
+        if not cat.get("active", True):
+            continue
+        items = [i for i in cat.get("items", []) if i.get("active", True)]
+        rev   = sum(i["price"] * i.get("monthly_units", 0) for i in items)
+        total_rev   += rev
+        total_items += len(items)
+        cats_out.append({
+            "id":          cat["id"],
+            "name":        cat["name"],
+            "icon":        cat["icon"],
+            "item_count":  len(items),
+            "monthly_rev": int(rev),
+        })
+    return jsonify({
+        "total_monthly_rev":  int(total_rev),
+        "total_active_items": total_items,
+        "category_count":     len(cats_out),
+        "categories":         sorted(cats_out, key=lambda x: x["monthly_rev"], reverse=True),
+    })
+
+
+@app.route("/api/gift-shop/config", methods=["GET"])
+def api_gs_config():
+    return jsonify({
+        "fulfillment_types":   _FULFILL_TYPES,
+        "arrangement_types":   _ARR_TYPES,
+        "suggested_templates": _CAT_TEMPLATES,
+    })
 
 
 @app.route("/api/fb-summary")
