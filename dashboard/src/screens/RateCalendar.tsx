@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { format, addDays, parseISO, isWithinInterval } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import type { RateRec, RoomType, CompRate, Tenant, Property } from '../lib/types'
+import NetRevenuePanel from '../components/NetRevenuePanel'
 
 interface Props {
   tenant: Tenant; property: Property
@@ -96,7 +97,7 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
   const [approving, setApproving] = useState(false)
   const [bulkProgress, setBulkProgress] = useState<{ total: number; running: boolean } | null>(null)
   const [toasts,    setToasts]    = useState<ToastMsg[]>([])
-  const [drawerTab, setDrawerTab] = useState<'rate' | 'history'>('rate')
+  const [drawerTab, setDrawerTab] = useState<'rate' | 'net' | 'history'>('rate')
   const [publishLog,  setPublishLog]  = useState<PublishLogRow[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
 
@@ -516,20 +517,35 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
 
             {/* Drawer tabs */}
             <div className="flex border-b border-slate-200 bg-slate-50">
-              {(['rate', 'history'] as const).map(tab => (
+              {(['rate', 'net', 'history'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setDrawerTab(tab)}
-                  className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+                  className={`flex-1 py-2 text-[11px] font-semibold transition-colors ${
                     drawerTab === tab
                       ? 'bg-white text-navy border-b-2 border-navy'
                       : 'text-slate-500 hover:text-navy hover:bg-white/60'
                   }`}
                 >
-                  {tab === 'rate' ? 'Rate Detail' : 'Publish History'}
+                  {tab === 'rate' ? 'Rate Detail' : tab === 'net' ? 'Net Revenue' : 'Publish History'}
                 </button>
               ))}
             </div>
+
+            {drawerTab === 'net' && selectedRoom && selected.recommended_rate != null && (
+              <div className="flex-1 overflow-y-auto px-3 py-3">
+                <NetRevenuePanel
+                  rate={selected.recommended_rate}
+                  roomName={selectedRoom.name}
+                  roomCategory={
+                    selectedRoom.name.toLowerCase().includes('waterfront') ? 'waterfront'
+                    : selectedRoom.name.toLowerCase().includes('water')    ? 'waterview'
+                    : selectedRoom.name.toLowerCase().includes('cottage')  ? 'cottage'
+                    : 'garden'
+                  }
+                />
+              </div>
+            )}
 
             {drawerTab === 'history' && (
               <div className="flex-1 px-4 py-3">
@@ -576,7 +592,7 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
               </div>
             )}
 
-            <div className={`flex-1 px-4 py-3 space-y-4 ${drawerTab === 'history' ? 'hidden' : ''}`}>
+            <div className={`flex-1 px-4 py-3 space-y-4 ${drawerTab !== 'rate' ? 'hidden' : ''}`}>
               {/* Demand score */}
               <div className="text-center">
                 <DemandGauge score={selected.demand_score ?? 0} />

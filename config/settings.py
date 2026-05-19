@@ -356,6 +356,196 @@ SUGGESTED_CATEGORY_TEMPLATES = [
 ]
 
 
+# ── CPP Pricing Intelligence Configuration (2026-05-19) ─────────────────────
+
+# 1. Pocket Price Waterfall — per-channel cost stack
+CHANNEL_COST_STRUCTURE = {
+    "direct_web":   {"label": "Direct (Website)",        "icon": "🌐",
+                     "ota_commission": 0.00, "credit_card_fee": 0.025,
+                     "channel_manager_fee": 0.00, "booking_engine_fee": 0.015,
+                     "other_fees": 0.00, "color": "#1d9e75"},
+    "direct_phone": {"label": "Direct (Phone/Walk-in)",  "icon": "📞",
+                     "ota_commission": 0.00, "credit_card_fee": 0.025,
+                     "channel_manager_fee": 0.00, "booking_engine_fee": 0.00,
+                     "other_fees": 0.00, "color": "#2980b9"},
+    "booking_com":  {"label": "Booking.com",             "icon": "🔵",
+                     "ota_commission": 0.15, "credit_card_fee": 0.00,
+                     "channel_manager_fee": 0.005, "booking_engine_fee": 0.00,
+                     "other_fees": 0.00, "color": "#003580"},
+    "expedia":      {"label": "Expedia / Hotels.com",    "icon": "🟡",
+                     "ota_commission": 0.18, "credit_card_fee": 0.00,
+                     "channel_manager_fee": 0.005, "booking_engine_fee": 0.00,
+                     "other_fees": 0.00, "color": "#f5a623"},
+    "airbnb":       {"label": "Airbnb",                  "icon": "🏠",
+                     "ota_commission": 0.03, "credit_card_fee": 0.00,
+                     "channel_manager_fee": 0.005, "booking_engine_fee": 0.00,
+                     "other_fees": 0.00, "color": "#ff5a5f",
+                     "notes": "Guest pays ~14% service fee on top — impacts conversion"},
+    "vrbo":         {"label": "VRBO",                    "icon": "🏡",
+                     "ota_commission": 0.05, "credit_card_fee": 0.00,
+                     "channel_manager_fee": 0.005, "booking_engine_fee": 0.00,
+                     "other_fees": 0.00, "color": "#1a5276"},
+    "tripadvisor":  {"label": "TripAdvisor",             "icon": "🦉",
+                     "ota_commission": 0.15, "credit_card_fee": 0.025,
+                     "channel_manager_fee": 0.005, "booking_engine_fee": 0.00,
+                     "other_fees": 0.00, "color": "#00af87"},
+}
+
+BOOKING_VARIABLE_COSTS = {
+    "cleaning_fee":       45.00,
+    "amenities_per_stay": 18.00,
+    "breakfast_per_stay":  0.00,
+    "laundry_per_stay":   12.00,
+    "misc_per_stay":       8.00,
+}
+TOTAL_VARIABLE_COST_PER_BOOKING = sum(BOOKING_VARIABLE_COSTS.values())  # $83
+
+CHANNEL_MIX = {
+    "direct_web":   0.35, "direct_phone": 0.10,
+    "booking_com":  0.28, "expedia":      0.12,
+    "airbnb":       0.08, "vrbo":         0.05, "tripadvisor": 0.02,
+}
+
+# 2. Channel Price Segmentation
+CHANNEL_SEGMENTS = {
+    "direct":  {"label": "Direct Booking", "icon": "🌐",
+                "description": "Guests who book directly — website, phone, email",
+                "price_sensitivity": "low",  "rate_strategy": "slight_discount",
+                "rate_modifier": -0.06, "acquisition_cost": 0.00,
+                "loyalty_value": "high", "target_mix_pct": 0.45},
+    "ota":     {"label": "OTA Booking",    "icon": "🔵",
+                "description": "Booking.com, Expedia, Airbnb, etc.",
+                "price_sensitivity": "high", "rate_strategy": "market_rate",
+                "rate_modifier": 0.00, "acquisition_cost_pct": 0.15,
+                "loyalty_value": "low",  "target_mix_pct": 0.35},
+    "package": {"label": "Package / Add-On","icon": "🎁",
+                "description": "Guests purchasing room + experience packages",
+                "price_sensitivity": "medium", "rate_strategy": "value_bundle",
+                "rate_modifier": 0.00, "loyalty_value": "medium",
+                "target_mix_pct": 0.12},
+    "repeat":  {"label": "Repeat / Loyalty Guest", "icon": "🌟",
+                "description": "Guests with 2+ prior stays",
+                "price_sensitivity": "medium_low", "rate_strategy": "loyalty_reward",
+                "rate_modifier": -0.08, "acquisition_cost": 0.00,
+                "loyalty_value": "very_high", "target_mix_pct": 0.08},
+}
+
+# 3. Price Fences
+PRICE_FENCES = [
+    {"id": "non_refundable", "name": "Non-Refundable Rate",
+     "description": "Book now, pay now, no cancellation. Typically 10-15% below flexible rate.",
+     "fence_type": "booking_terms", "discount_pct": 12,
+     "requires_verification": False, "active": True,
+     "minimum_lead_days": 7,
+     "applicable_channels": ["direct_web","booking_com","expedia"],
+     "rationale": "Secures revenue early. Guest absorbs cancellation risk. "
+                  "High take rate from budget-conscious leisure travelers.",
+     "national_take_rate": 0.28},
+    {"id": "military_government", "name": "Military / Government Rate",
+     "description": "Active duty military, veterans, and government employees. "
+                    "Verification at check-in required.",
+     "fence_type": "identity", "discount_pct": 10,
+     "requires_verification": True,
+     "verification_method": "Military ID or government badge at check-in",
+     "active": True,
+     "applicable_channels": ["direct_web","direct_phone"],
+     "rationale": "Critical for Beaufort given Parris Island MCRD proximity. "
+                  "Families of recruits represent significant demand.",
+     "beaufort_specific_note": "Parris Island graduation weekends: military "
+                               "families are price-sensitive but MUST stay near the base. "
+                               "Apply rate to non-peak graduation dates only.",
+     "national_take_rate": 0.08},
+    {"id": "aaa_senior", "name": "AAA / Senior Rate",
+     "description": "AAA members and guests 62+. Card verification at check-in.",
+     "fence_type": "identity", "discount_pct": 8,
+     "requires_verification": True,
+     "verification_method": "AAA membership card or valid ID showing age 62+",
+     "active": True,
+     "applicable_channels": ["direct_web","direct_phone"],
+     "rationale": "Leisure travelers 55+ represent the highest-value segment "
+                  "for boutique inns — longer stays, higher spend per day.",
+     "national_take_rate": 0.12},
+    {"id": "extended_stay", "name": "Extended Stay Rate",
+     "description": "4+ night stays receive a progressive discount.",
+     "fence_type": "length_of_stay",
+     "discount_schedule": {1: 0.00, 2: 0.03, 3: 0.07, 4: 0.10, 5: 0.12, 7: 0.15},
+     "requires_verification": False, "active": True,
+     "applicable_channels": ["direct_web","direct_phone","booking_com"],
+     "rationale": "Reduces per-night cleaning costs. Improves occupancy consistency. "
+                  "Attracts remote workers and slow travelers.",
+     "national_take_rate": 0.15},
+    {"id": "advance_purchase", "name": "Early Bird / Advance Purchase",
+     "description": "Book 60+ days in advance for a discount.",
+     "fence_type": "booking_window",
+     "discount_schedule": {60: 0.08, 90: 0.10, 120: 0.12},
+     "requires_verification": False, "active": True,
+     "applicable_channels": ["direct_web"],
+     "rationale": "Secures revenue far in advance. Only offer direct to reward direct booking channel.",
+     "national_take_rate": 0.18},
+    {"id": "package_rate", "name": "Package / Add-On Rate",
+     "description": "Room + package bundle pricing.",
+     "fence_type": "purchase_requirement", "discount_pct": 0,
+     "requires_verification": False, "active": True,
+     "applicable_channels": ["direct_web","direct_phone"],
+     "rationale": "Packages bundle value rather than discounting price. "
+                  "Inn retains margin while increasing total booking value.",
+     "national_take_rate": 0.20},
+]
+
+# 4. Economic Value Estimation
+EVE_CONFIG = {
+    "next_best_alternative": {
+        "name": "Hampton Inn Beaufort",
+        "type": "Upscale Select-Service Hotel",
+        "avg_rate": 189,
+        "description": "Nearest branded hotel, 2.1 miles from downtown",
+    },
+    "value_drivers": [
+        {"id": "waterfront_location", "name": "Waterfront Location Premium",
+         "description": "Direct Beaufort River views, waterfront access",
+         "value_estimate": 65,
+         "evidence": "Waterfront properties nationally command 25-40% premium "
+                     "over non-waterfront.",
+         "applies_to": ["waterfront"]},
+        {"id": "historic_character", "name": "Historic Property Premium",
+         "description": "Built 1770, National Register of Historic Places",
+         "value_estimate": 45,
+         "evidence": "Historic inn guests pay premium for authenticity and story.",
+         "applies_to": ["all"]},
+        {"id": "personal_service", "name": "Personal / Boutique Service",
+         "description": "Owner-operated, personalized hospitality",
+         "value_estimate": 38,
+         "evidence": "TripAdvisor studies show $30-50 premium for personal service.",
+         "applies_to": ["all"]},
+        {"id": "rsc_restaurant", "name": "Ribaut Social Club Access",
+         "description": "On-site acclaimed restaurant and rooftop bar",
+         "value_estimate": 42,
+         "evidence": "Destination restaurant adds ~$35-50 in perceived value.",
+         "applies_to": ["all"]},
+        {"id": "downtown_location", "name": "Prime Downtown Location",
+         "description": "On Bay Street, walking distance to everything",
+         "value_estimate": 35,
+         "evidence": "Walkability worth $25-40 vs suburban hotel location.",
+         "applies_to": ["all"]},
+        {"id": "room_quality", "name": "Superior Room Quality",
+         "description": "Premium furnishings, Comphy bedding, curated décor",
+         "value_estimate": 30,
+         "evidence": "Room quality score 8.4/10 vs typical 6.5/10 for price band.",
+         "applies_to": ["all"]},
+        {"id": "lowcountry_experience", "name": "Authentic Lowcountry Experience",
+         "description": "Gullah culture, local art, Murano glass, local partnerships",
+         "value_estimate": 28,
+         "evidence": "Cultural authenticity is a leading boutique choice driver.",
+         "applies_to": ["all"]},
+        {"id": "privacy_exclusivity", "name": "Privacy and Exclusivity",
+         "description": "15 rooms vs 100+ at branded hotel",
+         "value_estimate": 22,
+         "evidence": "Small inn guests pay premium for absence of crowds.",
+         "applies_to": ["all"]},
+    ],
+}
+
+
 FB_CONFIG = {
     "restaurant_name":         "Ribaut Social Club",
     "covers_per_night":        40,

@@ -76,6 +76,194 @@ function CompetitorPrefs({ total }: { total: number }) {
   )
 }
 
+// ── CPP Section 3: Price Fences ──────────────────────────────────────
+interface PriceFence {
+  id: string; name: string; description: string
+  fence_type: string; discount_pct?: number
+  discount_schedule?: Record<number, number>
+  requires_verification: boolean
+  verification_method?: string
+  applicable_channels: string[]
+  rationale: string
+  beaufort_specific_note?: string
+  national_take_rate: number
+  active: boolean
+}
+
+function PriceFencesPanel() {
+  const [fences, setFences] = useState<PriceFence[]>([])
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    fetch('/api/price-fences').then(r => r.json()).then(setFences).catch(() => setFences([]))
+  }, [])
+  async function patch(id: string, body: any) {
+    await fetch(`/api/price-fences/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    setFences(f => f.map(x => x.id === id ? { ...x, ...body } : x))
+  }
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+      <h2 className="font-bold text-navy mb-1">Price Fence Configuration</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Control which discount programs you offer and at what levels. Each fence is a guest-self-selected
+        condition that justifies a different price without cannibalizing your base rate.
+      </p>
+      <div className="space-y-3">
+        {fences.map(f => {
+          const isOpen = expanded.has(f.id)
+          const monthlyImpact = Math.round(380 * 14 * 30 * f.national_take_rate * 0.75 * ((f.discount_pct ?? 8) / 100))
+          return (
+            <div key={f.id} className="border border-slate-100 rounded-lg p-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <strong className="text-navy text-sm">{f.name}</strong>
+                    <span className="text-[10px] uppercase tracking-wider bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                      {f.fence_type.replace(/_/g, ' ')}
+                    </span>
+                    {f.requires_verification && (
+                      <span className="text-[10px] uppercase bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">
+                        ID required
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">{f.description}</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {f.discount_pct != null && (
+                    <input type="number" min={0} max={50} value={f.discount_pct ?? 0}
+                      onChange={e => patch(f.id, { discount_pct: Number(e.target.value) })}
+                      className="border border-slate-200 rounded w-14 px-1 py-0.5 text-xs text-right"
+                      title="Discount %" />
+                  )}
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" checked={!!f.active} onChange={e => patch(f.id, { active: e.target.checked })}
+                      className="sr-only peer" />
+                    <div className="w-9 h-5 bg-slate-200 peer-checked:bg-sage rounded-full transition-colors after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full peer-checked:after:translate-x-4 after:transition-transform" />
+                  </label>
+                </div>
+              </div>
+              {f.beaufort_specific_note && (
+                <div className="mt-2 bg-amber-50 border-l-4 border-amber-400 rounded-r px-2 py-1 text-[11px] text-amber-800">
+                  ⚠ <strong>Beaufort market note:</strong> {f.beaufort_specific_note}
+                </div>
+              )}
+              <div className="flex items-baseline justify-between mt-2 text-[10px] text-slate-500">
+                <span>Est. monthly impact: <strong className="text-navy">${monthlyImpact.toLocaleString()}</strong> @ {(f.national_take_rate*100).toFixed(0)}% take rate</span>
+                <button onClick={() => setExpanded(s => { const n = new Set(s); n.has(f.id) ? n.delete(f.id) : n.add(f.id); return n })}
+                  className="text-navy hover:text-gold font-semibold">
+                  {isOpen ? 'Hide rationale ▴' : 'Why offer this? ▾'}
+                </button>
+              </div>
+              {isOpen && (
+                <div className="mt-2 bg-cream rounded p-2 text-[11px] text-slate-600 italic">
+                  {f.rationale}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── CPP Section 5: Annual Price Review ───────────────────────────────
+interface PriceReviewRow {
+  room_id: string; room_name: string
+  current_base: number; recommended_new_base: number
+  change_dollars: number; change_pct: number
+  annual_revenue_impact: number; rationale: string
+}
+interface PriceReviewResp {
+  review_date: string; market_appreciation_pct: number
+  recommendations: PriceReviewRow[]; total_annual_revenue_impact: number
+  implementation_guidance: string
+}
+
+function AnnualPriceReviewPanel() {
+  const [data, setData] = useState<PriceReviewResp | null>(null)
+  const [loading, setLoading] = useState(false)
+  async function run() {
+    setLoading(true)
+    try {
+      const r = await fetch('/api/price-review'); setData(await r.json())
+    } finally { setLoading(false) }
+  }
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="font-bold text-navy">Annual Base Rate Review</h2>
+        <button onClick={run} disabled={loading}
+          className="text-xs font-bold bg-navy text-white px-3 py-1.5 rounded-lg hover:bg-navy-dark disabled:opacity-50">
+          {loading ? 'Analyzing…' : (data ? 'Re-run Review' : 'Run Review Analysis')}
+        </button>
+      </div>
+      <p className="text-xs text-slate-500 mb-3">
+        Base rates drift as the market moves. Run this analysis annually (or whenever your positioning
+        materially changes) to keep base rates aligned with market.
+      </p>
+      {!data && !loading && (
+        <div className="bg-cream rounded p-3 text-xs text-slate-500 italic text-center">
+          Click "Run Review Analysis" to compare your current base rates against market movement.
+        </div>
+      )}
+      {data && (
+        <>
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50">
+              <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
+                <th className="px-2 py-1.5">Room Type</th>
+                <th className="px-2 py-1.5 text-right">Current Base</th>
+                <th className="px-2 py-1.5 text-right">Recommended</th>
+                <th className="px-2 py-1.5 text-right">Change</th>
+                <th className="px-2 py-1.5 text-right">Annual Impact</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.recommendations.map(r => (
+                <tr key={r.room_id} className="border-t border-slate-100">
+                  <td className="px-2 py-1.5 font-semibold text-navy">{r.room_name}</td>
+                  <td className="px-2 py-1.5 text-right">${r.current_base}</td>
+                  <td className="px-2 py-1.5 text-right text-navy font-bold">${r.recommended_new_base}</td>
+                  <td className="px-2 py-1.5 text-right text-sage font-semibold">
+                    +${r.change_dollars} ({r.change_pct.toFixed(1)}%)
+                  </td>
+                  <td className="px-2 py-1.5 text-right text-gold font-bold">
+                    +${r.annual_revenue_impact.toLocaleString()}/yr
+                  </td>
+                </tr>
+              ))}
+              <tr className="bg-cream font-bold">
+                <td colSpan={4} className="px-2 py-2 text-right uppercase tracking-wider text-xs text-slate-600">
+                  Total Annual Impact
+                </td>
+                <td className="px-2 py-2 text-right text-gold text-base">
+                  +${data.total_annual_revenue_impact.toLocaleString()}/yr
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="mt-3 bg-gold/10 border border-gold/30 rounded-lg p-3 text-[11px] text-slate-700">
+            <div className="font-bold text-gold uppercase tracking-wider text-[10px] mb-1">Implementation Guidance</div>
+            {data.implementation_guidance}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button className="bg-sage text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-sage-dark">
+              Apply All Recommendations
+            </button>
+            <button className="text-xs font-semibold text-slate-500 hover:text-navy">
+              Snooze 30 days
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function AutopilotPanel(
   { tenant, property, roomTypes }: { tenant: Tenant; property: Property; roomTypes: RoomType[] }
 ) {
@@ -434,6 +622,8 @@ export default function Settings({ tenant, property }: Props) {
       <h1 className="text-navy font-bold text-xl">Settings</h1>
 
       <AutopilotPanel tenant={tenant} property={property} roomTypes={roomTypes} />
+      <PriceFencesPanel />
+      <AnnualPriceReviewPanel />
 
       {/* Quality scores */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">

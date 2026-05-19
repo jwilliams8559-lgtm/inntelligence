@@ -1053,6 +1053,186 @@ def api_gs_config():
     })
 
 
+# ════════════════════════════════════════════════════════════════════════
+# CPP Pricing Intelligence (2026-05-19)
+# ════════════════════════════════════════════════════════════════════════
+
+from modules.hospitality.rate_engine import (
+    PocketPriceWaterfallEngine, EVEEngine,
+)
+_v2_waterfall = PocketPriceWaterfallEngine()
+
+
+def _waterfall_to_dict(wf) -> dict:
+    return {
+        "channel_id":              wf.channel_id,
+        "channel_label":           wf.channel_label,
+        "channel_icon":            wf.channel_icon,
+        "rack_rate":               wf.rack_rate,
+        "lines": [
+            {"label": l.label, "amount": round(l.amount, 2),
+             "cumulative": round(l.cumulative, 2),
+             "pct_of_rack": l.pct_of_rack,
+             "is_deduction": l.is_deduction, "color": l.color}
+            for l in wf.lines
+        ],
+        "gross_revenue":           wf.gross_revenue,
+        "contribution_margin":     wf.contribution_margin,
+        "contribution_margin_pct": wf.contribution_margin_pct,
+        "vs_direct_delta":         wf.vs_direct_delta,
+        "recommendation":          wf.recommendation,
+    }
+
+
+# ── 1. Pocket Price Waterfall ─────────────────────────────────────────
+
+@app.route("/api/waterfall")
+def v2_api_waterfall():
+    rate   = float(request.args.get("rate", 380))
+    nights = int(request.args.get("nights", 1))
+    all_wf = _v2_waterfall.compute_all_channels(rate, nights)
+    return jsonify({ch_id: _waterfall_to_dict(wf) for ch_id, wf in all_wf.items()})
+
+
+@app.route("/api/waterfall/parity")
+def v2_api_waterfall_parity():
+    rate   = float(request.args.get("rate", 380))
+    nights = int(request.args.get("nights", 1))
+    return jsonify(_v2_waterfall.compute_rate_parity_recommendation(rate, nights))
+
+
+@app.route("/api/waterfall/blended")
+def v2_api_waterfall_blended():
+    rate   = float(request.args.get("rate", 380))
+    nights = int(request.args.get("nights", 1))
+    return jsonify(_v2_waterfall.blended_revenue_analysis(rate, nights=nights))
+
+
+# ── 3. Price Fences ────────────────────────────────────────────────
+
+@app.route("/api/price-fences")
+def v2_api_price_fences():
+    from config.settings import PRICE_FENCES
+    return jsonify(PRICE_FENCES)
+
+
+@app.route("/api/price-fences/<fence_id>", methods=["PATCH"])
+def v2_api_price_fence_patch(fence_id: str):
+    from config.settings import PRICE_FENCES
+    fence = next((f for f in PRICE_FENCES if f["id"] == fence_id), None)
+    if not fence:
+        return jsonify({"error": "Not found"}), 404
+    body = request.get_json(force=True) or {}
+    for k in ("active", "discount_pct", "applicable_channels"):
+        if k in body:
+            fence[k] = body[k]
+    return jsonify({"success": True, "fence": fence})
+
+
+# ── 4. Economic Value Estimation ──────────────────────────────────
+
+@app.route("/api/eve")
+def v2_api_eve():
+    from config.settings import EVE_CONFIG
+    room_cat  = request.args.get("room_category", "all")
+    rate      = float(request.args.get("rate", 380))
+    room_name = request.args.get("room_name", "Waterfront Suite")
+    event     = request.args.get("event")
+    eng = EVEEngine(EVE_CONFIG)
+    out = eng.compute_eve(room_cat)
+    out["guest_facing_justification"] = eng.guest_facing_justification(rate, room_name, event)
+    return jsonify(out)
+
+
+# ── 5. Annual Price Review ────────────────────────────────────────
+
+@app.route("/api/price-review")
+def v2_api_price_review():
+    from config.settings import ROOM_TYPES
+    comp_snap = _v2_scraper.get_current_snapshot()
+    comp_avg  = sum(comp_snap.values()) / len(comp_snap) if comp_snap else 350
+    market_appreciation = 0.06
+    recs: list = []
+    for room in ROOM_TYPES:
+        current_base = room["base"]
+        market_adjusted = current_base * (1 + market_appreciation)
+        new_base = int(round(market_adjusted / 5) * 5)
+        recs.append({
+            "room_id":                  room["id"],
+            "room_name":                room["name"],
+            "current_base":             current_base,
+            "current_min":              room["min"],
+            "current_max":              room["max"],
+            "comp_avg_current":         int(comp_avg * 0.85),
+            "market_appreciation_pct":  int(market_appreciation * 100),
+            "recommended_new_base":     new_base,
+            "recommended_new_min":      int(new_base * 0.78),
+            "recommended_new_max":      int(new_base * 1.65),
+            "change_dollars":           new_base - current_base,
+            "change_pct":               round((new_base - current_base) / current_base * 100, 1),
+            "annual_revenue_impact":    int((new_base - current_base) * 0.75 * 365),
+            "rationale": (f"Market rates have appreciated ~6% since base rates were last set. "
+                          f"Comp set average is now ${int(comp_avg):,}. Raising {room['name']} "
+                          f"base from ${current_base} to ${new_base} aligns with market while "
+                          f"preserving your positioning."),
+        })
+    return jsonify({
+        "review_date":                  date.today().isoformat(),
+        "market_appreciation_pct":      int(market_appreciation * 100),
+        "recommendations":              recs,
+        "total_annual_revenue_impact":  sum(r["annual_revenue_impact"] for r in recs),
+        "implementation_guidance": (
+            "Recommended approach: implement base rate increases in two phases. "
+            "Phase 1 (immediate): apply to all bookings 45+ days out. "
+            "Phase 2 (30 days later): apply to all remaining inventory. "
+            "Notify repeat guests and email list in advance with context."
+        ),
+    })
+
+
+# ── 6. Price Banding ──────────────────────────────────────────────
+
+@app.route("/api/price-bands")
+def v2_api_price_bands():
+    from config.settings import ROOM_TYPES
+    check_in = date.today()
+    out: dict = {}
+    for room in ROOM_TYPES:
+        rates: list = []
+        for i in range(90):
+            d = check_in + timedelta(days=i)
+            fc = _v2_demand.forecast(d)
+            rec = _v2_rate.recommend(room, fc.score, fc.label, fc.drivers,
+                                      fc.confidence, None, d)
+            rates.append(int(rec.recommended_rate))
+        rs = sorted(rates)
+        n  = len(rs)
+        comp_snap = _v2_scraper.get_current_snapshot()
+        comp_avg  = int(sum(comp_snap.values()) / len(comp_snap)) if comp_snap else 350
+        median    = rs[n // 2]
+        out[room["id"]] = {
+            "room_name":     room["name"],
+            "base_rate":     room["base"],
+            "min_rate":      min(rates),
+            "max_rate":      max(rates),
+            "median_rate":   median,
+            "p25_rate":      rs[n // 4],
+            "p75_rate":      rs[3 * n // 4],
+            "avg_rate":      int(sum(rates) / len(rates)),
+            "rate_distribution": {
+                "below_base": sum(1 for r in rates if r < room["base"]),
+                "at_base":    sum(1 for r in rates if r == room["base"]),
+                "above_base": sum(1 for r in rates if r > room["base"]),
+            },
+            "premium_nights": sum(1 for r in rates if r > room["base"] * 1.20),
+            "band_width":     max(rates) - min(rates),
+            "comp_avg":       comp_avg,
+            "pct_vs_comp_avg":round((median - comp_avg) / comp_avg * 100, 1) if comp_avg else 0,
+            "rates_sample":   rates[:30],
+        }
+    return jsonify(out)
+
+
 @app.route("/api/fb-summary")
 def v2_api_fb_summary():
     """Returns the monthly F&B revenue breakdown + raw FB_CONFIG."""

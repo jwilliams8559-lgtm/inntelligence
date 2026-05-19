@@ -130,6 +130,91 @@ function RevenueStreamsPanel({ propertyTotalRooms }: { propertyTotalRooms: numbe
   )
 }
 
+// ── CPP Section 6: Price Bands ──
+interface PriceBandRow {
+  room_name: string; base_rate: number
+  min_rate: number; max_rate: number
+  median_rate: number; p25_rate: number; p75_rate: number
+  avg_rate: number
+  rate_distribution: { below_base: number; at_base: number; above_base: number }
+  premium_nights: number; band_width: number
+  comp_avg: number; pct_vs_comp_avg: number
+}
+function PriceBandsPanel() {
+  const [data, setData] = useState<Record<string, PriceBandRow> | null>(null)
+  useEffect(() => {
+    fetch('/api/price-bands').then(r => r.json()).then(setData).catch(() => setData(null))
+  }, [])
+  if (!data) return null
+  const rows = Object.entries(data)
+  const globalMin = Math.min(...rows.map(([, r]) => r.min_rate))
+  const globalMax = Math.max(...rows.map(([, r]) => r.max_rate))
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+      <h2 className="font-bold text-navy mb-1">Rate Distribution — Next 90 Days</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Where each room's rates land across the forward 90-day window. Narrow bands = pricing discipline;
+        wide bands = volatility driven by demand spikes and weekend swings.
+      </p>
+      <div className="space-y-3">
+        {rows.map(([id, r]) => {
+          const range = globalMax - globalMin || 1
+          const pctFrom = (v: number) => ((v - globalMin) / range) * 100
+          return (
+            <div key={id}>
+              <div className="flex items-baseline justify-between mb-1">
+                <strong className="text-navy text-sm">{r.room_name}</strong>
+                <span className="text-[11px] text-slate-500">
+                  ${r.min_rate} – ${r.max_rate} · median ${r.median_rate}
+                  <span className={`ml-2 ${r.pct_vs_comp_avg >= 0 ? 'text-sage' : 'text-coral'} font-semibold`}>
+                    {r.pct_vs_comp_avg >= 0 ? '+' : ''}{r.pct_vs_comp_avg.toFixed(0)}% vs comp avg ${r.comp_avg}
+                  </span>
+                </span>
+              </div>
+              {/* Box plot style band */}
+              <div className="relative h-6 bg-slate-100 rounded">
+                {/* IQR p25-p75 (gold band) */}
+                <div className="absolute top-0 bottom-0 bg-gold/30 rounded"
+                  style={{ left: `${pctFrom(r.p25_rate)}%`, width: `${pctFrom(r.p75_rate) - pctFrom(r.p25_rate)}%` }} />
+                {/* whiskers min-max line */}
+                <div className="absolute top-1/2 -translate-y-1/2 h-px bg-slate-400"
+                  style={{ left: `${pctFrom(r.min_rate)}%`, width: `${pctFrom(r.max_rate) - pctFrom(r.min_rate)}%` }} />
+                {/* base rate marker */}
+                <div className="absolute top-0 bottom-0 w-0.5 bg-navy"
+                  style={{ left: `${pctFrom(r.base_rate)}%` }} title={`Base rate $${r.base_rate}`} />
+                {/* median */}
+                <div className="absolute top-0 bottom-0 w-0.5 bg-coral"
+                  style={{ left: `${pctFrom(r.median_rate)}%` }} title={`Median $${r.median_rate}`} />
+                {/* comp avg */}
+                <div className="absolute top-0 bottom-0 w-0.5 bg-sage border-dashed"
+                  style={{ left: `${pctFrom(r.comp_avg)}%` }} title={`Comp avg $${r.comp_avg}`} />
+                {/* min/max labels */}
+                <span className="absolute -bottom-4 text-[9px] text-slate-400"
+                  style={{ left: `${pctFrom(r.min_rate)}%`, transform: 'translateX(-50%)' }}>
+                  ${r.min_rate}
+                </span>
+                <span className="absolute -bottom-4 text-[9px] text-slate-400"
+                  style={{ left: `${pctFrom(r.max_rate)}%`, transform: 'translateX(-50%)' }}>
+                  ${r.max_rate}
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-500 mt-5">
+                {r.premium_nights} nights above 20% premium · {r.rate_distribution.at_base} at base · {r.rate_distribution.below_base} below base
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex items-center gap-3 mt-3 text-[10px] text-slate-500">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 bg-gold/60" /> P25–P75 (typical range)</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-3 bg-navy" /> Base rate</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-3 bg-coral" /> Median</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-3 bg-sage" /> Comp avg</span>
+      </div>
+    </div>
+  )
+}
+
 // ── Section E: Dual revenue forecast ──
 interface DualForecast {
   labels: string[]
@@ -517,6 +602,9 @@ export default function DemandDashboard({ tenant, property, pendingCount }: Prop
 
       {/* E — Dual revenue forecast (confirmed vs projected) */}
       <DualRevenueForecast />
+
+      {/* CPP Section 6 — Price Bands */}
+      <PriceBandsPanel />
 
       {/* D1 — Optimization Recommendations */}
       <LockedFeature
