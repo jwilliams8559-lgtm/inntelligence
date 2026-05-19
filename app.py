@@ -1213,6 +1213,21 @@ def v2_api_reputation():
     return jsonify(ReputationEngine().get_reputation_summary(V2_PROPERTY, V2_COMPETITORS))
 
 
+@app.route("/api/direct-booking")
+@require_feature("direct_booking_tools")
+def v2_api_direct_booking():
+    from modules.hospitality import direct_booking_engine
+    return jsonify(direct_booking_engine.get_summary(V2_PROPERTY))
+
+
+@app.route("/api/direct-booking/save-incentive", methods=["POST"])
+@require_feature("direct_booking_tools")
+def v2_api_direct_booking_save():
+    from modules.hospitality import direct_booking_engine
+    payload = request.get_json(force=True, silent=True) or {}
+    return jsonify(direct_booking_engine.save_incentive(payload))
+
+
 @app.route("/api/price-bands")
 def v2_api_price_bands():
     from config.settings import ROOM_TYPES

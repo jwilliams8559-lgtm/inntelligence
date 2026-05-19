@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Tenant, Property, RoomType, QualityScore, CompetitorProp } from '../lib/types'
+import LockedFeature from '../components/LockedFeature'
 
 interface AutopilotCfg {
   id?: string
@@ -530,6 +531,174 @@ interface DiscoveryResult {
   ranked_competitors: { rank: number; name: string; tier: number; score: number }[]
 }
 
+interface DirectBookingData {
+  property_name: string
+  monthly_bookings: number
+  adr: number
+  commission_math: {
+    current_ota_pct: number
+    avg_ota_commission: number
+    channel_breakdown: { channel: string; label: string; mix_pct: number; monthly_bookings: number; ota_commission: number; cost_per_booking: number; monthly_cost: number }[]
+    shift_scenarios:   { shift_pct: number; monthly_bookings: number; saved_per_booking: number; monthly_savings: number; annual_savings: number }[]
+  }
+  break_even: {
+    ota_commission_per_booking: number; direct_card_fee: number
+    breakeven_discount: number; breakeven_discount_pct: number
+    recommended_discount: number; recommended_discount_pct: number
+  }
+  incentive: {
+    discount_pct: number; perk_label: string
+    headline: string; subhead: string
+    primary_color: string; accent_color: string
+  }
+  widget_html: string
+}
+
+function DirectBookingPanel() {
+  const [data, setData] = useState<DirectBookingData | null>(null)
+  const [draft, setDraft] = useState<DirectBookingData['incentive'] | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/direct-booking').then(r => r.json()).then((j: DirectBookingData) => {
+      setData(j); setDraft(j.incentive)
+    })
+  }, [])
+
+  if (!data || !draft) return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 text-sm text-slate-400">
+      Loading direct-booking tools…
+    </div>
+  )
+
+  async function save() {
+    setSaving(true)
+    const r = await fetch('/api/direct-booking/save-incentive', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body:   JSON.stringify(draft),
+    })
+    const j = await r.json()
+    setDraft(j)
+    // Refresh widget HTML from server with new incentive
+    const r2 = await fetch('/api/direct-booking').then(x => x.json())
+    setData(r2)
+    setSaving(false)
+  }
+
+  function copyEmbed() {
+    navigator.clipboard.writeText(data!.widget_html)
+    setCopied(true); setTimeout(() => setCopied(false), 2000)
+  }
+
+  const annual10 = data.commission_math.shift_scenarios.find(s => s.shift_pct === 10)?.annual_savings ?? 0
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 space-y-5">
+      <div className="flex items-baseline justify-between flex-wrap gap-2">
+        <h2 className="font-bold text-navy">Direct Booking Tools</h2>
+        <div className="text-xs text-slate-500">
+          Currently <strong>{data.commission_math.current_ota_pct}%</strong> via OTAs at avg <strong>{data.commission_math.avg_ota_commission}%</strong> commission
+        </div>
+      </div>
+
+      {/* Hero savings card */}
+      <div className="bg-sage/10 border border-sage/30 rounded-lg p-4">
+        <div className="text-[10px] uppercase tracking-wider text-sage-dark font-bold">Annual savings opportunity</div>
+        <div className="flex items-baseline gap-3 mt-1">
+          <div className="text-3xl font-bold text-sage-dark">${annual10.toLocaleString()}</div>
+          <div className="text-xs text-slate-600">if you shift just <strong>10%</strong> of OTA bookings to direct</div>
+        </div>
+      </div>
+
+      {/* Shift scenarios */}
+      <div className="grid grid-cols-3 gap-2">
+        {data.commission_math.shift_scenarios.map(s => (
+          <div key={s.shift_pct} className="border border-slate-100 rounded-lg p-3 text-center">
+            <div className="text-[10px] uppercase text-slate-400">Shift {s.shift_pct}%</div>
+            <div className="text-lg font-bold text-navy mt-0.5">${s.monthly_savings.toLocaleString()}/mo</div>
+            <div className="text-[10px] text-slate-500">${s.annual_savings.toLocaleString()}/yr</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">{s.monthly_bookings} bookings/mo</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Channel breakdown table */}
+      <div>
+        <div className="text-xs font-semibold text-slate-600 mb-2">Channel mix &amp; cost</div>
+        <table className="w-full text-xs">
+          <thead className="text-slate-400 text-[10px] uppercase tracking-wide">
+            <tr><th className="text-left py-1">Channel</th><th className="text-right">Mix</th><th className="text-right">Bookings/mo</th><th className="text-right">Cost/bk</th><th className="text-right">Total/mo</th></tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {data.commission_math.channel_breakdown.map(c => (
+              <tr key={c.channel}>
+                <td className="py-1.5 text-slate-700">{c.label}</td>
+                <td className="text-right text-slate-600">{c.mix_pct}%</td>
+                <td className="text-right text-slate-600">{c.monthly_bookings}</td>
+                <td className="text-right text-slate-600">${c.cost_per_booking}</td>
+                <td className="text-right font-semibold text-navy">${c.monthly_cost.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Incentive configurator */}
+      <div className="border-t border-slate-100 pt-4">
+        <div className="text-xs font-semibold text-slate-600 mb-1">Incentive configurator</div>
+        <div className="text-[11px] text-slate-500 mb-3">
+          Math says you can give up to <strong>{data.break_even.breakeven_discount_pct}%</strong> off direct and still come out ahead vs OTA commission. Recommended: <strong className="text-sage-dark">{data.break_even.recommended_discount_pct}%</strong>.
+        </div>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <label className="block">
+            <span className="text-[11px] text-slate-500">Direct-book discount (%)</span>
+            <input type="number" min={0} max={data.break_even.breakeven_discount_pct} step={0.5}
+              className="mt-1 w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+              value={draft.discount_pct}
+              onChange={e => setDraft({ ...draft, discount_pct: Number(e.target.value) })} />
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-slate-500">Welcome perk</span>
+            <input className="mt-1 w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+              value={draft.perk_label}
+              onChange={e => setDraft({ ...draft, perk_label: e.target.value })} />
+          </label>
+          <label className="block col-span-2">
+            <span className="text-[11px] text-slate-500">Widget headline</span>
+            <input className="mt-1 w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+              value={draft.headline}
+              onChange={e => setDraft({ ...draft, headline: e.target.value })} />
+          </label>
+          <label className="block col-span-2">
+            <span className="text-[11px] text-slate-500">Widget subhead</span>
+            <input className="mt-1 w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+              value={draft.subhead}
+              onChange={e => setDraft({ ...draft, subhead: e.target.value })} />
+          </label>
+        </div>
+        <button onClick={save} disabled={saving}
+          className="mt-3 bg-gold text-white text-xs font-bold px-4 py-1.5 rounded hover:bg-gold-dark disabled:opacity-60">
+          {saving ? 'Saving…' : 'Save incentive'}
+        </button>
+      </div>
+
+      {/* Widget preview + embed */}
+      <div className="border-t border-slate-100 pt-4">
+        <div className="text-xs font-semibold text-slate-600 mb-2">Widget preview</div>
+        <div className="bg-slate-50 rounded-lg p-4 mb-3" dangerouslySetInnerHTML={{ __html: data.widget_html }} />
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-[11px] text-slate-500">Paste this on your property website (homepage / booking page):</div>
+          <button onClick={copyEmbed} className="text-[11px] bg-navy text-white px-2 py-1 rounded hover:bg-navy-light">
+            {copied ? '✓ Copied' : 'Copy embed code'}
+          </button>
+        </div>
+        <pre className="bg-slate-900 text-slate-100 text-[10px] p-3 rounded overflow-auto max-h-40">{data.widget_html}</pre>
+      </div>
+    </div>
+  )
+}
+
 export default function Settings({ tenant, property }: Props) {
   const [roomTypes,       setRoomTypes]       = useState<RoomType[]>([])
   const [quality,         setQuality]         = useState<QualityScore[]>([])
@@ -624,6 +793,10 @@ export default function Settings({ tenant, property }: Props) {
       <AutopilotPanel tenant={tenant} property={property} roomTypes={roomTypes} />
       <PriceFencesPanel />
       <AnnualPriceReviewPanel />
+      <LockedFeature featureName="Direct Booking Tools" featureKey="direct_booking_tools"
+        description="Commission recovery math, direct-book incentive configurator, and an embeddable widget for your property website.">
+        <DirectBookingPanel />
+      </LockedFeature>
 
       {/* Quality scores */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
