@@ -1228,6 +1228,13 @@ def v2_api_direct_booking_save():
     return jsonify(direct_booking_engine.save_incentive(payload))
 
 
+@app.route("/api/los/gaps")
+@require_feature("gap_night_analysis")
+def v2_api_los_gaps():
+    from modules.hospitality import los_engine
+    return jsonify(los_engine.get_summary(V2_PROPERTY))
+
+
 @app.route("/api/price-bands")
 def v2_api_price_bands():
     from config.settings import ROOM_TYPES

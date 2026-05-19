@@ -84,6 +84,116 @@ function OptimizationRecsPanel() {
   )
 }
 
+// ── D2: Gap-Night Optimizer ──
+interface GapNight {
+  date: string; room_name: string; gap_length: number
+  prior_checkout: string; next_checkin: string
+  current_rate: number; recommended_rate: number; discount_pct: number
+  lost_if_empty: number; captured_if_sold: number
+  alternative_min_stay_extension: number
+}
+interface MinStayRec {
+  date: string; weekday: string; orphan_count: number; total_rooms: number
+  recommendation: string; reason: string
+}
+interface GapData {
+  property: string; horizon_days: number
+  gap_count: number; revenue_at_risk: number; revenue_captured: number
+  fill_uplift_monthly: number
+  gaps: GapNight[]
+  min_stay_recs: MinStayRec[]
+}
+
+function GapNightPanel() {
+  const [data, setData] = useState<GapData | null>(null)
+  useEffect(() => {
+    fetch('/api/los/gaps').then(r => r.json()).then(setData).catch(() => setData(null))
+  }, [])
+  if (!data) return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 text-sm text-slate-400">
+      Loading gap-night analysis…
+    </div>
+  )
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+      <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <h2 className="font-bold text-navy">Gap-Night Optimizer</h2>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-slate-500">{data.gap_count} orphan nights · next {data.horizon_days} days</span>
+          <span className="bg-sage/15 text-sage-dark font-bold px-2 py-0.5 rounded-full">
+            +${data.fill_uplift_monthly.toLocaleString()}/mo if filled
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="bg-coral/5 border border-coral/20 rounded-lg p-3">
+          <div className="text-[10px] uppercase text-coral font-bold">At risk if empty</div>
+          <div className="text-xl font-bold text-coral mt-0.5">${data.revenue_at_risk.toLocaleString()}</div>
+          <div className="text-[10px] text-slate-500">{data.horizon_days}-day total</div>
+        </div>
+        <div className="bg-sage/5 border border-sage/20 rounded-lg p-3">
+          <div className="text-[10px] uppercase text-sage-dark font-bold">Captured if filled</div>
+          <div className="text-xl font-bold text-sage-dark mt-0.5">${data.revenue_captured.toLocaleString()}</div>
+          <div className="text-[10px] text-slate-500">After avg 17% discount</div>
+        </div>
+        <div className="bg-navy/5 border border-navy/20 rounded-lg p-3">
+          <div className="text-[10px] uppercase text-navy font-bold">Recovery rate</div>
+          <div className="text-xl font-bold text-navy mt-0.5">
+            {data.revenue_at_risk > 0 ? Math.round((data.revenue_captured / data.revenue_at_risk) * 100) : 0}%
+          </div>
+          <div className="text-[10px] text-slate-500">Avg revenue captured per gap</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <div className="text-xs font-semibold text-slate-600 mb-2">Next orphan nights</div>
+          <div className="max-h-80 overflow-auto divide-y divide-slate-100 border border-slate-100 rounded-lg">
+            {data.gaps.slice(0, 10).map((g, i) => (
+              <div key={i} className="px-3 py-2 text-xs">
+                <div className="flex items-baseline justify-between">
+                  <div className="font-semibold text-navy">{g.date} · {g.room_name}</div>
+                  <div className="text-slate-500 text-[10px]">{g.gap_length}-night gap</div>
+                </div>
+                <div className="text-slate-500 mt-0.5">
+                  After {g.prior_checkout} checkout, next stay {g.next_checkin}
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <div>
+                    <span className="line-through text-slate-400">${g.current_rate}</span>{' '}
+                    <strong className="text-sage-dark">${g.recommended_rate}</strong>
+                    <span className="text-[10px] text-slate-400"> (–{g.discount_pct}%)</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500">or set {g.alternative_min_stay_extension + 1}-night min</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs font-semibold text-slate-600 mb-2">Minimum-stay recommendations</div>
+          {data.min_stay_recs.length === 0 ? (
+            <div className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg p-3">
+              No orphan-clustered dates detected — current rules are sufficient.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {data.min_stay_recs.map((r, i) => (
+                <div key={i} className="border border-gold/30 bg-gold/5 rounded-lg p-3 text-xs">
+                  <div className="font-semibold text-navy">{r.date} ({r.weekday})</div>
+                  <div className="text-slate-600 mt-0.5">{r.reason}</div>
+                  <div className="text-gold-dark font-semibold mt-1">→ {r.recommendation}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── D4: Revenue Streams summary ──
 function RevenueStreamsPanel({ propertyTotalRooms }: { propertyTotalRooms: number }) {
   const [packages, setPackages] = useState<any[]>([])
@@ -613,6 +723,15 @@ export default function DemandDashboard({ tenant, property, pendingCount }: Prop
         description="AI-generated weekly action plan: midweek specials, rate floor alerts, competitor pricing gaps, and package opportunities. Estimated to add $1,500–$3,000/mo for a typical 14-room inn."
       >
         <OptimizationRecsPanel />
+      </LockedFeature>
+
+      {/* D2 — Gap-Night Optimizer */}
+      <LockedFeature
+        featureName="Gap-Night Optimizer"
+        featureKey="gap_night_analysis"
+        description="Detects 1–2 night orphan gaps between bookings and recommends gap-fill discounts or minimum-stay enforcement to capture lost revenue."
+      >
+        <GapNightPanel />
       </LockedFeature>
 
       {/* D4 — Revenue Streams summary */}
