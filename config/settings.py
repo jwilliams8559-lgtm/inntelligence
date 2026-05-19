@@ -98,6 +98,8 @@ ACTIVE_PROPERTY = {
     "city": "Beaufort",
     "state": "SC",
     "zip": "29902",
+    "latitude":  32.4316,
+    "longitude": -80.6698,
     "timezone": "America/New_York",
     "total_rooms": 14,
     "target_occupancy_min": 0.70,

@@ -1235,6 +1235,13 @@ def v2_api_los_gaps():
     return jsonify(los_engine.get_summary(V2_PROPERTY))
 
 
+@app.route("/api/weather")
+@require_feature("weather_intel")
+def v2_api_weather():
+    from modules.hospitality import weather_engine
+    return jsonify(weather_engine.get_summary(V2_PROPERTY))
+
+
 @app.route("/api/price-bands")
 def v2_api_price_bands():
     from config.settings import ROOM_TYPES

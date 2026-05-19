@@ -194,6 +194,66 @@ function GapNightPanel() {
   )
 }
 
+// ── D3: Weather Intelligence ──
+interface WeatherDay {
+  date: string; name: string; temp: number; temp_unit: string
+  wind: string; short: string; detailed: string
+  icon: string; good_weather: boolean; demand_blend: number
+}
+interface WeatherSummary {
+  forecast: WeatherDay[]
+  good_day_count?: number
+  good_day_pct?: number
+  data_source: string; fetched_at: number
+  error?: string
+}
+
+function WeatherPanel() {
+  const [w, setW] = useState<WeatherSummary | null>(null)
+  useEffect(() => {
+    fetch('/api/weather').then(r => r.json()).then(setW).catch(() => setW(null))
+  }, [])
+  if (!w) return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 text-sm text-slate-400">
+      Loading weather…
+    </div>
+  )
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+      <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <h2 className="font-bold text-navy">Weather Intelligence — Next 7 Days</h2>
+        <div className="text-xs text-slate-500">
+          {w.good_day_count != null && `${w.good_day_count}/${w.forecast.length} good days (${w.good_day_pct}%)`}
+          {' · source: '}<span className="text-slate-400">{w.data_source}</span>
+        </div>
+      </div>
+      {w.error ? (
+        <div className="text-xs text-coral">⚠ {w.error}</div>
+      ) : (
+        <div className="grid grid-cols-7 gap-2">
+          {w.forecast.map(d => (
+            <div key={d.date} className={`rounded-lg p-2 border text-center ${
+              d.demand_blend > 0  ? 'border-sage/30 bg-sage/5'
+              : d.demand_blend < 0 ? 'border-coral/30 bg-coral/5'
+                                     : 'border-slate-100 bg-cream'
+            }`} title={d.detailed}>
+              <div className="text-[10px] text-slate-500">{d.name.length > 8 ? d.name.slice(0,3) : d.name}</div>
+              <div className="text-2xl">{d.icon}</div>
+              <div className="text-sm font-bold text-navy">{d.temp}°</div>
+              <div className="text-[9px] text-slate-500 leading-tight mt-0.5 h-6 line-clamp-2">{d.short}</div>
+              {d.demand_blend !== 0 && (
+                <div className={`text-[10px] font-bold mt-1 ${d.demand_blend > 0 ? 'text-sage-dark' : 'text-coral'}`}>
+                  {d.demand_blend > 0 ? '↑' : '↓'} {(Math.abs(d.demand_blend) * 100).toFixed(0)}% demand
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── D4: Revenue Streams summary ──
 function RevenueStreamsPanel({ propertyTotalRooms }: { propertyTotalRooms: number }) {
   const [packages, setPackages] = useState<any[]>([])
@@ -732,6 +792,15 @@ export default function DemandDashboard({ tenant, property, pendingCount }: Prop
         description="Detects 1–2 night orphan gaps between bookings and recommends gap-fill discounts or minimum-stay enforcement to capture lost revenue."
       >
         <GapNightPanel />
+      </LockedFeature>
+
+      {/* D3 — Weather Intelligence */}
+      <LockedFeature
+        featureName="Weather Intelligence"
+        featureKey="weather_intel"
+        description="Seven-day NWS forecast layered onto your demand model. Sunny weekends nudge demand up; rain weekends pull it down. Free, no API key."
+      >
+        <WeatherPanel />
       </LockedFeature>
 
       {/* D4 — Revenue Streams summary */}

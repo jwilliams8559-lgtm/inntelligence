@@ -118,6 +118,19 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
       .then(r => r.json()).then(j => setAlerts(Array.isArray(j) ? j : []))
       .catch(() => setAlerts([]))
   }, [property.id])
+
+  // Section E — weather icons on date headers (NWS 7-day window)
+  const [weatherMap, setWeatherMap] = useState<Record<string, { icon: string; temp: number; short: string }>>({})
+  useEffect(() => {
+    fetch('/api/weather').then(r => {
+      if (r.status === 403) return { forecast: [] }
+      return r.json()
+    }).then((j: any) => {
+      const m: Record<string, { icon: string; temp: number; short: string }> = {}
+      for (const f of (j.forecast || [])) m[f.date] = { icon: f.icon, temp: f.temp, short: f.short }
+      setWeatherMap(m)
+    }).catch(() => {})
+  }, [])
   const surgeAlerts   = alerts.filter(a => a.alert_type === 'surge')
   const lowOccAlerts  = alerts.filter(a => a.alert_type === 'low_occupancy')
   const festAlerts    = alerts.filter(a => a.alert_type === 'festival')
@@ -433,6 +446,11 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
                         }`}>
                       <div className="font-semibold">{format(d, 'MMM d')}</div>
                       <div className="opacity-70 text-[10px]">{format(d, 'EEE')}</div>
+                      {weatherMap[dateStr] && (
+                        <div className="text-[10px] mt-0.5" title={`${weatherMap[dateStr].short} · ${weatherMap[dateStr].temp}°F`}>
+                          {weatherMap[dateStr].icon} {weatherMap[dateStr].temp}°
+                        </div>
+                      )}
                       {wf && <div className="text-[9px] font-bold mt-0.5">FESTIVAL</div>}
                     </th>
                   )
