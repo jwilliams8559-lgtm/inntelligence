@@ -80,8 +80,41 @@ def _account_to_user(email: str, account: dict) -> dict:
     }
 
 
+def _lookup_account(email: str) -> Optional[dict]:
+    """Resolve an email to either a static DEMO_ACCOUNTS entry or a dynamic
+    tenant_store record. Dynamic accounts authenticate with the temp_password
+    set at provisioning time."""
+    email = (email or "").lower().strip()
+    if email in DEMO_ACCOUNTS:
+        return DEMO_ACCOUNTS[email]
+    try:
+        from modules.admin.tenant_store import get_tenant_by_email
+        t = get_tenant_by_email(email)
+        if t:
+            return {
+                "tenant_id":     t["tenant_id"],
+                "plan_tier":     t["plan_tier"],
+                "property_name": t["inn_name"],
+                "role":          "inn_owner",
+                "password_hash": t["temp_password"],
+            }
+    except ImportError:
+        pass
+    return None
+
+
+def authenticate(email: str, password: str) -> Optional[dict]:
+    """Verify credentials and return the account dict if valid."""
+    account = _lookup_account(email)
+    if not account:
+        return None
+    if account.get("password_hash") != password:
+        return None
+    return account
+
+
 def create_token(email: str) -> Optional[str]:
-    account = DEMO_ACCOUNTS.get(email)
+    account = _lookup_account(email)
     if not account:
         return None
     return base64.b64encode(json.dumps(_account_to_user(email, account)).encode()).decode()
@@ -132,6 +165,6 @@ def require_feature(feature_name: str):
 
 
 __all__ = [
-    "DEMO_ACCOUNTS", "get_current_user", "create_token",
+    "DEMO_ACCOUNTS", "get_current_user", "create_token", "authenticate",
     "get_plan_features", "check_feature", "require_feature",
 ]

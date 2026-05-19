@@ -1350,13 +1350,17 @@ def v2_api_optimization_recs():
 
 @app.route("/api/auth/login", methods=["POST"])
 def v2_api_login():
-    body = request.get_json(force=True) or {}
+    from modules.auth.auth import authenticate
+    from modules.admin.tenant_store import mark_logged_in
+    body  = request.get_json(force=True) or {}
     email = (body.get("email", "") or "").lower().strip()
     pwd   = body.get("password", "")
-    acct  = _AUTH_ACCOUNTS.get(email)
-    if not acct or acct["password_hash"] != pwd:
+    acct  = authenticate(email, pwd)
+    if not acct:
         return jsonify({"error": "Invalid credentials"}), 401
     token = _auth_create_token(email)
+    # Dynamic tenants flip from pending → active on first login
+    mark_logged_in(acct["tenant_id"])
     return jsonify({
         "token":         token,
         "email":         email,
@@ -1380,6 +1384,244 @@ def v2_api_me():
 def v2_api_plans():
     from config.settings import FEATURE_GATES
     return jsonify(FEATURE_GATES)
+
+
+# ════════════════════════════════════════════════════════════════════
+# Admin-led onboarding (TGC admins only)
+# ════════════════════════════════════════════════════════════════════
+
+def _require_admin():
+    user = _auth_current_user()
+    if not user or user.get("role") != "tgc_admin":
+        return jsonify({"error": "admin_only"}), 403
+    return None
+
+
+@app.route("/api/admin/tenants")
+def v2_api_admin_tenants():
+    err = _require_admin()
+    if err: return err
+    from modules.admin.tenant_store import list_tenants
+    tenants = list_tenants()
+    # Hide temp passwords in the list view — surfaced separately on demand
+    sanitized = [{k: v for k, v in t.items() if k != "temp_password"} for t in tenants]
+    return jsonify({"tenants": sanitized, "count": len(sanitized)})
+
+
+@app.route("/api/admin/tenant/<tenant_id>")
+def v2_api_admin_get_tenant(tenant_id):
+    err = _require_admin()
+    if err: return err
+    from modules.admin.tenant_store import get_tenant
+    t = get_tenant(tenant_id)
+    if not t:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify(t)
+
+
+@app.route("/api/admin/tenant/<tenant_id>", methods=["PATCH"])
+def v2_api_admin_patch_tenant(tenant_id):
+    err = _require_admin()
+    if err: return err
+    from modules.admin.tenant_store import update_tenant
+    payload = request.get_json(force=True, silent=True) or {}
+    # Only allow a safe subset of fields
+    allowed = {"plan_tier", "founding_member", "owner_first_name", "owner_last_name",
+               "owner_phone", "website_url", "status"}
+    patch = {k: v for k, v in payload.items() if k in allowed}
+    t = update_tenant(tenant_id, patch)
+    if not t:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify(t)
+
+
+@app.route("/api/admin/tenant/<tenant_id>/regenerate-password", methods=["POST"])
+def v2_api_admin_regen_password(tenant_id):
+    err = _require_admin()
+    if err: return err
+    from modules.admin.tenant_store import regenerate_password
+    new_pw = regenerate_password(tenant_id)
+    if not new_pw:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify({"temp_password": new_pw})
+
+
+@app.route("/api/admin/provision-tenant", methods=["POST"])
+def v2_api_admin_provision_tenant():
+    err = _require_admin()
+    if err: return err
+    from modules.admin.tenant_store import provision_tenant
+    payload = request.get_json(force=True, silent=True) or {}
+    if not payload.get("inn_name") or not payload.get("owner_email"):
+        return jsonify({"error": "inn_name and owner_email are required"}), 400
+    record = provision_tenant(payload)
+    # Return the freshly-generated credentials in the response so the wizard can display them
+    return jsonify({
+        "tenant_id":     record["tenant_id"],
+        "inn_name":      record["inn_name"],
+        "owner_email":   record["owner_email"],
+        "temp_password": record["temp_password"],
+        "plan_tier":     record["plan_tier"],
+        "founding_member": record["founding_member"],
+        "status":        record["status"],
+        "login_url":     "https://app.graciouscollection.com",
+        "created_at":    record["created_at"],
+    })
+
+
+# ── PMS catalog + test connection ──────────────────────────────────
+
+@app.route("/api/pms/catalog")
+def v2_api_pms_catalog():
+    from modules.admin.tenant_store import load_pms_catalog
+    return jsonify({"pms": load_pms_catalog()})
+
+
+@app.route("/api/pms/connect", methods=["POST"])
+def v2_api_pms_connect():
+    """Stub: validate that credentials are non-empty and return a plausible result.
+    In production this calls each PMS adapter's authenticate() method."""
+    from modules.admin.tenant_store import load_pms_catalog
+    payload = request.get_json(force=True, silent=True) or {}
+    pms_id  = payload.get("pms_id")
+    creds   = payload.get("credentials", {}) or {}
+    catalog = {p["id"]: p for p in load_pms_catalog()}
+    pms     = catalog.get(pms_id)
+    if not pms:
+        return jsonify({"connected": False, "error": f"Unknown PMS: {pms_id}"}), 400
+    missing = [f["key"] for f in pms.get("auth_fields", []) if not creds.get(f["key"])]
+    if missing:
+        return jsonify({"connected": False, "error": f"Missing credentials: {', '.join(missing)}"}), 400
+    return jsonify({
+        "connected":          True,
+        "pms_id":             pms_id,
+        "pms_name":           pms["name"],
+        "pms_property_name":  payload.get("expected_property_name") or "Demo Property",
+        "room_types_found":   int(payload.get("expected_room_count") or 8),
+    })
+
+
+# ── Onboarding helpers: room suggestions + competitor discovery ──────
+
+@app.route("/api/onboarding/suggest-rooms", methods=["POST"])
+def v2_api_suggest_rooms():
+    """Use Claude to suggest room types for a new inn. Falls back to a
+    deterministic generic suggestion if ANTHROPIC_API_KEY is not configured
+    or the call fails."""
+    import os
+    payload    = request.get_json(force=True, silent=True) or {}
+    inn_name   = (payload.get("inn_name") or "Untitled Inn").strip()
+    city       = (payload.get("city") or "").strip()
+    state      = (payload.get("state") or "").strip()
+    total      = int(payload.get("total_rooms") or 8)
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if api_key:
+        try:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=api_key)
+            prompt = (
+                f"Inn: {inn_name} in {city}, {state}. Total rooms: {total}. "
+                "Suggest 3-5 room types as a JSON array. Each item must have: "
+                "name, count, base_rate, min_rate, max_rate, category. "
+                "Categories must be one of: waterfront, waterview, garden, "
+                "cottage, suite, standard, premium, other. "
+                "Counts must sum to total_rooms. Return ONLY the JSON array, "
+                "no other text."
+            )
+            msg = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=1024,
+                system="You are a boutique inn revenue management expert. "
+                       "Given an inn name and location, suggest realistic "
+                       "room types with base rates appropriate for that market.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw  = msg.content[0].text if msg.content else "[]"
+            import re, json as _json
+            match = re.search(r"\[.*\]", raw, re.DOTALL)
+            data = _json.loads(match.group(0) if match else raw)
+            if isinstance(data, list) and data:
+                return jsonify({"suggested_rooms": data, "source": "claude"})
+        except Exception as exc:  # noqa: BLE001
+            app.logger.warning(f"suggest-rooms claude fallback: {exc}")
+
+    # Deterministic fallback when no API key or call fails
+    return jsonify({
+        "suggested_rooms": _fallback_room_suggestions(total),
+        "source":          "fallback",
+    })
+
+
+def _fallback_room_suggestions(total: int) -> list:
+    """Generic 3-tier split that scales with room count."""
+    premium = max(1, total // 5)
+    waterview = max(1, total // 3)
+    standard = max(1, total - premium - waterview)
+    return [
+        {"name": "Premium Suite", "count": premium,   "base_rate": 489, "min_rate": 350, "max_rate": 695, "category": "premium"},
+        {"name": "Water View",    "count": waterview, "base_rate": 339, "min_rate": 245, "max_rate": 525, "category": "waterview"},
+        {"name": "Standard",      "count": standard,  "base_rate": 259, "min_rate": 195, "max_rate": 395, "category": "standard"},
+    ]
+
+
+@app.route("/api/competitors/discover", methods=["POST"])
+def v2_api_competitors_discover():
+    """Onboarding-time competitor discovery. Returns grouped synthetic
+    candidates so the wizard works without a Google Places key. Live
+    integration is wired through the legacy /api/discover-competitors
+    route, which requires a provisioned tenant."""
+    payload = request.get_json(force=True, silent=True) or {}
+    city    = (payload.get("city") or "Beaufort").strip()
+    state   = (payload.get("state") or "SC").strip()
+    radius  = int(payload.get("radius_miles") or 25)
+
+    # Deterministic per (city, radius) so the wizard is repeatable in demos
+    import hashlib
+    seed = int(hashlib.md5(f"{city}-{state}-{radius}".encode()).hexdigest()[:8], 16)
+    import random as _random
+    rng = _random.Random(seed)
+
+    def _row(name, tier, base_dist, ta_base, rooms):
+        return {
+            "name":     name,
+            "address":  f"{city}, {state}",
+            "tier":     tier,
+            "distance_miles": round(base_dist + rng.uniform(-1.5, 1.5), 1),
+            "tripadvisor_rating": round(ta_base + rng.uniform(-0.2, 0.2), 1),
+            "rooms":    rooms,
+            "pre_checked": tier in ("direct_boutique", "upscale"),
+        }
+
+    direct = [
+        _row(f"The {city} Inn",              "direct_boutique", 0.8, 4.4, 16),
+        _row(f"{city} Bed & Breakfast",      "direct_boutique", 1.2, 4.5, 8),
+        _row(f"Historic {city} House",       "direct_boutique", 1.7, 4.6, 12),
+    ]
+    upscale = [
+        _row(f"{city} Boutique Hotel",       "upscale",         1.4, 4.3, 38),
+        _row(f"Downtown {city} Suites",      "upscale",         2.3, 4.2, 52),
+    ]
+    budget = [
+        _row(f"{city} Express Inn",          "budget_anchor",   3.4, 3.8, 88),
+    ]
+    luxury = [
+        _row(f"The {city} Grand Resort",     "luxury_reference",6.8, 4.7, 120),
+    ]
+
+    return jsonify({
+        "city":         city,
+        "state":        state,
+        "radius_miles": radius,
+        "warning":      "Verify each property before saving. Google Places occasionally returns private residences or closed businesses as lodging results. We previously found a private home listed as 'Bay Street Inn' — always confirm each result is an active lodging business.",
+        "groups": {
+            "direct_boutique":   {"label": "Direct Boutique Competitors", "items": direct},
+            "upscale":           {"label": "Upscale Hotels",              "items": upscale},
+            "budget_anchor":     {"label": "Budget Anchors",              "items": budget},
+            "luxury_reference":  {"label": "Luxury Reference",            "items": luxury},
+        },
+        "total_count": len(direct) + len(upscale) + len(budget) + len(luxury),
+    })
 
 
 @app.route("/api/property-config")

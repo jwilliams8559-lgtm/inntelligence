@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import type { Tenant, Property } from '../lib/types'
+import OnboardingWizard from './OnboardingWizard'
 
 interface Props {
   tenant: Tenant; property: Property
@@ -76,7 +77,21 @@ function deltaArrow(value: number | null): { label: string; cls: string } {
 }
 
 
+interface AdminTenant {
+  tenant_id: string; inn_name: string; city: string; state: string
+  plan_tier: string; total_rooms: number
+  pms_id: string | null; pms_connected: boolean
+  competitors: any[]
+  status: string; founding_member: boolean
+  created_at: string; first_login_at: string | null
+  room_types?: any[]
+  owner_first_name: string; owner_last_name: string; owner_email: string
+}
+
 export default function ManagementConsole({ }: Props) {
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [adminTenants, setAdminTenants] = useState<AdminTenant[]>([])
+  const [credModal, setCredModal] = useState<{ tenant: AdminTenant; password: string } | null>(null)
   const [portfolio, setPortfolio] = useState<{ properties: PortfolioRow[]; total_mrr: number } | null>(null)
   const [revenue,   setRevenue]   = useState<RevenueData | null>(null)
   const [intel,     setIntel]     = useState<MarketIntel | null>(null)
@@ -84,6 +99,13 @@ export default function ManagementConsole({ }: Props) {
   const [founding,  setFounding]  = useState<{ members: FoundingMember[]; target: string } | null>(null)
   const [advisory,  setAdvisory]  = useState<AdvisoryData | null>(null)
   const [loading,   setLoading]   = useState(true)
+
+  async function reloadAdminTenants() {
+    try {
+      const j = await fetch('/api/admin/tenants').then(r => r.json())
+      setAdminTenants(j.tenants || [])
+    } catch { setAdminTenants([]) }
+  }
 
   useEffect(() => {
     async function loadAll() {
@@ -96,10 +118,17 @@ export default function ManagementConsole({ }: Props) {
         fetch('/api/management/advisory').then(r => r.json()).catch(() => null),
       ])
       setPortfolio(p); setRevenue(r); setIntel(i); setAcq(a); setFounding(f); setAdvisory(ad)
+      await reloadAdminTenants()
       setLoading(false)
     }
     void loadAll()
   }, [])
+
+  async function sendCredentials(t: AdminTenant) {
+    const r = await fetch(`/api/admin/tenant/${t.tenant_id}/regenerate-password`, { method: 'POST' })
+    const j = await r.json()
+    if (j.temp_password) setCredModal({ tenant: t, password: j.temp_password })
+  }
 
   if (loading) return (
     <div className="flex-1 flex items-center justify-center bg-cream">
@@ -123,9 +152,15 @@ export default function ManagementConsole({ }: Props) {
           <h1 className="text-navy font-bold text-2xl">The Gracious Collection</h1>
           <div className="text-sm text-slate-500">Strategic command center · {new Date().toLocaleDateString()}</div>
         </div>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setWizardOpen(true)}
+            className="bg-gold text-white text-sm font-bold px-4 py-2 rounded hover:bg-gold-dark shadow-md">
+            + Onboard New Property
+          </button>
         <div className="text-right">
           <div className="text-[10px] uppercase tracking-wider text-slate-500">Active Properties</div>
           <div className="text-3xl font-bold text-navy">{portfolio?.properties.length ?? 0}</div>
+        </div>
         </div>
       </div>
 
@@ -489,9 +524,101 @@ export default function ManagementConsole({ }: Props) {
         )}
       </section>
 
+      {/* SECTION 7 — Provisioned Tenants (admin) */}
+      <section className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 className="font-bold text-navy">Provisioned Tenants</h2>
+            <div className="text-xs text-slate-400 mt-0.5">{adminTenants.length} accounts on the platform</div>
+          </div>
+          <button onClick={() => setWizardOpen(true)}
+            className="text-xs font-bold text-navy hover:underline">+ Onboard New Property</button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="px-4 py-2 text-left">Property</th>
+                <th className="px-2 py-2 text-left">Location</th>
+                <th className="px-2 py-2 text-left">Plan</th>
+                <th className="px-2 py-2 text-right">Rooms</th>
+                <th className="px-2 py-2 text-left">PMS</th>
+                <th className="px-2 py-2 text-right">Comps</th>
+                <th className="px-2 py-2 text-left">Created</th>
+                <th className="px-2 py-2 text-left">Status</th>
+                <th className="px-2 py-2 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {adminTenants.length === 0 && (
+                <tr><td colSpan={9} className="px-4 py-6 text-center text-slate-400 text-xs">
+                  No tenants provisioned yet. Click <strong>+ Onboard New Property</strong> to add one.
+                </td></tr>
+              )}
+              {adminTenants.map(t => (
+                <tr key={t.tenant_id}>
+                  <td className="px-4 py-2 font-semibold text-navy">{t.inn_name}</td>
+                  <td className="px-2 py-2 text-slate-600">{t.city}{t.state ? `, ${t.state}` : ''}</td>
+                  <td className="px-2 py-2 text-slate-600 capitalize">{t.plan_tier}</td>
+                  <td className="px-2 py-2 text-right text-slate-600">{t.total_rooms}</td>
+                  <td className="px-2 py-2 text-slate-600">{t.pms_id ? (t.pms_connected ? `✓ ${t.pms_id}` : t.pms_id) : <span className="text-slate-400">—</span>}</td>
+                  <td className="px-2 py-2 text-right text-slate-600">{(t.competitors || []).length}</td>
+                  <td className="px-2 py-2 text-slate-500">{format(parseISO(t.created_at), 'MMM d')}</td>
+                  <td className="px-2 py-2">
+                    {t.founding_member
+                      ? <span className="text-[10px] uppercase font-bold bg-gold/20 text-gold-dark px-2 py-0.5 rounded-full">Founding Member</span>
+                      : t.status === 'active'
+                      ? <span className="text-[10px] uppercase font-bold bg-sage/20 text-sage-dark px-2 py-0.5 rounded-full">Active</span>
+                      : <span className="text-[10px] uppercase font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Pending</span>}
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex gap-2 text-[11px]">
+                      <button className="text-navy hover:underline">View</button>
+                      <button onClick={() => sendCredentials(t)} className="text-gold-dark hover:underline">Send Credentials</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-5 py-2 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex gap-4">
+          <span>{adminTenants.filter(t => t.status === 'active').length} active properties</span>
+          <span>·</span>
+          <span>${adminTenants.filter(t => !t.founding_member).reduce((s, t) => s + ({essentials:399,professional:699,portfolio:1199,enterprise:2400}[t.plan_tier as 'essentials']||0), 0).toLocaleString()} MRR</span>
+          <span>·</span>
+          <span>{adminTenants.filter(t => t.founding_member).length} founding members</span>
+        </div>
+      </section>
+
       <div className="text-[10px] text-slate-400 text-center pb-3">
         The Gracious Collection · Boutique Hospitality Intelligence · Management Console
       </div>
+
+      {/* Onboarding wizard modal */}
+      <OnboardingWizard open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onProvisioned={() => { void reloadAdminTenants() }} />
+
+      {/* Send-Credentials confirmation modal */}
+      {credModal && (
+        <div className="fixed inset-0 z-50 bg-navy/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="font-bold text-navy text-lg">Credentials regenerated</h3>
+            <p className="text-xs text-slate-500 mt-1">New temporary password for {credModal.tenant.inn_name}. Send these to {credModal.tenant.owner_email}.</p>
+            <div className="bg-gold/5 border-2 border-gold rounded-lg p-3 mt-3 font-mono text-sm">
+              <div><span className="text-slate-500">Email:</span> {credModal.tenant.owner_email}</div>
+              <div><span className="text-slate-500">Password:</span> <strong>{credModal.password}</strong></div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <button onClick={() => {
+                navigator.clipboard.writeText(`Email: ${credModal.tenant.owner_email}\nPassword: ${credModal.password}`)
+              }} className="flex-1 bg-navy text-white text-xs font-bold py-2 rounded">Copy</button>
+              <button onClick={() => setCredModal(null)} className="flex-1 bg-slate-100 text-navy text-xs font-bold py-2 rounded">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
