@@ -493,25 +493,37 @@ interface Pkg {
 function PackagesPanel() {
   const [pkgs, setPkgs] = useState<Pkg[]>([])
   useEffect(() => {
-    fetch('/api/packages').then(r => r.json()).then(setPkgs).catch(() => setPkgs([]))
+    fetch('/api/packages/active').then(r => r.json()).then(setPkgs).catch(() => setPkgs([]))
   }, [])
   async function togglePkg(p: Pkg) {
     const newActive = !p.active
     setPkgs(list => list.map(x => x.id === p.id ? { ...x, active: newActive } : x))
     try {
-      await fetch(`/api/packages/${p.id}/toggle`, {
+      await fetch(`/api/packages/active`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: newActive }),
+        body: JSON.stringify({ id: p.id, active: newActive }),
       })
     } catch { /* keep optimistic update */ }
   }
+  const totalActiveRev = pkgs.filter(p => p.active).reduce((s, p) => s + (p.est_monthly_rev || 0), 0)
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-navy font-bold text-sm">Guest Packages &amp; Enhancements</h2>
-        <span className="text-xs text-slate-400">
-          {pkgs.filter(p => p.active).length} active · {pkgs.filter(p => p.coming_soon).length} coming soon
-        </span>
+        <div>
+          <h2 className="text-navy font-bold text-sm">Guest Packages &amp; Enhancements</h2>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            {pkgs.filter(p => p.active).length} active · Est. ${totalActiveRev.toLocaleString()}/mo combined
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-400">
+            {pkgs.filter(p => p.coming_soon).length} coming soon
+          </span>
+          <a href="#packages" className="text-[11px] font-semibold text-navy hover:text-gold"
+             onClick={() => window.dispatchEvent(new CustomEvent('tgc:navigate', { detail: 'packages' }))}>
+            Manage Packages →
+          </a>
+        </div>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {pkgs.map(p => (

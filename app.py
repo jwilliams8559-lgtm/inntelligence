@@ -526,6 +526,100 @@ def v2_api_property_config():
     })
 
 
+# ── Package Intelligence (Section B — national packages + recs) ──────
+
+from modules.hospitality.package_intelligence import (
+    PackageIntelligenceEngine, NATIONAL_PACKAGES as _NATIONAL_PACKAGES,
+)
+
+
+def _get_package_engine() -> PackageIntelligenceEngine:
+    return PackageIntelligenceEngine(
+        property_config=V2_PROPERTY,
+        competitor_data=V2_COMPETITORS,
+    )
+
+
+@app.route("/api/packages/national")
+def api_packages_national():
+    """All 20 national packages with per-property fit_score + est revenue."""
+    return jsonify(_get_package_engine().get_top_20_ranked())
+
+
+@app.route("/api/packages/recommendations")
+def api_packages_recommendations():
+    """
+    GET — Auto-recommend 5-10 packages (or use ?selected=id1,id2,... selections).
+    """
+    sel = request.args.get("selected", "").strip()
+    selected_ids = [s for s in sel.split(",") if s] if sel else None
+    return jsonify(_get_package_engine().recommend_packages(selected_ids))
+
+
+@app.route("/api/packages/competitive-comparison")
+def api_packages_competitive_comparison():
+    """For every national package, show which local competitors offer it + gap analysis."""
+    eng = _get_package_engine()
+    out: list = []
+    for pkg in eng.get_top_20_ranked():
+        recommended_price = eng._recommend_price(pkg)
+        # Inject for rationale function (it reads pkg["recommended_price"])
+        pkg_with_price = {**pkg, "recommended_price": recommended_price}
+        rationale = eng._pricing_rationale(pkg_with_price)
+        cnt = len(pkg["competitors_offering"])
+        gap = ("Differentiator"     if cnt == 0
+               else "Low competition" if cnt <= 2
+               else "Competitive"     if cnt <= 5
+               else "Saturated")
+        out.append({
+            "package_id":           pkg["id"],
+            "package_name":         pkg["name"],
+            "icon":                 pkg["icon"],
+            "category":             pkg["category"],
+            "national_avg":         pkg["national_avg_upsell"],
+            "recommended_price":    recommended_price,
+            "competitors_offering": pkg["competitors_offering"],
+            "competitor_count":     cnt,
+            "competitor_avg_price": pkg["competitor_avg_price"],
+            "competitive_gap":      gap,
+            "your_opportunity":     rationale,
+            "fit_score":            pkg["fit_score"],
+            "fit_label":            pkg["fit_label"],
+        })
+    return jsonify(out)
+
+
+@app.route("/api/packages/active", methods=["GET"])
+def api_packages_active():
+    """Innkeeper's currently active packages (driven from GUEST_PACKAGES in settings)."""
+    from config.settings import GUEST_PACKAGES
+    total_rooms = V2_PROPERTY["total_rooms"]
+    out: list = []
+    for pkg in GUEST_PACKAGES:
+        eligible = len(pkg["room_restriction"]) if pkg.get("room_restriction") else total_rooms
+        monthly  = int(eligible * 0.75 * 30 * pkg["take_rate"] * pkg["upsell_price"])
+        out.append({
+            **pkg,
+            "est_monthly_rev":   monthly,
+            "est_monthly_label": f"Est. ${monthly:,}/mo @ {int(pkg['take_rate']*100)}% take rate",
+        })
+    return jsonify(out)
+
+
+@app.route("/api/packages/active", methods=["PATCH"])
+def api_packages_active_toggle():
+    """Toggle a package active/inactive — persists via packages_status.json."""
+    body = request.get_json(force=True) or {}
+    pid = body.get("id")
+    active = bool(body.get("active", False))
+    if not pid:
+        return jsonify({"error": "id required"}), 400
+    status = _load_packages_status()
+    status[pid] = "active" if active else "coming_soon"
+    _save_packages_status(status)
+    return jsonify({"success": True, "id": pid, "active": active})
+
+
 @app.route("/api/package-toggle", methods=["POST"])
 def v2_api_pkg_toggle():
     body = request.get_json(force=True) or {}

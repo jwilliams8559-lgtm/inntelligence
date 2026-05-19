@@ -7,6 +7,7 @@ import RateCalendar from './screens/RateCalendar'
 import DemandDashboard from './screens/DemandDashboard'
 import CompetitiveIntel from './screens/CompetitiveIntel'
 import GuestCRM from './screens/GuestCRM'
+import Packages from './screens/Packages'
 import ManagementConsole from './screens/ManagementConsole'
 import Settings from './screens/Settings'
 
@@ -22,6 +23,13 @@ export default function App() {
   const [property, setProperty] = useState<Property | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
   const [loading, setLoading] = useState(true)
+
+  // Allow any component to fire a custom event to navigate
+  useEffect(() => {
+    const onNav = (e: any) => { if (e?.detail) setScreen(e.detail as Screen) }
+    window.addEventListener('tgc:navigate', onNav)
+    return () => window.removeEventListener('tgc:navigate', onNav)
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -76,6 +84,7 @@ export default function App() {
         {screen === 'demand'       && <DemandDashboard  {...screenProps} />}
         {screen === 'competitive'  && <CompetitiveIntel {...screenProps} />}
         {screen === 'crm'          && <GuestCRM         {...screenProps} />}
+        {screen === 'packages'     && <Packages         {...screenProps} />}
         {screen === 'management'   && APP_ROLE === 'shg_admin' && <ManagementConsole {...screenProps} />}
         {screen === 'settings'     && <Settings         {...screenProps} />}
       </Layout>

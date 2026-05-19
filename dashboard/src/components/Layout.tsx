@@ -10,6 +10,7 @@ const NAV: { id: Screen; label: string; icon: string; adminOnly?: boolean }[] = 
   { id: 'demand',      label: 'Demand Dashboard',  icon: '📊' },
   { id: 'competitive', label: 'Competitive Intel', icon: '🎯' },
   { id: 'crm',         label: 'Guest CRM',         icon: '👥' },
+  { id: 'packages',    label: 'Packages',          icon: '🎁' },
   { id: 'management',  label: 'Management Console',icon: '🏛️', adminOnly: true },
   { id: 'settings',    label: 'Settings',          icon: '⚙️' },
 ]
