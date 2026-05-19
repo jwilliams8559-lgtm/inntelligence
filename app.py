@@ -446,6 +446,102 @@ def v2_api_events():
     return jsonify(_v2_upcoming_events())
 
 
+# ── Section F — Events Intelligence ────────────────────────────────────
+
+def _categorize_event(name: str) -> str:
+    nl = name.lower()
+    if any(w in nl for w in ["festival", "fair", "gullah", "music", "film", "shrimp"]):
+        return "Festival"
+    if any(w in nl for w in ["graduation", "military", "mcrd", "uscb", "parris"]):
+        return "Military/Academic"
+    if any(w in nl for w in ["market", "art walk", "parade", "first friday"]):
+        return "Community"
+    if any(w in nl for w in ["4th", "memorial", "labor", "thanksgiving", "holiday", "mlk", "martin luther"]):
+        return "Holiday"
+    return "Event"
+
+
+def _event_action_plan(ev: dict, days_away: int, nudge_pct: int, proj_occ: float) -> str:
+    name = ev["name"]
+    if days_away <= 0:
+        return f"{name} is happening now. Monitor walk-in demand and last-minute booking pace."
+    if days_away <= 7:
+        return (f"{name} is {days_away} days away. Apply {nudge_pct}% rate premium "
+                f"immediately if not already set. Consider 2-night minimum stay.")
+    if days_away <= 30:
+        return (f"{name} in {days_away} days. Set {nudge_pct}% rate premium. "
+                f"Target {proj_occ*100:.0f}% occupancy. Send email campaign to "
+                f"lapsed guests this week.")
+    if days_away <= 90:
+        return (f"{name} in {days_away} days. Begin rate ramp — raise "
+                f"{nudge_pct // 2}% now, full {nudge_pct}% by {days_away - 30} "
+                f"days out. Set 2-night minimum for the weekend.")
+    return (f"{name} in {days_away} days. Advance planning: set rate calendar "
+            f"placeholders, activate promotional packages targeting this audience.")
+
+
+def _event_rate_status(ev: dict, ev_date: date) -> str:
+    """premium_applied | needs_attention | not_yet_set"""
+    if "water festival" in ev["name"].lower():
+        return "premium_applied"
+    if (ev_date - date.today()).days <= 30:
+        return "needs_attention"
+    return "not_yet_set"
+
+
+@app.route("/api/events/intelligence")
+def v2_api_events_intelligence():
+    """Full-year event intel with revenue impact + action plans + status."""
+    from config.settings import KNOWN_ANNUAL_EVENTS
+    today = date.today()
+    total_rooms = V2_PROPERTY["total_rooms"]
+    out: list = []
+    for ev in KNOWN_ANNUAL_EVENTS:
+        for year in (today.year, today.year + 1):
+            try:
+                ev_date = date(year, ev["month"], ev["day"])
+            except ValueError:
+                continue
+            days_away = (ev_date - today).days
+            if days_away < -7:
+                continue
+            duration  = ev.get("duration_days", 1)
+            nudge_pct = ev["pricing_nudge"]
+
+            avg_base_rate = 380
+            boosted_rate  = avg_base_rate * (1 + nudge_pct / 100)
+            projected_occ = min(0.97, 0.75 + (nudge_pct / 100) * 0.8)
+            nightly_rev   = int(total_rooms * projected_occ * boosted_rate)
+            event_total_rev = nightly_rev * duration
+
+            urgency = ("immediate" if 0 < days_away <= 21
+                       else "upcoming" if days_away <= 60
+                       else "planning" if days_away <= 180
+                       else "horizon")
+
+            out.append({
+                "id":                       f"{ev['name'].lower().replace(' ', '_').replace('/','_')}_{year}",
+                "name":                     ev["name"],
+                "date":                     ev_date.isoformat(),
+                "end_date":                 (ev_date + timedelta(days=duration - 1)).isoformat(),
+                "days_away":                days_away,
+                "duration_days":            duration,
+                "month":                    ev_date.strftime("%B"),
+                "month_num":                ev_date.month,
+                "pricing_nudge_pct":        nudge_pct,
+                "projected_occupancy_pct":  round(projected_occ * 100, 1),
+                "projected_nightly_rev":    nightly_rev,
+                "projected_event_total_rev": event_total_rev,
+                "source":                   ev.get("source", "Tourist Board"),
+                "category":                 _categorize_event(ev["name"]),
+                "action_plan":              _event_action_plan(ev, days_away, nudge_pct, projected_occ),
+                "rate_status":              _event_rate_status(ev, ev_date),
+                "urgency":                  urgency,
+            })
+    out.sort(key=lambda x: x["days_away"] if x["days_away"] >= 0 else 999)
+    return jsonify(out)
+
+
 @app.route("/api/forecast")
 def v2_api_forecast():
     check_in_str = request.args.get("date", date.today().isoformat())

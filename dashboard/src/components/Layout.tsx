@@ -8,6 +8,7 @@ import DemoWalkthrough from './DemoWalkthrough'
 const NAV: { id: Screen; label: string; icon: string; adminOnly?: boolean }[] = [
   { id: 'calendar',    label: 'Rate Calendar',     icon: '📅' },
   { id: 'demand',      label: 'Demand Dashboard',  icon: '📊' },
+  { id: 'events',      label: 'Events',            icon: '📅' },
   { id: 'competitive', label: 'Competitive Intel', icon: '🎯' },
   { id: 'crm',         label: 'Guest CRM',         icon: '👥' },
   { id: 'packages',    label: 'Packages',          icon: '🎁' },

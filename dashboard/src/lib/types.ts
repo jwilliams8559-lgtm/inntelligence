@@ -56,5 +56,5 @@ export interface QualityScore {
   notes: string | null
 }
 
-export type Screen = 'calendar' | 'demand' | 'competitive' | 'crm' | 'packages' | 'management' | 'settings'
+export type Screen = 'calendar' | 'demand' | 'events' | 'competitive' | 'crm' | 'packages' | 'management' | 'settings'
 export type AppRole = 'shg_admin' | 'property_admin' | 'staff' | 'viewer'

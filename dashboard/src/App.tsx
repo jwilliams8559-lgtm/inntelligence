@@ -5,6 +5,7 @@ import { PlanFeaturesProvider } from './hooks/usePlanFeatures'
 import Layout from './components/Layout'
 import RateCalendar from './screens/RateCalendar'
 import DemandDashboard from './screens/DemandDashboard'
+import EventsScreen from './screens/EventsScreen'
 import CompetitiveIntel from './screens/CompetitiveIntel'
 import GuestCRM from './screens/GuestCRM'
 import Packages from './screens/Packages'
@@ -82,6 +83,7 @@ export default function App() {
               propertyName={property.name} propertyId={property.id} appRole={APP_ROLE}>
         {screen === 'calendar'     && <RateCalendar     {...screenProps} />}
         {screen === 'demand'       && <DemandDashboard  {...screenProps} />}
+        {screen === 'events'       && <EventsScreen     {...screenProps} />}
         {screen === 'competitive'  && <CompetitiveIntel {...screenProps} />}
         {screen === 'crm'          && <GuestCRM         {...screenProps} />}
         {screen === 'packages'     && <Packages         {...screenProps} />}
