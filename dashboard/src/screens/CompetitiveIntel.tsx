@@ -101,6 +101,28 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
   const [roomType,    setRoomType]    = useState<RoomType | null>(null)
   const [loading,     setLoading]     = useState(true)
 
+  // ── Section C — Room-type comparison mode ──
+  type RoomCategory = 'all' | 'waterfront' | 'waterview' | 'garden' | 'cottage'
+  const [roomCategory, setRoomCategory] = useState<RoomCategory>('all')
+  interface RoomTypeApi {
+    room_category: string; our_room_label: string; our_description: string
+    our_base_rate: number; icon: string
+    dates: string[]; date_labels: string[]; our_rates: number[]
+    competitors: { name: string; tier: string; distance: number | null
+      tripadvisor: number | null; avail_color: string
+      has_equivalent: boolean; comp_room_name: string | null
+      comp_room_notes: string | null; no_equivalent_msg: string | null
+      rates: (number | null)[] }[]
+    position_by_date: { date: string; our_rate: number; comp_avg: number | null
+      comp_min?: number; comp_max?: number; pct_vs_avg?: number; position: string }[]
+  }
+  const [roomData, setRoomData] = useState<RoomTypeApi | null>(null)
+  useEffect(() => {
+    if (roomCategory === 'all') { setRoomData(null); return }
+    fetch(`/api/competitors/by-room-type?room_category=${roomCategory}&days=14`)
+      .then(r => r.json()).then(setRoomData).catch(() => setRoomData(null))
+  }, [roomCategory])
+
   // ── Filters (Section B) — radius / tier / top-N ──
   const [radiusMi, setRadiusMi] = useState<number | 'all'>(() => {
     const v = localStorage.getItem('tgc.compIntel.radius')
@@ -305,6 +327,124 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
           <div className="text-xs text-slate-400">vs comp avg (14d)</div>
         </div>
       </div>
+
+      {/* Section C — Room-type selector */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-bold text-navy uppercase tracking-wider text-[10px]">Compare by Room Type</span>
+        {([
+          { val: 'all'        as const, lbl: 'All (Avg)',     icon: '◐' },
+          { val: 'waterfront' as const, lbl: 'Waterfront',    icon: '🌊' },
+          { val: 'waterview'  as const, lbl: 'Water View',    icon: '💧' },
+          { val: 'garden'     as const, lbl: 'Garden',        icon: '🌿' },
+          { val: 'cottage'    as const, lbl: 'Cottage',       icon: '🏡' },
+        ]).map(opt => (
+          <button key={opt.val} onClick={() => setRoomCategory(opt.val)}
+            className={`px-3 py-1 rounded-full font-semibold transition-colors ${
+              roomCategory === opt.val
+                ? 'bg-navy text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+            <span className="mr-1">{opt.icon}</span>{opt.lbl}
+          </button>
+        ))}
+        {roomData && (
+          <span className="ml-auto text-slate-500">
+            {roomData.competitors.filter(c => c.has_equivalent).length} of {roomData.competitors.length} competitors offer {roomData.our_room_label}
+          </span>
+        )}
+      </div>
+
+      {/* Section C — Room-type table (renders only when not 'all') */}
+      {roomCategory !== 'all' && roomData && (() => {
+        const visible = roomData.competitors  // show ALL — N/A cells communicate gaps
+        const validPositions = roomData.position_by_date.filter(p => p.comp_avg != null)
+        const avgPct = validPositions.length
+          ? Math.round(validPositions.reduce((s, p) => s + (p.pct_vs_avg ?? 0), 0) / validPositions.length)
+          : 0
+        const avgCompAvg = validPositions.length
+          ? Math.round(validPositions.reduce((s, p) => s + (p.comp_avg ?? 0), 0) / validPositions.length)
+          : 0
+        const avgOurs = Math.round(roomData.our_rates.reduce((s, r) => s + r, 0) / roomData.our_rates.length)
+        return (
+          <>
+            <div className={`rounded-xl p-3 border ${avgPct >= 0 ? 'bg-sage/5 border-sage/30' : 'bg-coral/5 border-coral/30'}`}>
+              <div className="text-sm font-semibold">
+                <span className="text-lg mr-2">{roomData.icon}</span>
+                <span className="text-navy">{roomData.our_room_label}:</span>{' '}
+                <span className={avgPct >= 0 ? 'text-sage' : 'text-coral'}>
+                  You are priced {avgPct >= 0 ? '+' : ''}{avgPct}% {avgPct >= 0 ? 'above' : 'below'} comp set average
+                </span>
+                <span className="text-slate-500"> (${avgOurs} vs ${avgCompAvg} comp avg) over the next 14 days</span>
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">{roomData.our_description}</div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="overflow-x-auto scrollbar-thin">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-navy text-white">
+                      <th className="sticky left-0 bg-navy px-4 py-3 text-left font-semibold text-xs w-24">Date</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs text-gold">Your {roomData.our_room_label}</th>
+                      {visible.map(c => (
+                        <th key={c.name} className="px-3 py-3 text-right font-semibold text-xs whitespace-nowrap"
+                            title={`${c.name}\n${c.tier}\n${c.distance ? `📍 ${c.distance} mi` : ''}\n${c.tripadvisor ? `⭐ ${c.tripadvisor}` : ''}\nEquivalent: ${c.comp_room_name ?? 'N/A'}`}>
+                          <div>{c.name.split(' ').slice(0, 2).join(' ')}</div>
+                          <div className="font-normal italic text-[10px] text-white/60 mt-0.5">
+                            {c.has_equivalent ? c.comp_room_name : '— no equivalent —'}
+                          </div>
+                        </th>
+                      ))}
+                      <th className="px-4 py-3 text-right font-semibold text-xs">Comp Avg</th>
+                      <th className="px-4 py-3 text-center font-semibold text-xs">Position</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roomData.dates.map((dStr, di) => {
+                      const pos = roomData.position_by_date[di]
+                      const dotCls = pos.position === 'Premium' ? 'bg-sage'
+                                    : pos.position === 'At Market' ? 'bg-gold'
+                                    : pos.position === 'Below Market' ? 'bg-coral'
+                                    : 'bg-slate-200'
+                      const wf = roomData.date_labels[di]?.includes('Jul') && [17,18,19,20,21,22,23,24,25,26].some(d => roomData.date_labels[di].endsWith(` ${d}`))
+                      return (
+                        <tr key={dStr} className={`border-t border-slate-100 ${di % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} ${wf ? 'bg-gold/5' : ''}`}>
+                          <td className="sticky left-0 bg-inherit px-4 py-2.5 font-medium text-navy w-24">
+                            {roomData.date_labels[di]}
+                            {wf && <span className="ml-1 text-gold text-[10px] font-bold">★WF</span>}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-bold text-navy">
+                            ${roomData.our_rates[di]}
+                          </td>
+                          {visible.map(c => {
+                            const r = c.rates[di]
+                            return (
+                              <td key={c.name} className="px-3 py-2.5 text-right" title={c.comp_room_notes ?? ''}>
+                                {r != null
+                                  ? <span className="text-slate-700">${r}</span>
+                                  : <span className="text-slate-300 italic">N/A</span>}
+                              </td>
+                            )
+                          })}
+                          <td className="px-4 py-2.5 text-right text-slate-500 font-medium">
+                            {pos.comp_avg != null ? `$${pos.comp_avg}` : '—'}
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`inline-block w-2 h-2 rounded-full ${dotCls}`} title={pos.position} />
+                            <span className="ml-2 text-[11px] text-slate-600">{pos.position}</span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-3 py-2 text-[10px] text-slate-400 border-t border-slate-100">
+                Hover any competitor column header for property details. N/A = competitor has no equivalent room in this category.
+              </div>
+            </div>
+          </>
+        )
+      })()}
 
       {/* Section B filter bar — radius / tier / top N */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex flex-wrap items-center gap-3 text-xs">

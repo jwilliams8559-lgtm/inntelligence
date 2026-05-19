@@ -246,3 +246,106 @@ FB_CONFIG = {
     "event_nights_per_month":  2,
     "take_rate_est":           0.20,
 }
+
+# ── Section C — Room-type equivalency mapping ─────────────────────────────
+# For each competitor, the closest equivalent room they offer per Anchorage
+# room category. `rate_premium_vs_base` is applied on top of their blended
+# rate to estimate what they charge for that specific room class.
+# A `None` value means the competitor has no equivalent in that category.
+
+COMPETITOR_ROOM_TYPES = {
+    "Cuthbert House Inn": {
+        "waterfront": {"comp_room_name": "Waterfront Suite",
+                       "notes": "Panoramic Beaufort River views, private balcony",
+                       "rate_premium_vs_base": 0.28},
+        "waterview":  {"comp_room_name": "River View Room",
+                       "notes": "Partial river views",
+                       "rate_premium_vs_base": 0.12},
+        "garden":     {"comp_room_name": "Garden Room",
+                       "notes": "Garden courtyard setting",
+                       "rate_premium_vs_base": 0.0},
+        "cottage":    None,
+    },
+    "Rhett House Inn": {
+        "waterfront": None,
+        "waterview":  {"comp_room_name": "Verandah Suite",
+                       "notes": "Large verandah, garden views",
+                       "rate_premium_vs_base": 0.22},
+        "garden":     {"comp_room_name": "Standard Room",
+                       "notes": "Classic historic inn room",
+                       "rate_premium_vs_base": 0.0},
+        "cottage":    {"comp_room_name": "Cottage Suite",
+                       "notes": "Detached cottage, full privacy",
+                       "rate_premium_vs_base": 0.30},
+    },
+    "607 Bay Inn": {
+        "waterfront": {"comp_room_name": "Premier Bay View",
+                       "notes": "Top floor, river views",
+                       "rate_premium_vs_base": 0.18},
+        "waterview":  {"comp_room_name": "Standard Room",
+                       "notes": "Downtown location",
+                       "rate_premium_vs_base": 0.0},
+        "garden":     {"comp_room_name": "Standard Room",
+                       "notes": "Downtown location",
+                       "rate_premium_vs_base": 0.0},
+        "cottage":    None,
+    },
+    "Beaufort Inn": {
+        "waterfront": None,
+        "waterview":  {"comp_room_name": "Deluxe King",
+                       "notes": "Larger rooms, upscale amenities",
+                       "rate_premium_vs_base": 0.20},
+        "garden":     {"comp_room_name": "Standard King",
+                       "notes": "Standard hotel room",
+                       "rate_premium_vs_base": 0.0},
+        "cottage":    None,
+    },
+    "City Loft Hotel": {
+        "waterfront": None,
+        "waterview":  None,
+        "garden":     {"comp_room_name": "Loft Room",
+                       "notes": "Modern downtown loft style",
+                       "rate_premium_vs_base": 0.0},
+        "cottage":    None,
+    },
+    "Airbnb Near Bay (avg)": {
+        "waterfront": None,
+        "waterview":  {"comp_room_name": "Waterfront Airbnb (avg)",
+                       "notes": "Range of Airbnb listings within 2 blocks of waterfront",
+                       "rate_premium_vs_base": 0.15},
+        "garden":     {"comp_room_name": "Downtown Airbnb (avg)",
+                       "notes": "Average of downtown-Beaufort Airbnb units",
+                       "rate_premium_vs_base": 0.0},
+        "cottage":    {"comp_room_name": "Whole-house Airbnb (avg)",
+                       "notes": "Entire-place rentals comparable to our private cottage",
+                       "rate_premium_vs_base": 0.25},
+    },
+}
+
+# Room type categories for Anchorage 1770 (UI labels + selector)
+OUR_ROOM_CATEGORIES = [
+    {"id": "waterfront",
+     "label": "Waterfront Suites",
+     "icon":  "🌊",
+     "description": "Rooms 201-204: direct Beaufort River views",
+     "room_ids":  ["waterfront_201","waterfront_202","waterfront_203","waterfront_204"],
+     "base_rate": 419},
+    {"id": "waterview",
+     "label": "Water View Suites",
+     "icon":  "💧",
+     "description": "Rooms 301-305: partial river views",
+     "room_ids":  ["waterview_301","waterview_302","waterview_303","waterview_304","waterview_305"],
+     "base_rate": 299},
+    {"id": "garden",
+     "label": "Garden View Rooms",
+     "icon":  "🌿",
+     "description": "Rooms 101-104: garden courtyard setting",
+     "room_ids":  ["garden_101","garden_102","garden_103","garden_104"],
+     "base_rate": 279},
+    {"id": "cottage",
+     "label": "Private Cottage",
+     "icon":  "🏡",
+     "description": "Standalone cottage: premium privacy",
+     "room_ids":  ["private_cottage"],
+     "base_rate": 489},
+]

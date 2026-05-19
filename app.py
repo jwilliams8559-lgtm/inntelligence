@@ -458,6 +458,103 @@ def v2_api_competitors():
     return jsonify(_v2_competitor_7day(date.fromisoformat(check_in_str)))
 
 
+@app.route("/api/competitors/by-room-type")
+def v2_api_competitors_by_room_type():
+    """Room-type-aware competitive comparison (Section C)."""
+    from config.settings import (
+        COMPETITOR_ROOM_TYPES, OUR_ROOM_CATEGORIES,
+        COMPETITORS as _C_LIST, ROOM_TYPES,
+    )
+    room_cat     = request.args.get("room_category", "waterfront")
+    check_in_str = request.args.get("date", date.today().isoformat())
+    days         = max(1, min(int(request.args.get("days", 14)), 30))
+    try:
+        check_in = date.fromisoformat(check_in_str)
+    except ValueError:
+        check_in = date.today()
+
+    our_cat = next((c for c in OUR_ROOM_CATEGORIES if c["id"] == room_cat), None)
+    if not our_cat:
+        return jsonify({"error": "Invalid room category"}), 400
+
+    dates   = [check_in + timedelta(days=i) for i in range(days)]
+    labels  = [d.strftime("%a %b %-d") for d in dates]
+
+    # Our rates for this room category (representative room = first in category)
+    rep_room = next((r for r in ROOM_TYPES if r["id"] == our_cat["room_ids"][0]), ROOM_TYPES[0])
+    our_rates = []
+    for d in dates:
+        fc  = _v2_demand.forecast(d)
+        rec = _v2_rate.recommend(rep_room, fc.score, fc.label, fc.drivers,
+                                  fc.confidence, None, d)
+        our_rates.append(int(rec.recommended_rate))
+
+    # Competitor rates for the equivalent room type
+    competitors_out: list = []
+    for comp in _C_LIST:
+        name      = comp["name"]
+        equiv     = (COMPETITOR_ROOM_TYPES.get(name) or {}).get(room_cat)
+        snap7     = _v2_scraper.get_7day_snapshot(check_in)
+        blended   = snap7["competitors"].get(name, [300] * 7)
+        # Stretch the 7-day base rates across the requested window
+        extended  = (blended * ((days // 7) + 2))[:days]
+        entry = {
+            "name":             name,
+            "tier":             comp.get("tier", "Direct Boutique Competitor"),
+            "distance":         comp.get("distance_miles"),
+            "tripadvisor":      comp.get("tripadvisor_rating"),
+            "avail_color":      comp.get("avail_color", "gray"),
+            "has_equivalent":   equiv is not None,
+            "comp_room_name":   equiv["comp_room_name"] if equiv else None,
+            "comp_room_notes":  equiv["notes"] if equiv else None,
+            "no_equivalent_msg": (None if equiv
+                                   else f"{name} has no {our_cat['label']} equivalent"),
+        }
+        if equiv:
+            premium = equiv.get("rate_premium_vs_base", 0) or 0
+            entry["rates"] = [int(r * (1 + premium)) for r in extended]
+        else:
+            entry["rates"] = [None] * days
+        competitors_out.append(entry)
+
+    # Per-date position vs comp set average
+    position_by_date: list = []
+    for i, our_r in enumerate(our_rates):
+        comp_rates = [c["rates"][i] for c in competitors_out if c["rates"][i] is not None]
+        if comp_rates:
+            avg = sum(comp_rates) / len(comp_rates)
+            pct = (our_r - avg) / avg
+            position_by_date.append({
+                "date":       dates[i].isoformat(),
+                "our_rate":   our_r,
+                "comp_avg":   int(avg),
+                "comp_min":   min(comp_rates),
+                "comp_max":   max(comp_rates),
+                "pct_vs_avg": round(pct * 100, 1),
+                "position":   "Premium" if pct > 0.12
+                              else "Below Market" if pct < -0.12
+                              else "At Market",
+            })
+        else:
+            position_by_date.append({
+                "date":     dates[i].isoformat(),
+                "our_rate": our_r, "comp_avg": None, "position": "No data",
+            })
+
+    return jsonify({
+        "room_category":    room_cat,
+        "our_room_label":   our_cat["label"],
+        "our_description":  our_cat["description"],
+        "our_base_rate":    our_cat["base_rate"],
+        "icon":             our_cat.get("icon"),
+        "dates":            [d.isoformat() for d in dates],
+        "date_labels":      labels,
+        "our_rates":        our_rates,
+        "competitors":      competitors_out,
+        "position_by_date": position_by_date,
+    })
+
+
 @app.route("/api/health")
 def v2_api_health():
     return jsonify({"status": "ok", "property": V2_PROPERTY["name"]})
