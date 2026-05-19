@@ -151,7 +151,11 @@ export default function GuestCRM({ tenant, property }: Props) {
   ]
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-cream">
+    // D1 — root scrolls. Was h-full overflow-hidden which clipped the
+    // Packages + Gift Shop panels below the body. min-h-full plus
+    // overflow-y-auto lets the page scroll freely. The internal guest
+    // list keeps its own scroll via max-h further down.
+    <div className="flex flex-col min-h-full overflow-y-auto bg-cream pb-20">
       {/* Header */}
       <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-3 flex-wrap">
         <h1 className="text-navy font-bold text-base whitespace-nowrap">Guest CRM</h1>
@@ -199,8 +203,8 @@ export default function GuestCRM({ tenant, property }: Props) {
         </div>
       )}
 
-      {/* Body — guest list + drawer */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* Body — guest list + drawer; cap body height so panels below remain reachable */}
+      <div className="flex" style={{ minHeight: '60vh', maxHeight: '85vh' }}>
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Filters */}
           <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-2 flex-wrap">
@@ -561,45 +565,244 @@ function PackagesPanel() {
   )
 }
 
-// ── D3: Gift Shop panel ──
-interface ShopCat {
-  icon: string; name: string; items: string; item_count: number
-  est_monthly_rev: number; note: string; margin: number; est_margin_dollars?: number
+// ── D3: Gift Shop panel — full item CRUD ──
+interface ShopItem {
+  id: string; name: string; category_id: string
+  price: number; est_monthly_units: number
+  active: boolean; notes: string
+}
+interface ShopCategory {
+  id: string; icon: string; name: string; note: string
+  margin: number; integration: string | null
+  item_count: number; active_count: number; est_monthly_rev: number
+  items_detail: ShopItem[]
 }
 
 function GiftShopPanel() {
-  const [cats, setCats] = useState<ShopCat[]>([])
-  useEffect(() => {
-    fetch('/api/gift-shop').then(r => r.json()).then(setCats).catch(() => setCats([]))
+  const [cats, setCats] = useState<ShopCategory[]>([])
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [addingTo, setAddingTo] = useState<string | null>(null)
+  const [draftItem, setDraftItem] = useState({ name: '', price: '', est_monthly_units: '', notes: '' })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<Partial<ShopItem>>({})
+
+  const reload = useCallback(() => {
+    fetch('/api/gift-shop/categories').then(r => r.json()).then(setCats).catch(() => setCats([]))
   }, [])
-  const total = cats.reduce((s, c) => s + (c.est_monthly_rev || 0), 0)
+  useEffect(() => { reload() }, [reload])
+
+  function toggleExpand(id: string) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  async function addItem(cat_id: string) {
+    if (!draftItem.name || !draftItem.price) return
+    await fetch('/api/gift-shop/items', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:              draftItem.name,
+        category_id:       cat_id,
+        price:             Number(draftItem.price),
+        est_monthly_units: Number(draftItem.est_monthly_units || 10),
+        notes:             draftItem.notes,
+      }),
+    })
+    setDraftItem({ name: '', price: '', est_monthly_units: '', notes: '' })
+    setAddingTo(null)
+    reload()
+  }
+
+  async function toggleActive(item: ShopItem) {
+    await fetch(`/api/gift-shop/items/${item.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: !item.active }),
+    })
+    reload()
+  }
+
+  async function deleteItem(item: ShopItem) {
+    if (!confirm(`Remove "${item.name}" from gift shop? This cannot be undone.`)) return
+    await fetch(`/api/gift-shop/items/${item.id}`, { method: 'DELETE' })
+    reload()
+  }
+
+  function startEdit(item: ShopItem) {
+    setEditingId(item.id)
+    setEditDraft({ name: item.name, price: item.price, est_monthly_units: item.est_monthly_units, notes: item.notes })
+  }
+  async function saveEdit() {
+    if (!editingId) return
+    await fetch(`/api/gift-shop/items/${editingId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editDraft),
+    })
+    setEditingId(null); setEditDraft({})
+    reload()
+  }
+
+  const grandTotal = cats.reduce((s, c) => s + c.est_monthly_rev, 0)
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-navy font-bold text-sm">Gift Shop &amp; Online Store</h2>
-      </div>
-      <div className="bg-gold/10 border border-gold/30 rounded-lg px-3 py-2 mb-3 text-xs text-gold-dark">
-        🔗 Integration ready — connect to Square POS or Shopify to sync inventory counts and sales automatically.
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {cats.map(c => (
-          <div key={c.name} className="border border-slate-100 rounded-lg p-3 bg-white">
-            <div className="text-2xl mb-1">{c.icon}</div>
-            <div className="font-bold text-navy text-sm">{c.name}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">{c.items}</div>
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-[10px] bg-gold/15 text-gold-dark font-bold px-1.5 py-0.5 rounded">
-                {c.item_count} items
-              </span>
-              <span className="text-sage font-bold text-sm">Est. ${c.est_monthly_rev.toLocaleString()}/mo</span>
-            </div>
-            <div className="text-[10px] text-slate-400 italic mt-1">{c.note}</div>
+        <div>
+          <h2 className="text-navy font-bold text-sm">Gift Shop &amp; Online Store</h2>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            {cats.length} categor{cats.length === 1 ? 'y' : 'ies'} · Total Est. ${grandTotal.toLocaleString()}/mo
           </div>
-        ))}
+        </div>
       </div>
+
+      <div className="bg-gold/10 border border-gold/30 rounded-lg px-3 py-2 mb-3 text-xs text-gold-dark">
+        🔗 Integration ready — connect to Square POS or Shopify to sync sales data and inventory counts.
+        <div className="text-[11px] text-slate-600 italic mt-1">
+          Syncing imports sales data from your POS. Manage what you sell in the categories below —
+          add, edit, or remove items at any time independent of any POS integration.
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {cats.map(cat => {
+          const isOpen = expanded.has(cat.id)
+          return (
+            <div key={cat.id} className="border border-slate-200 rounded-lg overflow-hidden">
+              <button onClick={() => toggleExpand(cat.id)}
+                className="w-full bg-cream hover:bg-cream/60 px-3 py-2 flex items-center gap-3 text-left transition-colors">
+                <span className="text-xl">{cat.icon}</span>
+                <div className="flex-1">
+                  <div className="font-bold text-navy text-sm">{cat.name}</div>
+                  <div className="text-[11px] text-slate-500">
+                    {cat.active_count} active of {cat.item_count} items · Est. ${cat.est_monthly_rev.toLocaleString()}/mo
+                  </div>
+                </div>
+                <span className="text-slate-400 text-lg">{isOpen ? '▾' : '▸'}</span>
+              </button>
+
+              {isOpen && (
+                <div className="bg-white">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50">
+                      <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500">
+                        <th className="px-3 py-1.5">Item</th>
+                        <th className="px-2 py-1.5 text-right">Price</th>
+                        <th className="px-2 py-1.5 text-right">Mo Units</th>
+                        <th className="px-2 py-1.5 text-right">Est Rev</th>
+                        <th className="px-2 py-1.5 text-center">Active</th>
+                        <th className="px-2 py-1.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cat.items_detail.map(item => {
+                        const isEditing = editingId === item.id
+                        const rev = item.price * item.est_monthly_units
+                        return (
+                          <tr key={item.id} className="border-t border-slate-100">
+                            <td className="px-3 py-1.5">
+                              {isEditing ? (
+                                <input value={editDraft.name as string ?? ''}
+                                  onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
+                                  className="border border-slate-200 rounded px-1.5 py-0.5 w-full" />
+                              ) : (
+                                <>
+                                  <div className="font-medium text-slate-700">{item.name}</div>
+                                  {item.notes && <div className="text-[10px] text-slate-400 italic">{item.notes}</div>}
+                                </>
+                              )}
+                            </td>
+                            <td className="px-2 py-1.5 text-right">
+                              {isEditing
+                                ? <input type="number" value={editDraft.price as number ?? 0}
+                                    onChange={e => setEditDraft(d => ({ ...d, price: Number(e.target.value) }))}
+                                    className="border border-slate-200 rounded px-1 py-0.5 w-16 text-right" />
+                                : `$${item.price.toFixed(2)}`}
+                            </td>
+                            <td className="px-2 py-1.5 text-right">
+                              {isEditing
+                                ? <input type="number" value={editDraft.est_monthly_units as number ?? 0}
+                                    onChange={e => setEditDraft(d => ({ ...d, est_monthly_units: Number(e.target.value) }))}
+                                    className="border border-slate-200 rounded px-1 py-0.5 w-14 text-right" />
+                                : item.est_monthly_units}
+                            </td>
+                            <td className="px-2 py-1.5 text-right text-sage font-semibold">${rev.toFixed(0)}</td>
+                            <td className="px-2 py-1.5 text-center">
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" checked={item.active} onChange={() => toggleActive(item)} className="sr-only peer" />
+                                <div className="w-7 h-3.5 bg-slate-200 peer-checked:bg-sage rounded-full after:absolute after:top-0.5 after:left-0.5 after:w-2.5 after:h-2.5 after:bg-white after:rounded-full peer-checked:after:translate-x-3.5 after:transition-transform" />
+                              </label>
+                            </td>
+                            <td className="px-2 py-1.5 text-right space-x-1.5 whitespace-nowrap">
+                              {isEditing ? (
+                                <>
+                                  <button onClick={saveEdit} className="text-sage font-semibold">Save</button>
+                                  <button onClick={() => setEditingId(null)} className="text-slate-400">Cancel</button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => startEdit(item)} className="text-navy hover:underline">Edit</button>
+                                  <button onClick={() => deleteItem(item)} className="text-coral hover:underline">Delete</button>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+
+                      {/* Add row */}
+                      {addingTo === cat.id ? (
+                        <tr className="border-t-2 border-sage/30 bg-sage/5">
+                          <td className="px-3 py-2">
+                            <input placeholder="Item name" value={draftItem.name}
+                              onChange={e => setDraftItem(d => ({ ...d, name: e.target.value }))}
+                              className="border border-slate-200 rounded px-2 py-0.5 w-full" />
+                            <input placeholder="Notes (optional)" value={draftItem.notes}
+                              onChange={e => setDraftItem(d => ({ ...d, notes: e.target.value }))}
+                              className="border border-slate-200 rounded px-2 py-0.5 w-full mt-1 text-[10px]" />
+                          </td>
+                          <td className="px-2 py-2 text-right">
+                            <input type="number" placeholder="Price" value={draftItem.price}
+                              onChange={e => setDraftItem(d => ({ ...d, price: e.target.value }))}
+                              className="border border-slate-200 rounded px-1 py-0.5 w-16 text-right" />
+                          </td>
+                          <td className="px-2 py-2 text-right">
+                            <input type="number" placeholder="Mo" value={draftItem.est_monthly_units}
+                              onChange={e => setDraftItem(d => ({ ...d, est_monthly_units: e.target.value }))}
+                              className="border border-slate-200 rounded px-1 py-0.5 w-14 text-right" />
+                          </td>
+                          <td colSpan={3} className="px-2 py-2 text-right space-x-2 whitespace-nowrap">
+                            <button onClick={() => addItem(cat.id)}
+                              className="bg-sage text-white font-semibold text-[11px] px-2 py-0.5 rounded">Save</button>
+                            <button onClick={() => setAddingTo(null)} className="text-slate-400 text-[11px]">Cancel</button>
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-1.5">
+                            <button onClick={() => setAddingTo(cat.id)}
+                              className="text-[11px] text-navy hover:text-gold font-semibold">
+                              + Add Item to {cat.name}
+                            </button>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
       <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-200">
         <span className="text-xs text-slate-500 uppercase tracking-wider">Total est. gift shop revenue</span>
-        <span className="font-bold text-gold">${total.toLocaleString()}/mo</span>
+        <span className="font-bold text-gold">${grandTotal.toLocaleString()}/mo</span>
+      </div>
+      <div className="text-[10px] text-slate-400 italic mt-1">
+        Based on current active items and estimated monthly unit sales.
       </div>
     </div>
   )
