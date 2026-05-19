@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { format, addDays } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import type { Tenant, Property, CompRate, CompetitorProp, RateRec, RoomType } from '../lib/types'
+import LockedFeature from '../components/LockedFeature'
 
 interface Props { tenant: Tenant; property: Property; pendingCount: number; setPendingCount: (n: number) => void }
 
@@ -328,6 +329,12 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
         </div>
       </div>
 
+      {/* Section G — Competitive Response Recommendations */}
+      <LockedFeature featureName="Competitive Response Recommendations" featureKey="competitive_response"
+        description="When a competitor drops their rate, surface three strategic responses — match, hold, or counter — with rationale, conditions, and risk.">
+        <CompetitiveResponsePanel />
+      </LockedFeature>
+
       {/* Section C — Room-type selector */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex flex-wrap items-center gap-2 text-xs">
         <span className="font-bold text-navy uppercase tracking-wider text-[10px]">Compare by Room Type</span>
@@ -635,6 +642,85 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
           })}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Section G: Competitive Response Recommendations ──
+interface ResponseOption {
+  key: string; label: string; icon: string
+  new_rate: number; delta: number
+  rationale: string; best_when: string; risk: string
+}
+interface ResponseAlert {
+  competitor: string; competitor_now: number; competitor_was: number
+  drop_pct: number; our_rate: number; our_premium_now: number
+  options: ResponseOption[]
+}
+
+function CompetitiveResponsePanel() {
+  const [data, setData] = useState<{ responses: ResponseAlert[] } | null>(null)
+  const [selected, setSelected] = useState<Record<string, string>>({})
+  useEffect(() => {
+    fetch('/api/competitive-response').then(r => r.json()).then(setData)
+  }, [])
+  if (!data) return null
+  if (data.responses.length === 0) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-sage/20 p-4">
+        <div className="text-sm font-semibold text-sage-dark">✓ No competitive rate drops detected</div>
+        <div className="text-xs text-slate-500 mt-0.5">Your comp set is stable. We will surface a recommendation here when someone moves more than 15%.</div>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-3">
+      {data.responses.map(alert => {
+        const chosen = selected[alert.competitor]
+        return (
+          <div key={alert.competitor} className="bg-white rounded-xl shadow-sm border-2 border-coral/30 p-5">
+            <div className="flex items-baseline justify-between flex-wrap gap-2 mb-1">
+              <h3 className="font-bold text-navy text-base">⚠ {alert.competitor} dropped {alert.drop_pct}%</h3>
+              <div className="text-xs text-slate-500">
+                Now <strong className="text-coral">${alert.competitor_now}</strong> (was ${alert.competitor_was}) ·
+                You at <strong className="text-navy">${alert.our_rate}</strong> (premium ${alert.our_premium_now})
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">Choose a response — each option shows the rationale, when it works, and the trade-off.</p>
+            <div className="grid grid-cols-3 gap-3">
+              {alert.options.map(opt => (
+                <button key={opt.key}
+                  onClick={() => setSelected({ ...selected, [alert.competitor]: opt.key })}
+                  className={`text-left rounded-lg p-3 border-2 transition-all ${
+                    chosen === opt.key
+                      ? 'border-gold bg-gold/5 shadow-md'
+                      : 'border-slate-100 hover:border-navy/30'
+                  }`}>
+                  <div className="flex items-baseline justify-between gap-1 mb-1">
+                    <div className="font-bold text-navy text-sm">{opt.icon} {opt.label}</div>
+                    {chosen === opt.key && <span className="text-[10px] text-gold font-bold">✓ SELECTED</span>}
+                  </div>
+                  <div className="text-2xl font-bold text-navy">${opt.new_rate}
+                    {opt.delta !== 0 && (
+                      <span className={`text-xs font-semibold ml-1 ${opt.delta > 0 ? 'text-sage' : 'text-coral'}`}>
+                        {opt.delta > 0 ? '+' : ''}{opt.delta}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-600 mt-1.5 leading-snug">{opt.rationale}</div>
+                  <div className="text-[10px] text-sage-dark font-semibold mt-2">Best when: <span className="font-normal text-slate-600">{opt.best_when}</span></div>
+                  <div className="text-[10px] text-coral font-semibold mt-1">Risk: <span className="font-normal text-slate-600">{opt.risk}</span></div>
+                </button>
+              ))}
+            </div>
+            {chosen && (
+              <div className="mt-3 bg-gold/10 border border-gold/30 rounded-lg px-3 py-2 text-xs text-slate-700">
+                You picked <strong className="text-navy">{alert.options.find(o => o.key === chosen)?.label}</strong>. Apply via the Rate Calendar to publish at <strong>${alert.options.find(o => o.key === chosen)?.new_rate}</strong> through your channel manager.
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

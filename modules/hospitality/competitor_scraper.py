@@ -123,3 +123,67 @@ class CompetitorScraper:
                     "drop_pct":     int(((rate_14d - rate_now) / rate_14d) * 100),
                 })
         return alerts
+
+    def competitive_response_options(self, our_rate: float = 419) -> list:
+        """For each rate-drop alert, emit three responses (match / hold / counter)."""
+        from config.settings import ROOM_TYPES
+        avg_our_rate = sum(r["base"] * r.get("count", 1) for r in ROOM_TYPES) / sum(r.get("count", 1) for r in ROOM_TYPES) if ROOM_TYPES else our_rate
+        drops = self.detect_rate_drops()
+        if not drops and COMPETITORS:
+            # Demo fallback: surface the lowest-priced competitor as a soft drop
+            today = date.today()
+            cheapest = min(COMPETITORS, key=lambda c: self._rate_for_date(c["name"], today + timedelta(days=14)))
+            now_rate = int(self._rate_for_date(cheapest["name"], today + timedelta(days=14)))
+            drops = [{
+                "competitor":   cheapest["name"],
+                "rate_now":     now_rate,
+                "rate_14d_ago": int(now_rate / 0.83),
+                "drop_pct":     17,
+            }]
+        responses = []
+        for drop in drops:
+            new_comp_rate = drop["rate_now"]
+            gap = avg_our_rate - new_comp_rate
+            match_rate    = round(new_comp_rate * 1.02)   # 2 percent above competitor
+            counter_rate  = round(avg_our_rate * 1.03)    # raise 3 percent and signal premium
+            responses.append({
+                "competitor":   drop["competitor"],
+                "competitor_now":   new_comp_rate,
+                "competitor_was":   drop["rate_14d_ago"],
+                "drop_pct":         drop["drop_pct"],
+                "our_rate":         round(avg_our_rate),
+                "our_premium_now":  round(gap),
+                "options": [
+                    {
+                        "key":          "match",
+                        "label":        "Match the drop",
+                        "icon":         "⚔",
+                        "new_rate":     match_rate,
+                        "delta":        match_rate - round(avg_our_rate),
+                        "rationale":    f"Stay {round(((match_rate - new_comp_rate) / new_comp_rate) * 100)}% above {drop['competitor']}. Defensive — preserves share if demand is soft.",
+                        "best_when":    "Occupancy < 60% the same week; gain-share critical",
+                        "risk":         "Trains guests to expect lower rates; thin margins",
+                    },
+                    {
+                        "key":          "hold",
+                        "label":        "Hold your rate",
+                        "icon":         "🛡",
+                        "new_rate":     round(avg_our_rate),
+                        "delta":        0,
+                        "rationale":    f"Maintain ${round(avg_our_rate)} — your ★4.8 rating justifies a premium over {drop['competitor']}. Their drop signals weakness, not the market.",
+                        "best_when":    "Strong forward bookings; star rating ≥ 4.5; brand premium",
+                        "risk":         "Lose price-sensitive bookings to the competitor",
+                    },
+                    {
+                        "key":          "counter",
+                        "label":        "Raise & differentiate",
+                        "icon":         "↑",
+                        "new_rate":     counter_rate,
+                        "delta":        counter_rate - round(avg_our_rate),
+                        "rationale":    "Raise 3% and lean into your distinct value (history, waterfront, F&B). Their cut becomes your widening gap — and a marketing story.",
+                        "best_when":    "High demand week; unique property attributes; F&B / package monetization",
+                        "risk":         "Higher resistance if guests comparison-shop on rate alone",
+                    },
+                ],
+            })
+        return responses

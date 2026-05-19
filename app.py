@@ -1251,6 +1251,13 @@ def v2_api_performance_report():
     return jsonify(performance_engine.get_report(V2_PROPERTY, tier))
 
 
+@app.route("/api/competitive-response")
+@require_feature("competitive_response")
+def v2_api_competitive_response():
+    from modules.hospitality.competitor_scraper import CompetitorScraper
+    return jsonify({"responses": CompetitorScraper().competitive_response_options()})
+
+
 @app.route("/api/price-bands")
 def v2_api_price_bands():
     from config.settings import ROOM_TYPES
