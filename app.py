@@ -1242,6 +1242,15 @@ def v2_api_weather():
     return jsonify(weather_engine.get_summary(V2_PROPERTY))
 
 
+@app.route("/api/performance-report")
+@require_feature("performance_report")
+def v2_api_performance_report():
+    from modules.hospitality import performance_engine
+    user = _auth_current_user()
+    tier = (user or {}).get("plan_tier", "professional")
+    return jsonify(performance_engine.get_report(V2_PROPERTY, tier))
+
+
 @app.route("/api/price-bands")
 def v2_api_price_bands():
     from config.settings import ROOM_TYPES

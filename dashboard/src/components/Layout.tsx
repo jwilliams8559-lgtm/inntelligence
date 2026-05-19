@@ -13,6 +13,7 @@ const NAV: { id: Screen; label: string; icon: string; adminOnly?: boolean }[] = 
   { id: 'reputation',  label: 'Reviews',           icon: '⭐' },
   { id: 'crm',         label: 'Guest CRM',         icon: '👥' },
   { id: 'packages',    label: 'Packages',          icon: '🎁' },
+  { id: 'performance', label: 'ROI Performance',   icon: '📈' },
   { id: 'management',  label: 'Management Console',icon: '🏛️', adminOnly: true },
   { id: 'settings',    label: 'Settings',          icon: '⚙️' },
 ]

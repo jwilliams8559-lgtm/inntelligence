@@ -10,6 +10,7 @@ import DemandDashboard from './screens/DemandDashboard'
 import EventsScreen from './screens/EventsScreen'
 import CompetitiveIntel from './screens/CompetitiveIntel'
 import ReputationScreen from './screens/ReputationScreen'
+import PerformanceScreen from './screens/PerformanceScreen'
 import GuestCRM from './screens/GuestCRM'
 import Packages from './screens/Packages'
 import ManagementConsole from './screens/ManagementConsole'
@@ -112,6 +113,7 @@ function Authenticated() {
         {screen === 'reputation'   && <ReputationScreen {...screenProps} />}
         {screen === 'crm'          && <GuestCRM         {...screenProps} />}
         {screen === 'packages'     && <Packages         {...screenProps} />}
+        {screen === 'performance'  && <PerformanceScreen />}
         {screen === 'management'   && APP_ROLE === 'shg_admin' && <ManagementConsole {...screenProps} />}
         {screen === 'settings'     && <Settings         {...screenProps} />}
       </Layout>
