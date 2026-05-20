@@ -11,6 +11,7 @@ const NAV: { id: Screen; label: string; icon: string; adminOnly?: boolean }[] = 
   { id: 'events',      label: 'Events',            icon: '📅' },
   { id: 'competitive', label: 'Competitive Intel', icon: '🎯' },
   { id: 'reputation',  label: 'Reviews',           icon: '⭐' },
+  { id: 'fnb',         label: 'F&B Yield',         icon: '🍽️' },
   { id: 'crm',         label: 'Guest CRM',         icon: '👥' },
   { id: 'packages',    label: 'Packages',          icon: '🎁' },
   { id: 'performance', label: 'ROI Performance',   icon: '📈' },

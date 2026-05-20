@@ -1273,6 +1273,73 @@ def v2_api_performance_report():
     return jsonify(performance_engine.get_report(V2_PROPERTY, tier))
 
 
+# ════════════════════════════════════════════════════════════════════
+# F&B Yield Management (multi-outlet)
+# ════════════════════════════════════════════════════════════════════
+
+def _fnb_tenant_id() -> str:
+    user = _auth_current_user() or {}
+    return user.get("tenant_id", "anchorage-1770-demo")
+
+
+@app.route("/api/fnb/config")
+@require_feature("fb_yield_module")
+def v2_api_fnb_config():
+    from config.settings import get_fnb_config
+    return jsonify(get_fnb_config(_fnb_tenant_id()))
+
+
+@app.route("/api/fnb/summary")
+@require_feature("fb_yield_module")
+def v2_api_fnb_summary():
+    from modules.hospitality.fnb_engine import FNBEngine
+    tid = _fnb_tenant_id()
+    days = int(request.args.get("days", 30))
+    return jsonify(FNBEngine().compute_summary(tid, days))
+
+
+@app.route("/api/fnb/daily")
+@require_feature("fb_yield_module")
+def v2_api_fnb_daily():
+    from modules.hospitality.fnb_engine import FNBEngine
+    tid    = _fnb_tenant_id()
+    days   = int(request.args.get("days", 30))
+    outlet = request.args.get("outlet")
+    data   = FNBEngine().generate_demo_data(tid, date.today(), days)
+    if outlet and outlet in data.get("outlets", {}):
+        return jsonify({"outlet": outlet, "data": data["outlets"][outlet]})
+    return jsonify(data)
+
+
+@app.route("/api/fnb/recommendations")
+@require_feature("fb_yield_module")
+def v2_api_fnb_recommendations():
+    from modules.hospitality.fnb_engine import FNBEngine
+    return jsonify(FNBEngine().generate_recommendations(_fnb_tenant_id()))
+
+
+@app.route("/api/fnb/private-event", methods=["POST"])
+@require_feature("fb_yield_module")
+def v2_api_fnb_private_event():
+    from modules.hospitality.fnb_engine import FNBEngine
+    body = request.get_json(force=True, silent=True) or {}
+    return jsonify(FNBEngine().private_event_pricing(
+        _fnb_tenant_id(),
+        body.get("outlet_id", "rooftop_bar"),
+        int(body.get("guest_count", 40)),
+        float(body.get("hours", 4)),
+        body.get("event_date", date.today().isoformat()),
+    ))
+
+
+@app.route("/api/fnb/revpash")
+@require_feature("fb_yield_module")
+def v2_api_fnb_revpash():
+    from modules.hospitality.fnb_engine import FNBEngine
+    days = int(request.args.get("days", 30))
+    return jsonify(FNBEngine().revpash_series(_fnb_tenant_id(), days))
+
+
 @app.route("/api/competitive-response")
 @require_feature("competitive_response")
 def v2_api_competitive_response():

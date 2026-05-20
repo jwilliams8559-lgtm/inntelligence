@@ -295,7 +295,7 @@ FEATURE_GATES = {
                      "direct_booking_tools": True, "gap_night_analysis": True,
                      "weather_intel": True, "performance_report": True,
                      "eve_analysis": False, "annual_review": False,
-                     "competitive_response": True, "fb_yield_module": False,
+                     "competitive_response": True, "fb_yield_module": True,
                      "price_per_month": 699},
     "portfolio":    {"label": "Portfolio", "max_competitors": 10, "calendar_days": 365, "max_events": 999,
                      "fb_module": True,  "packages_module": True,  "gift_shop_module": True,
@@ -586,6 +586,64 @@ FB_CONFIG = {
     "event_nights_per_month":  2,
     "take_rate_est":           0.20,
 }
+
+# ── F&B yield management — multi-outlet config for Anchorage 1770 ──
+# Keyed by tenant_id. Other tenants default to {"enabled": False}.
+FNB_CONFIGS: dict = {
+    "anchorage-1770-demo": {
+        "enabled": True,
+        "outlets": [
+            {
+                "id": "rsc_restaurant",
+                "name": "Ribaut Social Club",
+                "type": "restaurant",
+                "icon": "🍽️",
+                "seats": 48,
+                "services": ["dinner"],
+                "days_open": [1, 2, 3, 4, 5, 6, 0],
+                "hours": {"dinner": {"open": "17:30", "last_seating": "21:00"}},
+                "avg_check_target":     72.00,
+                "avg_turn_time_min":    90,
+                "reservation_required": False,
+                "max_advance_days":     60,
+                "cuisine":              "Lowcountry American",
+                "square_id":            None,
+                "opentable_id":         None,
+                "resy_id":              None,
+            },
+            {
+                "id": "rooftop_bar",
+                "name": "Rooftop Bar",
+                "type": "bar",
+                "icon": "🍸",
+                "capacity": 60,
+                "services": ["evening"],
+                "days_open": [4, 5, 6, 0],
+                "hours": {"evening": {"open": "16:00", "close": "23:00"}},
+                "avg_spend_per_guest":  38.00,
+                "min_spend_peak":       25.00,
+                "reservation_required": False,
+                "private_buyout_rate":  1800.00,
+                "square_id":            None,
+            },
+        ],
+        "pos_system":           None,
+        "reservation_system":   None,
+        "stripe_fnb_enabled":   False,
+    },
+}
+
+
+def get_fnb_config(tenant_id: str) -> dict:
+    """Return F&B config for a tenant. Default disabled when not configured."""
+    return FNB_CONFIGS.get(tenant_id, {"enabled": False, "outlets": []})
+
+
+def get_fnb_outlet(tenant_id: str, outlet_id: str) -> dict | None:
+    for o in get_fnb_config(tenant_id).get("outlets", []):
+        if o["id"] == outlet_id:
+            return o
+    return None
 
 # ── Section C — Room-type equivalency mapping ─────────────────────────────
 # For each competitor, the closest equivalent room they offer per Anchorage

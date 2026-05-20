@@ -12,6 +12,7 @@ import DemandDashboard from './screens/DemandDashboard'
 import EventsScreen from './screens/EventsScreen'
 import CompetitiveIntel from './screens/CompetitiveIntel'
 import ReputationScreen from './screens/ReputationScreen'
+import FnBScreen from './screens/FnBScreen'
 import PerformanceScreen from './screens/PerformanceScreen'
 import GuestCRM from './screens/GuestCRM'
 import Packages from './screens/Packages'
@@ -118,6 +119,7 @@ function Authenticated() {
         {screen === 'events'       && <EventsScreen     {...screenProps} />}
         {screen === 'competitive'  && <CompetitiveIntel {...screenProps} />}
         {screen === 'reputation'   && <ReputationScreen {...screenProps} />}
+        {screen === 'fnb'          && <FnBScreen        {...screenProps} />}
         {screen === 'crm'          && <GuestCRM         {...screenProps} />}
         {screen === 'packages'     && <Packages         {...screenProps} />}
         {screen === 'performance'  && <PerformanceScreen />}
