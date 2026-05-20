@@ -582,12 +582,22 @@ export default function ManagementConsole({ }: Props) {
             </tbody>
           </table>
         </div>
-        <div className="px-5 py-2 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex gap-4">
-          <span>{adminTenants.filter(t => t.status === 'active').length} active properties</span>
-          <span>·</span>
-          <span>${adminTenants.filter(t => !t.founding_member).reduce((s, t) => s + ({essentials:399,professional:699,portfolio:1199,enterprise:2400}[t.plan_tier as 'essentials']||0), 0).toLocaleString()} MRR</span>
-          <span>·</span>
-          <span>{adminTenants.filter(t => t.founding_member).length} founding members</span>
+        <div className="px-5 py-2 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
+          <div className="flex gap-4">
+            <span>{adminTenants.filter(t => t.status === 'active').length} active properties</span>
+            <span>·</span>
+            <span>${adminTenants.filter(t => !t.founding_member).reduce((s, t) => s + ({essentials:399,professional:699,portfolio:1199,enterprise:2400}[t.plan_tier as 'essentials']||0), 0).toLocaleString()} MRR</span>
+            <span>·</span>
+            <span>{adminTenants.filter(t => t.founding_member).length} founding members</span>
+          </div>
+          <button onClick={async () => {
+            if (!confirm('Reset all demo data to factory defaults?')) return
+            const r = await fetch('/api/demo/reset', { method: 'POST' })
+            if (r.ok) window.location.reload()
+            else alert('Reset failed — admin token required.')
+          }} className="text-[11px] text-slate-400 hover:text-coral underline">
+            Reset Demo Data
+          </button>
         </div>
       </section>
 

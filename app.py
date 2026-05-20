@@ -1446,6 +1446,28 @@ def v2_api_admin_regen_password(tenant_id):
     return jsonify({"temp_password": new_pw})
 
 
+@app.route("/api/demo/reset", methods=["POST"])
+def v2_api_demo_reset():
+    """Reset all in-memory and JSON-backed demo state so the next pitch
+    starts from a clean slate. Admin-only."""
+    err = _require_admin()
+    if err: return err
+    import json as _json, os as _os
+    base = _os.path.dirname(_os.path.abspath(__file__))
+    cleared = []
+    # Reset provisioned tenants (admin onboarding)
+    p = _os.path.join(base, "data", "tenants.json")
+    if _os.path.exists(p):
+        with open(p, "w") as f: _json.dump({}, f)
+        cleared.append("provisioned tenants")
+    # Reset direct-booking incentive overrides
+    p = _os.path.join(base, "data", "direct_booking_config.json")
+    if _os.path.exists(p):
+        _os.remove(p)
+        cleared.append("direct-booking config")
+    return jsonify({"reset": True, "message": "Demo data restored", "cleared": cleared})
+
+
 @app.route("/api/admin/provision-tenant", methods=["POST"])
 def v2_api_admin_provision_tenant():
     err = _require_admin()
