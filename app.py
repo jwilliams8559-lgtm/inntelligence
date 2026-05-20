@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 from flask import Flask, jsonify, make_response, render_template, request
+from flask_cors import CORS
 
 # Auth + plan-tier enforcement — imported up top so decorators are available
 # before any route that uses @require_feature is evaluated.
@@ -49,6 +50,20 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(mes
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# CORS — explicit allow-list so the Railway-hosted API accepts requests
+# from the Vercel-hosted React app. Extend via CORS_EXTRA_ORIGINS env
+# var (comma-separated) when adding custom domains.
+_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://graciouscollection.vercel.app",
+    "https://app.graciouscollection.com",
+    "https://www.graciouscollection.com",
+]
+if os.environ.get("CORS_EXTRA_ORIGINS"):
+    _CORS_ORIGINS.extend(o.strip() for o in os.environ["CORS_EXTRA_ORIGINS"].split(",") if o.strip())
+CORS(app, origins=_CORS_ORIGINS, supports_credentials=False)
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Config file paths
