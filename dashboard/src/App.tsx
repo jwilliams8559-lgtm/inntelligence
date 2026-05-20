@@ -4,6 +4,8 @@ import type { Tenant, Property, Screen, AppRole } from './lib/types'
 import { PlanFeaturesProvider } from './hooks/usePlanFeatures'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginScreen from './screens/LoginScreen'
+import PricingScreen from './screens/PricingScreen'
+import OnboardingSuccessScreen from './screens/OnboardingSuccessScreen'
 import Layout from './components/Layout'
 import RateCalendar from './screens/RateCalendar'
 import DemandDashboard from './screens/DemandDashboard'
@@ -23,6 +25,11 @@ const SLUG = import.meta.env.VITE_TENANT_SLUG || 'anchorage-1770-demo'
 const APP_ROLE: AppRole = (import.meta.env.VITE_APP_ROLE as AppRole) || 'shg_admin'
 
 export default function App() {
+  // Public routes bypass auth so the pricing page and Stripe checkout
+  // return are reachable without a session.
+  const path = window.location.pathname
+  if (path === '/pricing')          return <PricingScreen />
+  if (path === '/onboard/success')  return <OnboardingSuccessScreen />
   return (
     <AuthProvider>
       <AppInner />

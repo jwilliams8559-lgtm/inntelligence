@@ -1446,6 +1446,139 @@ def v2_api_admin_regen_password(tenant_id):
     return jsonify({"temp_password": new_pw})
 
 
+# ════════════════════════════════════════════════════════════════════
+# Stripe billing (self-serve plan signup)
+# ════════════════════════════════════════════════════════════════════
+
+STRIPE_PRICE_IDS = {
+    "essentials":   os.environ.get("STRIPE_PRICE_ESSENTIALS",   "price_essentials_test"),
+    "professional": os.environ.get("STRIPE_PRICE_PROFESSIONAL", "price_professional_test"),
+    "portfolio":    os.environ.get("STRIPE_PRICE_PORTFOLIO",    "price_portfolio_test"),
+    "enterprise":   os.environ.get("STRIPE_PRICE_ENTERPRISE",   "price_enterprise_test"),
+}
+
+_PUBLIC_PLANS = [
+    {"id": "essentials",   "name": "Essentials",   "price_monthly": 399,  "trial_days": 14, "highlight": False, "cta": "Start Free Trial",
+     "tagline": "5–15 rooms, first-time revenue management",
+     "features": ["30-day rate calendar", "AI rate recommendations", "5 competitors monitored", "Monthly ROI report"]},
+    {"id": "professional", "name": "Professional", "price_monthly": 699,  "trial_days": 14, "highlight": True,  "cta": "Start Free Trial", "badge": "Most Popular",
+     "tagline": "10–25 rooms, serious revenue growth",
+     "features": ["90-day calendar", "10 competitors", "Autopilot", "Guest CRM", "Packages + gift shop", "Direct booking tools", "Weather + gap nights", "ROI performance report"]},
+    {"id": "portfolio",    "name": "Portfolio",    "price_monthly": 1199, "trial_days": 14, "highlight": False, "cta": "Start Free Trial",
+     "tagline": "Multi-property operators",
+     "features": ["Up to 5 properties", "Management console", "White label", "Open API", "EVE analysis"]},
+    {"id": "enterprise",   "name": "Enterprise",   "price_monthly": 2400, "trial_days": 0,  "highlight": False, "cta": "Contact Us",
+     "tagline": "5+ properties, advisory clients",
+     "features": ["Unlimited properties", "Acquisition intelligence", "2 advisory hrs/mo", "Custom integrations"]},
+]
+
+
+@app.route("/api/billing/plans")
+def v2_api_billing_plans():
+    """Public — used by the pricing page (no auth needed)."""
+    return jsonify(_PUBLIC_PLANS)
+
+
+@app.route("/api/billing/create-checkout", methods=["POST"])
+def v2_api_billing_create_checkout():
+    """Create a Stripe Checkout session for self-serve plan signup.
+
+    Falls back to a demo URL when STRIPE_SECRET_KEY is not configured so
+    the React flow stays exercise-able in local dev without keys.
+    """
+    payload   = request.get_json(force=True, silent=True) or {}
+    plan_tier = payload.get("plan_tier", "professional")
+    if plan_tier not in STRIPE_PRICE_IDS:
+        return jsonify({"error": f"Invalid plan tier: {plan_tier}"}), 400
+
+    success_root = payload.get("success_root") or os.environ.get("APP_PUBLIC_URL", "http://localhost:5173")
+    secret = os.environ.get("STRIPE_SECRET_KEY")
+    if not secret:
+        # Stripe not configured — return a stub so the React flow can demo
+        return jsonify({
+            "checkout_url": f"{success_root}/onboard/success?session_id=demo_{plan_tier}_session",
+            "session_id":   f"demo_{plan_tier}_session",
+            "stripe_configured": False,
+        })
+
+    try:
+        import stripe
+        stripe.api_key = secret
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            mode="subscription",
+            line_items=[{"price": STRIPE_PRICE_IDS[plan_tier], "quantity": 1}],
+            success_url=f"{success_root}/onboard/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{success_root}/pricing",
+            metadata={"plan_tier": plan_tier},
+            subscription_data={"trial_period_days": 14} if plan_tier != "enterprise" else None,
+        )
+        return jsonify({
+            "checkout_url":      session.url,
+            "session_id":        session.id,
+            "stripe_configured": True,
+        })
+    except Exception as exc:  # noqa: BLE001
+        app.logger.error(f"stripe checkout failed: {exc}")
+        return jsonify({"error": str(exc), "stripe_configured": True}), 500
+
+
+@app.route("/api/billing/webhook", methods=["POST"])
+def v2_api_billing_webhook():
+    """Stripe webhook receiver. Logs the event when keys are configured;
+    falls back to no-op when not."""
+    secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+    payload = request.get_data()
+    sig     = request.headers.get("Stripe-Signature", "")
+    if not secret:
+        return jsonify({"received": True, "stripe_configured": False})
+    try:
+        import stripe
+        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+        event = stripe.Webhook.construct_event(payload, sig, secret)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": str(exc)}), 400
+
+    if event.get("type") == "checkout.session.completed":
+        sess  = event["data"]["object"]
+        plan  = sess.get("metadata", {}).get("plan_tier", "professional")
+        email = sess.get("customer_email", "")
+        # Production: kick off full provisioning. Demo: log.
+        app.logger.info(f"NEW SIGNUP {email} → {plan}")
+    return jsonify({"received": True})
+
+
+@app.route("/api/billing/session/<session_id>")
+def v2_api_billing_session(session_id):
+    """Return basic info about a Checkout session — used by the success
+    screen to display which plan was purchased."""
+    if session_id.startswith("demo_"):
+        # Demo session shape
+        parts = session_id.split("_")
+        tier = parts[1] if len(parts) > 1 else "professional"
+        return jsonify({
+            "session_id":  session_id,
+            "plan_tier":   tier,
+            "demo":        True,
+            "email":       None,
+        })
+    secret = os.environ.get("STRIPE_SECRET_KEY")
+    if not secret:
+        return jsonify({"error": "Stripe not configured"}), 500
+    try:
+        import stripe
+        stripe.api_key = secret
+        sess = stripe.checkout.Session.retrieve(session_id)
+        return jsonify({
+            "session_id":  sess["id"],
+            "plan_tier":   (sess.get("metadata") or {}).get("plan_tier", "professional"),
+            "email":       sess.get("customer_email"),
+            "demo":        False,
+        })
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/demo/reset", methods=["POST"])
 def v2_api_demo_reset():
     """Reset all in-memory and JSON-backed demo state so the next pitch
