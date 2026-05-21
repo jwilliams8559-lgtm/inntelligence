@@ -1330,6 +1330,40 @@ def v2_api_notification_dismiss(notif_id):
     return jsonify({"ok": True})
 
 
+# ════════════════════════════════════════════════════════════════════
+# Behavior tracking (Gap 2)
+# ════════════════════════════════════════════════════════════════════
+
+@app.route("/api/behavior/sources")
+@require_feature("behavior_tracking")
+def v2_api_behavior_sources():
+    from modules.analytics.behavior_engine import BehaviorEngine
+    days = int(request.args.get("days", 30))
+    return jsonify(BehaviorEngine().booking_source_breakdown(_current_tenant_id(), days))
+
+
+@app.route("/api/behavior/cancellations")
+@require_feature("behavior_tracking")
+def v2_api_behavior_cancellations():
+    from modules.analytics.behavior_engine import BehaviorEngine
+    days = int(request.args.get("days", 90))
+    return jsonify(BehaviorEngine().cancellation_analysis(_current_tenant_id(), days))
+
+
+@app.route("/api/behavior/price-sensitivity")
+@require_feature("behavior_tracking")
+def v2_api_behavior_sensitivity():
+    from modules.analytics.behavior_engine import BehaviorEngine
+    return jsonify(BehaviorEngine().price_sensitivity_analysis(_current_tenant_id()))
+
+
+@app.route("/api/behavior/report")
+@require_feature("behavior_tracking")
+def v2_api_behavior_report():
+    from modules.analytics.behavior_engine import BehaviorEngine
+    return jsonify(BehaviorEngine().combined_behavior_report(_current_tenant_id()))
+
+
 @app.route("/api/fnb/config")
 @require_feature("fb_yield_module")
 def v2_api_fnb_config():

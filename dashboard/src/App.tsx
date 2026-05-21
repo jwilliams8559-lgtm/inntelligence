@@ -15,6 +15,7 @@ import ReputationScreen from './screens/ReputationScreen'
 import FnBScreen from './screens/FnBScreen'
 import PerformanceScreen from './screens/PerformanceScreen'
 import GuestCRM from './screens/GuestCRM'
+import BehaviorScreen from './screens/BehaviorScreen'
 import Packages from './screens/Packages'
 import ManagementConsole from './screens/ManagementConsole'
 import Settings from './screens/Settings'
@@ -121,6 +122,7 @@ function Authenticated() {
         {screen === 'reputation'   && <ReputationScreen {...screenProps} />}
         {screen === 'fnb'          && <FnBScreen        {...screenProps} />}
         {screen === 'crm'          && <GuestCRM         {...screenProps} />}
+        {screen === 'behavior'     && <BehaviorScreen   {...screenProps} />}
         {screen === 'packages'     && <Packages         {...screenProps} />}
         {screen === 'performance'  && <PerformanceScreen />}
         {screen === 'management'   && APP_ROLE === 'shg_admin' && <ManagementConsole {...screenProps} />}

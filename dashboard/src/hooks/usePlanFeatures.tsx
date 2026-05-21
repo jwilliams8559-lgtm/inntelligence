@@ -23,6 +23,8 @@ export interface FeatureGates {
   weather_intel?:       boolean
   performance_report?:  boolean
   competitive_response?:boolean
+  behavior_tracking?:   boolean
+  historical_trends?:   boolean
   multi_property?:      boolean
   white_label?:         boolean
   api_access?:          boolean
