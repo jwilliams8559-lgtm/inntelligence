@@ -119,6 +119,17 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
       .catch(() => setAlerts([]))
   }, [property.id])
 
+  // Boutique-weighted Flask overlay (fdfa5d3) — replaces Supabase recommended_rate
+  // when present so the comp-weighted + STR-floor logic reaches the calendar.
+  interface OverlayCell { recommended_rate: number; demand_score: number; demand_label: string; minimum_stay: number | null; reasoning: string; comp_avg: number | null }
+  const [overlay, setOverlay] = useState<Record<string, Record<string, OverlayCell>>>({})
+  useEffect(() => {
+    fetch('/api/calendar/per-room?days=90', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((j: any) => setOverlay(j?.rates || {}))
+      .catch(() => setOverlay({}))
+  }, [])
+
   // Section E — weather icons on date headers (NWS 7-day window)
   const [weatherMap, setWeatherMap] = useState<Record<string, { icon: string; temp: number; short: string }>>({})
   useEffect(() => {
@@ -474,8 +485,31 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
                   </td>
                   {dates.map(d => {
                     const dateStr = format(d, 'yyyy-MM-dd')
-                    const rec = cellMap.get(`${rt.id}:${dateStr}`)
+                    const supabaseRec = cellMap.get(`${rt.id}:${dateStr}`)
+                    const overlayCell = overlay[rt.name]?.[dateStr] || overlay[rt.id]?.[dateStr]
                     const wf  = isWaterFestival(d)
+
+                    // Build a synthetic rec from the Flask overlay when Supabase has nothing.
+                    // When both exist, prefer the boutique-weighted overlay rate.
+                    let rec = supabaseRec
+                    if (overlayCell) {
+                      rec = {
+                        ...(supabaseRec as RateRec | undefined ?? {} as any),
+                        id:                supabaseRec?.id || `overlay:${rt.id}:${dateStr}`,
+                        target_date:       dateStr,
+                        room_type_id:      rt.id,
+                        recommended_rate:  overlayCell.recommended_rate,
+                        demand_score:      overlayCell.demand_score ?? supabaseRec?.demand_score ?? null,
+                        confidence_score:  supabaseRec?.confidence_score ?? null,
+                        reasoning:         overlayCell.reasoning || supabaseRec?.reasoning || null,
+                        status:            supabaseRec?.status || 'pending',
+                        minimum_stay_rec:  overlayCell.minimum_stay ?? supabaseRec?.minimum_stay_rec ?? null,
+                        current_rate:      supabaseRec?.current_rate ?? null,
+                        tenant_id:         supabaseRec?.tenant_id || tenant.id,
+                        property_id:       supabaseRec?.property_id || property.id,
+                        published_at:      supabaseRec?.published_at || null,
+                      } as RateRec
+                    }
 
                     if (!rec || rec.recommended_rate == null) {
                       return (

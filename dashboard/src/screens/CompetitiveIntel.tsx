@@ -27,14 +27,22 @@ type PropertyType = 'boutique_inn' | 'upscale_hotel' | 'luxury_resort' | 'airbnb
 // Mirrors PROPERTY_TYPES in config/settings.py — sources kept in sync manually.
 const PROPERTY_TYPE_BY_NAME: Record<string, PropertyType> = {
   '607 Bay Inn':            'airbnb_str',
+  '607 Bay':                'airbnb_str',
   'Airbnb Near Bay (avg)':  'airbnb_str',
+  'Airbnb Near Bay':        'airbnb_str',
+  'Bay Street Inn':         'airbnb_str',   // private residence — visually de-emphasized if still in data
   'Cuthbert House Inn':     'boutique_inn',
+  'Cuthbert House':         'boutique_inn',
   'Rhett House Inn':        'boutique_inn',
+  'Rhett House':            'boutique_inn',
   'Beaufort Inn':           'upscale_hotel',
   'The Beaufort Inn':       'upscale_hotel',
   'City Loft Hotel':        'upscale_hotel',
+  'City Loft':              'upscale_hotel',
   'Montage Palmetto Bluff': 'luxury_resort',
+  'Montage':                'luxury_resort',
   'Hampton Inn Beaufort':   'budget_hotel',
+  'Hampton Inn':            'budget_hotel',
 }
 
 const PROPERTY_TYPE_BADGE: Record<PropertyType, { label: string; cls: string; tooltip?: string }> = {
@@ -579,11 +587,19 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
               <tr className="bg-navy text-white">
                 <th className="sticky left-0 bg-navy px-4 py-3 text-left font-semibold text-xs w-24">Date</th>
                 <th className="px-4 py-3 text-right font-semibold text-xs text-gold">Your Rate</th>
-                {filteredCompetitors.map(c => (
-                  <th key={c.id} className="px-3 py-3 text-right font-semibold text-xs whitespace-nowrap">
-                    {(c.competitor_name || c.name || '').split(' ').slice(0, 2).join(' ')}
-                  </th>
-                ))}
+                {filteredCompetitors.map(c => {
+                  const cname = c.competitor_name || c.name || ''
+                  const ptype = PROPERTY_TYPE_BY_NAME[cname] ?? ((c.property_tier ?? 1) === 4 ? 'budget_hotel' : 'boutique_inn')
+                  const isStr = ptype === 'airbnb_str'
+                  return (
+                    <th key={c.id}
+                        title={isStr ? PROPERTY_TYPE_BADGE.airbnb_str.tooltip : undefined}
+                        className={`px-3 py-3 text-right font-semibold text-xs whitespace-nowrap ${isStr ? 'bg-amber-700/40' : ''}`}>
+                      {cname.split(' ').slice(0, 2).join(' ')}
+                      {isStr && <sup className="ml-1 text-[8px] text-amber-200 font-bold">STR</sup>}
+                    </th>
+                  )
+                })}
                 <th className="px-4 py-3 text-right font-semibold text-xs">Comp Avg</th>
                 <th className="px-4 py-3 text-center font-semibold text-xs">Position</th>
               </tr>
@@ -612,14 +628,26 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
                     </td>
                     {filteredCompetitors.map(c => {
                       const row = matrix.get(c.id)
+                      const cname = c.competitor_name || c.name || ''
+                      const ptype = PROPERTY_TYPE_BY_NAME[cname] ?? ((c.property_tier ?? 1) === 4 ? 'budget_hotel' : 'boutique_inn')
+                      const isStr = ptype === 'airbnb_str'
+                      const trueCost = isStr && row?.amount != null ? Math.round(row.amount * STR_TRUE_GUEST_COST_MULTIPLIER) : null
                       return (
-                        <td key={c.id} className="px-3 py-2.5 text-right">
-                          {row?.soldOut
-                            ? <span className="inline-block bg-coral/15 text-coral text-[10px] font-bold px-1.5 py-0.5 rounded">SOLD OUT</span>
-                            : row?.amount != null
-                            ? <span className="text-slate-700">${row.amount.toFixed(0)}</span>
-                            : <span className="text-slate-300">—</span>
-                          }
+                        <td key={c.id} className={`px-3 py-2.5 text-right ${isStr ? 'bg-amber-50/60' : ''}`}>
+                          {row?.soldOut ? (
+                            <span className="inline-block bg-coral/15 text-coral text-[10px] font-bold px-1.5 py-0.5 rounded">SOLD OUT</span>
+                          ) : row?.amount != null ? (
+                            isStr ? (
+                              <div>
+                                <div className="text-amber-700 line-through text-xs">${row.amount.toFixed(0)}</div>
+                                {trueCost && <div className="text-amber-800 text-[10px] font-semibold">+fees ${trueCost}</div>}
+                              </div>
+                            ) : (
+                              <span className="text-slate-700">${row.amount.toFixed(0)}</span>
+                            )
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
                         </td>
                       )
                     })}

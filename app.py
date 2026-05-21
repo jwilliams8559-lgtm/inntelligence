@@ -324,17 +324,16 @@ def _v2_daily_rates(check_in: date) -> list:
 
 def _v2_calendar(check_in: date, days: int = 90) -> list:
     cal = []
-    comp_snap = _v2_scraper.get_current_snapshot()
-    comp_avg = sum(comp_snap.values()) / len(comp_snap) if comp_snap else 350
+    comp_entries = _v2_scraper.get_current_snapshot_typed()
     waterfront_room = next((r for r in V2_ROOM_TYPES if "waterfront" in r["id"]), V2_ROOM_TYPES[0])
     garden_room     = next((r for r in V2_ROOM_TYPES if "garden"     in r["id"]), V2_ROOM_TYPES[-1])
     waterview_room  = next((r for r in V2_ROOM_TYPES if "waterview"  in r["id"]), V2_ROOM_TYPES[5])
     for i in range(min(days, 365)):
         d = check_in + timedelta(days=i)
         fc = _v2_demand.forecast(d)
-        rec_wf = _v2_rate.recommend(waterfront_room, fc.score, fc.label, fc.drivers, fc.confidence, [comp_avg], d)
-        rec_g  = _v2_rate.recommend(garden_room,     fc.score, fc.label, fc.drivers, fc.confidence, [comp_avg * 0.75], d)
-        rec_wv = _v2_rate.recommend(waterview_room,  fc.score, fc.label, fc.drivers, fc.confidence, [comp_avg * 0.87], d)
+        rec_wf = _v2_rate.recommend(waterfront_room, fc.score, fc.label, fc.drivers, fc.confidence, comp_entries=comp_entries, target_date=d)
+        rec_g  = _v2_rate.recommend(garden_room,     fc.score, fc.label, fc.drivers, fc.confidence, comp_entries=comp_entries, target_date=d)
+        rec_wv = _v2_rate.recommend(waterview_room,  fc.score, fc.label, fc.drivers, fc.confidence, comp_entries=comp_entries, target_date=d)
         cal.append({
             "date":            d.isoformat(),
             "label":           d.strftime("%b %-d"),
@@ -349,6 +348,38 @@ def _v2_calendar(check_in: date, days: int = 90) -> list:
             "event_name":      fc.event_name,
         })
     return cal
+
+
+def _v2_per_room_calendar(check_in: date, days: int = 90) -> dict:
+    """Per-room rate recommendations for the next `days` days using
+    boutique-weighted comp_entries. Keyed by room name so the React
+    Rate Calendar can overlay these on top of Supabase rate_recommendations.
+    """
+    comp_entries = _v2_scraper.get_current_snapshot_typed()
+    grid: dict[str, dict[str, dict]] = {}
+    for room in V2_ROOM_TYPES:
+        room_grid: dict[str, dict] = {}
+        for i in range(min(days, 365)):
+            d = check_in + timedelta(days=i)
+            fc = _v2_demand.forecast(d)
+            rec = _v2_rate.recommend(room, fc.score, fc.label, fc.drivers,
+                                     fc.confidence, comp_entries=comp_entries, target_date=d)
+            room_grid[d.isoformat()] = {
+                "recommended_rate": int(rec.recommended_rate),
+                "demand_score":     fc.score,
+                "demand_label":     fc.label,
+                "minimum_stay":     rec.minimum_stay,
+                "reasoning":        rec.reasoning,
+                "comp_avg":         int(rec.comp_avg) if rec.comp_avg else None,
+            }
+        grid[room["id"]]   = room_grid     # by id (waterfront_201 etc)
+        grid[room["name"]] = room_grid     # by display name too
+    return {
+        "start_date": check_in.isoformat(),
+        "days":       days,
+        "rates":      grid,
+        "source":     "boutique_weighted_v2",
+    }
 
 
 def _v2_upcoming_events(days_ahead: int = 120) -> list:
@@ -462,7 +493,19 @@ def v2_api_rates():
 def v2_api_calendar():
     check_in_str = request.args.get("date", date.today().isoformat())
     days = int(request.args.get("days", 90))
-    return jsonify(_v2_calendar(date.fromisoformat(check_in_str), days))
+    resp = jsonify(_v2_calendar(date.fromisoformat(check_in_str), days))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/calendar/per-room")
+def v2_api_calendar_per_room():
+    """Per-room boutique-weighted rate overlay for the Rate Calendar UI."""
+    check_in_str = request.args.get("date", date.today().isoformat())
+    days = int(request.args.get("days", 90))
+    resp = jsonify(_v2_per_room_calendar(date.fromisoformat(check_in_str), days))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.route("/api/events")

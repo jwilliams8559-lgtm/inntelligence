@@ -31,6 +31,12 @@ class RateRecommendation:
     comp_avg: Optional[float]
     competitive_position: str  # Premium / At Market / Below Market
     segment_rates: dict = field(default_factory=dict)  # Section 2 — CPP
+    # Boutique-classification fields (fdfa5d3 follow-up). Defaults keep
+    # legacy callers safe — these only populate when comp_entries is used.
+    comp_pos: Optional[float]  = None
+    str_floor_applied: bool    = False
+    str_baseline_avg: Optional[float] = None
+    amenity_premium:  int      = 0
 
 
 class RateEngine:
@@ -193,6 +199,16 @@ class RateEngine:
         except ImportError:
             pass
 
+        # comp_pos: numeric 0..10 position score derived from your rate vs comp_avg
+        comp_pos_score = None
+        if comp_avg and final:
+            ratio = final / comp_avg
+            # Map ratio 0.80..1.30 → 0..10
+            comp_pos_score = max(0.0, min(10.0, (ratio - 0.80) / 0.50 * 10))
+            comp_pos_score = round(comp_pos_score, 1)
+
+        str_floor_applied_flag = bool(str_baseline_avg and final >= (str_baseline_avg or 0) * BOUTIQUE_INN_PREMIUM)
+
         return RateRecommendation(
             room_id=room["id"],
             room_name=room["name"],
@@ -211,6 +227,10 @@ class RateEngine:
             comp_avg=comp_avg,
             competitive_position=comp_pos,
             segment_rates=segment_rates,
+            comp_pos=comp_pos_score,
+            str_floor_applied=str_floor_applied_flag,
+            str_baseline_avg=str_baseline_avg,
+            amenity_premium=int(AMENITY_PREMIUM_OVER_STR_TOTAL) if has_str_in_set else 0,
         )
 
     # ── Section 3: Price fence helper ──────────────────────────────────
