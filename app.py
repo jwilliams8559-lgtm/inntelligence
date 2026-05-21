@@ -1287,6 +1287,49 @@ def _fnb_tenant_id() -> str:
     return user.get("tenant_id", "anchorage-1770-demo")
 
 
+def _current_tenant_id() -> str:
+    """Shared tenant resolver used by notifications, behavior, historical, etc."""
+    return _fnb_tenant_id()
+
+
+# ════════════════════════════════════════════════════════════════════
+# Notifications (Gap 1)
+# ════════════════════════════════════════════════════════════════════
+
+@app.route("/api/notifications")
+def v2_api_notifications():
+    from modules.notifications.notification_engine import NotificationEngine
+    eng = NotificationEngine()
+    tid = _current_tenant_id()
+    notifs = eng.generate_for_tenant(tid)
+    return jsonify({
+        "notifications": notifs,
+        "badge_count":   eng.get_badge_count(tid),
+        "has_critical":  any(n["priority"] == "critical" for n in notifs),
+        "has_modal":     any("modal" in n["types"] and not n["dismissed"] for n in notifs),
+    })
+
+
+@app.route("/api/notifications/badge-count")
+def v2_api_notifications_badge():
+    from modules.notifications.notification_engine import NotificationEngine
+    return jsonify({"count": NotificationEngine().get_badge_count(_current_tenant_id())})
+
+
+@app.route("/api/notifications/<notif_id>/read", methods=["POST"])
+def v2_api_notification_read(notif_id):
+    from modules.notifications.notification_engine import NotificationEngine
+    NotificationEngine().mark_read(_current_tenant_id(), notif_id)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/notifications/<notif_id>/dismiss", methods=["POST"])
+def v2_api_notification_dismiss(notif_id):
+    from modules.notifications.notification_engine import NotificationEngine
+    NotificationEngine().mark_dismissed(_current_tenant_id(), notif_id)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/fnb/config")
 @require_feature("fb_yield_module")
 def v2_api_fnb_config():

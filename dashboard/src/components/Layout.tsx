@@ -4,6 +4,8 @@ import type { AppRole, Screen } from '../lib/types'
 import { usePlanFeatures } from '../hooks/usePlanFeatures'
 import HelpDrawer from './HelpDrawer'
 import DemoWalkthrough from './DemoWalkthrough'
+import NotificationSystem from './notifications/NotificationSystem'
+import NotificationCenter from './notifications/NotificationCenter'
 
 const NAV: { id: Screen; label: string; icon: string; adminOnly?: boolean }[] = [
   { id: 'calendar',    label: 'Rate Calendar',     icon: '📅' },
@@ -78,6 +80,18 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
 
   const [helpOpen,   setHelpOpen]   = useState(false)
   const [demoOpen,   setDemoOpen]   = useState(false)
+  const [notifOpen,  setNotifOpen]  = useState(false)
+  const [notifBadge, setNotifBadge] = useState<number>(0)
+
+  // Lightweight badge poll (every 60s) — does not duplicate the full notif fetch
+  useEffect(() => {
+    function loadBadge() {
+      fetch('/api/notifications/badge-count').then(r => r.json()).then(j => setNotifBadge(j.count || 0)).catch(() => {})
+    }
+    loadBadge()
+    const id = setInterval(loadBadge, 60_000)
+    return () => clearInterval(id)
+  }, [])
   const isDemo = (import.meta.env.VITE_TENANT_SLUG ?? 'anchorage-1770-demo') === 'anchorage-1770-demo'
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-cream">
@@ -163,65 +177,22 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
         {/* Bell / alerts */}
         <div className="px-3 pb-4 relative">
           <button
-            onClick={() => setBellOpen(o => !o)}
+            onClick={() => setNotifOpen(true)}
             className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-xs ${
-              alerts.length > 0
-                ? 'bg-gold/20 text-white hover:bg-gold/30'
-                : 'bg-navy-light text-white/60 hover:bg-navy-light hover:text-white'
+              notifBadge > 0 ? 'bg-gold/20 text-white hover:bg-gold/30'
+                             : 'bg-navy-light text-white/60 hover:bg-navy-light hover:text-white'
             }`}
           >
             <span className="relative">
               🔔
-              {alerts.length > 0 && (
-                <span className={`absolute -top-1 -right-1 text-[9px] font-bold rounded-full min-w-[14px] h-3.5 px-0.5 flex items-center justify-center ${
-                  criticalCount > 0 ? 'bg-coral text-white' : 'bg-gold text-white'
-                }`}>
-                  {alerts.length}
+              {notifBadge > 0 && (
+                <span className="absolute -top-1 -right-1 text-[9px] font-bold rounded-full min-w-[14px] h-3.5 px-0.5 flex items-center justify-center bg-coral text-white">
+                  {notifBadge > 99 ? '99+' : notifBadge}
                 </span>
               )}
             </span>
-            <span className="flex-1 text-left">
-              {alerts.length > 0
-                ? `${alerts.length} alert${alerts.length > 1 ? 's' : ''}${warningCount + criticalCount > 0 ? ` · ${warningCount + criticalCount} need review` : ''}`
-                : `${pendingCount} pending`}
-            </span>
+            <span className="flex-1 text-left">{notifBadge > 0 ? `${notifBadge} pending · alerts` : 'No new alerts'}</span>
           </button>
-
-          {bellOpen && (
-            <div className="absolute bottom-14 left-3 right-3 z-50 bg-white text-slate-700 rounded-lg shadow-2xl border border-slate-200 max-h-96 overflow-auto">
-              <div className="sticky top-0 bg-white px-3 py-2 border-b border-slate-100 flex items-center justify-between">
-                <span className="text-xs font-bold text-navy">Alerts</span>
-                <button onClick={() => setBellOpen(false)} className="text-slate-400 hover:text-slate-700 text-sm leading-none">×</button>
-              </div>
-              {alerts.length === 0 ? (
-                <div className="px-3 py-6 text-center text-xs text-slate-400">
-                  No active alerts. ✓
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {alerts.map(a => {
-                    const sev = a.severity ?? 'info'
-                    const cls = sev === 'critical' ? 'border-l-coral bg-coral/5'
-                              : sev === 'warning'  ? 'border-l-gold bg-gold/5'
-                                                    : 'border-l-navy bg-navy/5'
-                    return (
-                      <div key={a.id} className={`px-3 py-2 border-l-4 ${cls} flex items-start gap-2`}>
-                        <span className="text-base">{ALERT_ICON[a.alert_type] ?? '•'}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs text-slate-700 leading-snug">{a.message}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            {a.alert_type} · {formatDistanceToNow(parseISO(a.created_at), { addSuffix: true })}
-                          </div>
-                        </div>
-                        <button onClick={() => dismiss(a.id)}
-                          className="text-slate-300 hover:text-slate-700 text-xs leading-none">×</button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </aside>
 
@@ -233,6 +204,8 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
 
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
       <DemoWalkthrough open={demoOpen} onClose={() => setDemoOpen(false)} />
+      <NotificationSystem />
+      <NotificationCenter open={notifOpen} onClose={() => setNotifOpen(false)} />
     </div>
   )
 }
