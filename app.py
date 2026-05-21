@@ -1384,6 +1384,108 @@ def v2_api_historical_comp():
     return jsonify(HistoricalEngine().competitive_positioning_history(_current_tenant_id(), days))
 
 
+# ════════════════════════════════════════════════════════════════════
+# PDF performance report (Gap 4)
+# ════════════════════════════════════════════════════════════════════
+
+@app.route("/api/reports/performance-pdf")
+@require_feature("historical_trends")
+def v2_api_performance_pdf():
+    """Generate a one-page reportlab PDF of historical KPIs."""
+    import io
+    from datetime import date as _date
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.colors import HexColor, white, black
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from modules.analytics.historical_engine import HistoricalEngine
+    from flask import send_file
+
+    months = int(request.args.get("months", 12))
+    tid    = _current_tenant_id()
+    hist   = HistoricalEngine().monthly_kpi_trend(tid, months)
+    yoy    = hist["yoy_summary"]
+    prop_name = V2_PROPERTY.get("name", "INNtelligence")
+
+    NAVY  = HexColor("#1A3A5C")
+    GOLD  = HexColor("#A07830")
+    LGRAY = HexColor("#F5F3EE")
+    GREY  = HexColor("#CCCCCC")
+
+    title_style = ParagraphStyle("title", fontName="Helvetica-Bold", fontSize=22,
+                                 textColor=NAVY, spaceAfter=4)
+    sub_style   = ParagraphStyle("sub",   fontName="Helvetica",      fontSize=11,
+                                 textColor=GOLD, spaceAfter=14)
+    heading     = ParagraphStyle("h",     fontName="Helvetica-Bold", fontSize=13,
+                                 textColor=NAVY, spaceBefore=12, spaceAfter=6)
+    footer_style = ParagraphStyle("foot", fontName="Helvetica",      fontSize=8,
+                                  textColor=HexColor("#888888"))
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter,
+                            topMargin=0.75*inch, bottomMargin=0.75*inch,
+                            leftMargin=0.75*inch, rightMargin=0.75*inch)
+
+    story = [
+        Paragraph("INNtelligence", title_style),
+        Paragraph(f"{prop_name} · Performance Report · Last {months} Months", sub_style),
+        Paragraph("Year-Over-Year Summary", heading),
+    ]
+
+    summary_data = [
+        ["Metric", "YoY Change", ""],
+        ["RevPAR",     f"{'+' if yoy['revpar_growth_pct']>=0 else ''}{yoy['revpar_growth_pct']}%", "↑" if yoy['revpar_growth_pct']>=0 else "↓"],
+        ["ADR",        f"{'+' if yoy['adr_growth_pct']>=0    else ''}{yoy['adr_growth_pct']}%",    "↑" if yoy['adr_growth_pct']>=0    else "↓"],
+        ["Occupancy",  f"{'+' if yoy['occ_growth_pts']>=0    else ''}{yoy['occ_growth_pts']} pts", "↑" if yoy['occ_growth_pts']>=0    else "↓"],
+    ]
+    summary = Table(summary_data, colWidths=[2.5*inch, 2.5*inch, 1.5*inch])
+    summary.setStyle(TableStyle([
+        ("BACKGROUND",     (0,0), (-1,0), NAVY),
+        ("TEXTCOLOR",      (0,0), (-1,0), white),
+        ("FONTNAME",       (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTSIZE",       (0,0), (-1,-1), 10),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [LGRAY, white]),
+        ("GRID",           (0,0), (-1,-1), 0.5, GREY),
+        ("ALIGN",          (1,0), (-1,-1), "RIGHT"),
+        ("PADDING",        (0,0), (-1,-1), 6),
+    ]))
+    story.append(summary)
+    story.append(Spacer(1, 0.2*inch))
+
+    story.append(Paragraph("Monthly KPI Detail", heading))
+    monthly = [["Month", "ADR", "Occ%", "RevPAR", "Revenue"]]
+    for m in hist["current_year"]:
+        monthly.append([
+            m["month"], f"${m['adr']:,}", f"{m['occupancy']}%",
+            f"${m['revpar']:,}", f"${m['revenue']:,}",
+        ])
+    mt = Table(monthly, colWidths=[1.4*inch, 1.2*inch, 1.0*inch, 1.2*inch, 1.6*inch])
+    mt.setStyle(TableStyle([
+        ("BACKGROUND",     (0,0), (-1,0), NAVY),
+        ("TEXTCOLOR",      (0,0), (-1,0), white),
+        ("FONTNAME",       (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTSIZE",       (0,0), (-1,-1), 9),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [LGRAY, white]),
+        ("GRID",           (0,0), (-1,-1), 0.3, GREY),
+        ("ALIGN",          (1,0), (-1,-1), "RIGHT"),
+        ("PADDING",        (0,0), (-1,-1), 5),
+    ]))
+    story.append(mt)
+    story.append(Spacer(1, 0.3*inch))
+
+    story.append(Paragraph(
+        f"INNtelligence by The Gracious Collection  ·  "
+        f"Generated {_date.today().strftime('%B %d, %Y')}",
+        footer_style))
+
+    doc.build(story)
+    buf.seek(0)
+    return send_file(buf, mimetype="application/pdf",
+                     download_name=f"INNtelligence_Performance_{months}mo.pdf",
+                     as_attachment=True)
+
+
 @app.route("/api/fnb/config")
 @require_feature("fb_yield_module")
 def v2_api_fnb_config():

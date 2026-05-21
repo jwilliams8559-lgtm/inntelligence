@@ -70,7 +70,13 @@ function Body() {
           <h1 className="text-navy font-bold text-xl">Historical Performance</h1>
           <p className="text-slate-500 text-sm">{trends.months_requested}-month KPI trend · current year vs prior year</p>
         </div>
-        <DateRangePicker value={range} onChange={setRange} />
+        <div className="flex items-center gap-2">
+          <DateRangePicker value={range} onChange={setRange} />
+          <a href={`/api/reports/performance-pdf?months=${RANGE_TO_MONTHS[range]}`}
+            className="bg-gold text-white text-xs font-bold px-3 py-1.5 rounded hover:bg-gold-dark whitespace-nowrap">
+            ↓ Export PDF
+          </a>
+        </div>
       </header>
 
       {/* Unified trend banner (Gap 4) */}

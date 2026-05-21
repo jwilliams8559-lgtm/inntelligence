@@ -191,6 +191,52 @@ function Body() {
           </table>
         </div>
       )}
+
+      <BookingSourceSection />
+    </div>
+  )
+}
+
+interface SourceRow { bookings: number; pct_bookings: number; revenue: number; commission_cost: number; net_revenue: number }
+interface SourceResp {
+  total_commission_paid: number; direct_booking_pct: number
+  sources: Record<string, SourceRow>
+  insight: { headline: string; opportunity: string; direct_vs_industry: string }
+}
+const SRC_COLOR: Record<string, string> = {
+  'Direct': '#A07830', 'Phone/Email': '#C19E50',
+  'Booking.com': '#003580', 'Expedia': '#FBCC30', 'Airbnb': '#FF5A5F',
+  'VRBO': '#1A5276', 'Hotels.com': '#D32D2F', 'Agoda': '#FF5722',
+}
+
+function BookingSourceSection() {
+  const [data, setData] = useState<SourceResp | null>(null)
+  useEffect(() => { fetch('/api/behavior/sources?days=30').then(r => r.json()).then(setData).catch(() => setData(null)) }, [])
+  if (!data) return null
+  const rows = Object.entries(data.sources).sort((a, b) => b[1].bookings - a[1].bookings)
+  const max = Math.max(...rows.map(([, r]) => r.pct_bookings), 1)
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 p-5">
+      <div className="flex items-baseline justify-between flex-wrap gap-2 mb-2">
+        <h2 className="font-bold text-navy">Booking Source Analysis</h2>
+        <span className="text-xs text-gold-dark font-semibold">{data.direct_booking_pct}% direct</span>
+      </div>
+      <div className="space-y-1.5">
+        {rows.map(([name, r]) => (
+          <div key={name} className="flex items-center gap-3 text-xs">
+            <div className="w-28 truncate text-slate-700">{name}</div>
+            <div className="flex-1 h-4 bg-slate-100 rounded">
+              <div className="h-full rounded transition-all" style={{ width: `${(r.pct_bookings / max) * 100}%`, background: SRC_COLOR[name] || '#94A3B8' }} />
+            </div>
+            <div className="w-12 text-right text-slate-600">{r.pct_bookings}%</div>
+            <div className="w-20 text-right text-slate-500">{r.bookings} bk</div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-coral/5 border border-coral/20 rounded-lg p-3 mt-3 text-xs">
+        <strong className="text-coral">OTA Commissions Paid This Month: ${data.total_commission_paid.toLocaleString()}</strong>
+        <div className="text-slate-700 mt-1">{data.insight.opportunity}</div>
+      </div>
     </div>
   )
 }
