@@ -64,7 +64,18 @@ class RateEngine:
 
     def recommend(self, room: dict, demand_score: int, demand_label: str,
                   demand_drivers: list, confidence: int,
-                  comp_rates: list = None, target_date: date = None) -> RateRecommendation:
+                  comp_rates: list = None, target_date: date = None,
+                  comp_entries: list = None) -> RateRecommendation:
+        """
+        comp_rates    legacy flat list of rates — every entry weighted equally
+        comp_entries  preferred: list of {"rate", "property_type"} dicts so the
+                      math honors PROPERTY_TYPES weights (boutique 1.0, hotel
+                      0.4, luxury 0.1, budget 0.05, STR 0.0) and applies the
+                      BOUTIQUE_INN_PREMIUM (1.45x) over the STR baseline.
+        """
+        from config.settings import (
+            PROPERTY_TYPES, BOUTIQUE_INN_PREMIUM, AMENITY_PREMIUM_OVER_STR_TOTAL,
+        )
 
         base = room["base"]
         lo   = room["min"]
@@ -77,8 +88,37 @@ class RateEngine:
         # Competitive adjustment
         comp_avg = None
         comp_pos = "At Market"
-        if comp_rates:
+        str_baseline_avg = None
+        has_str_in_set = False
+
+        if comp_entries:
+            # Weighted average using property_type weights from settings
+            num, denom = 0.0, 0.0
+            str_rates: list[float] = []
+            for e in comp_entries:
+                rate = e.get("rate")
+                if rate is None:
+                    continue
+                ptype = e.get("property_type", "upscale_hotel")
+                weight = PROPERTY_TYPES.get(ptype, {}).get("weight", 0.4)
+                num   += rate * weight
+                denom += weight
+                if ptype == "airbnb_str":
+                    has_str_in_set = True
+                    str_rates.append(rate)
+            if denom > 0:
+                comp_avg = num / denom
+            if str_rates:
+                str_baseline_avg = sum(str_rates) / len(str_rates)
+                # Floor: a boutique inn should never quote below STR avg * 1.45
+                premium_floor = self.round_to_5(str_baseline_avg * BOUTIQUE_INN_PREMIUM)
+                if final < premium_floor:
+                    final = max(final, premium_floor)
+                    final = self.round_to_5(min(final, hi))
+        elif comp_rates:
             comp_avg = sum(comp_rates) / len(comp_rates)
+
+        if comp_avg:
             if final > comp_avg * 1.25 and demand_score < 70:
                 final = self.round_to_5(min(final, comp_avg * 1.15))
             if final < comp_avg * 0.80 and demand_score >= 40:
@@ -122,6 +162,15 @@ class RateEngine:
         if comp_avg:
             reason_parts.append(
                 f"Comp set average is ${int(comp_avg):,} — you are {comp_pos.lower()}."
+            )
+        if has_str_in_set and str_baseline_avg:
+            reason_parts.append(
+                f"Boutique inn amenity premium over comparable STR: "
+                f"+${int(AMENITY_PREMIUM_OVER_STR_TOTAL)}/night (breakfast $38 + "
+                f"innkeeper service $28 + premium amenities $20 + historic character "
+                f"$35 + quality assurance $15). Your rate of ${int(final):,} reflects "
+                f"this premium and is justified vs Airbnb/VRBO averaging "
+                f"${int(str_baseline_avg)}."
             )
         reasoning = " ".join(reason_parts)
 
@@ -420,6 +469,7 @@ class EVEEngine:
         self.config = eve_config
 
     def compute_eve(self, room_category: str = "all") -> dict:
+        from config.settings import AMENITY_PREMIUM_OVER_STR, AMENITY_PREMIUM_OVER_STR_TOTAL
         nba = self.config["next_best_alternative"]
         drivers = [
             d for d in self.config["value_drivers"]
@@ -427,6 +477,14 @@ class EVEEngine:
         ]
         total_premium  = sum(d["value_estimate"] for d in drivers)
         justified_rate = nba["avg_rate"] + total_premium
+
+        # Amenity premium over STR (Airbnb/VRBO) — separate from the value
+        # drivers above because it explains the gap against short-term rentals
+        # specifically, not hotels.
+        str_amenity_premium = [
+            {"key": k, "name": k.replace("_", " ").title(), "value_estimate": v}
+            for k, v in AMENITY_PREMIUM_OVER_STR.items()
+        ]
         return {
             "next_best_alternative": nba,
             "value_drivers":         drivers,
@@ -437,6 +495,17 @@ class EVEEngine:
             "summary":               (f"Anchorage 1770 delivers ${total_premium} in "
                                        f"quantifiable value above {nba['name']} (${nba['avg_rate']}/night), "
                                        f"justifying a rack rate of ${justified_rate:.0f}+ per night."),
+            "str_amenity_premium":         str_amenity_premium,
+            "str_amenity_premium_total":   AMENITY_PREMIUM_OVER_STR_TOTAL,
+            "str_summary": (
+                f"Boutique inn amenity premium over comparable STR: "
+                f"+${int(AMENITY_PREMIUM_OVER_STR_TOTAL)}/night "
+                f"(breakfast for two ${AMENITY_PREMIUM_OVER_STR['breakfast_for_two']:.0f} + "
+                f"innkeeper service ${AMENITY_PREMIUM_OVER_STR['innkeeper_service']:.0f} + "
+                f"premium amenities ${AMENITY_PREMIUM_OVER_STR['premium_amenities']:.0f} + "
+                f"historic character ${AMENITY_PREMIUM_OVER_STR['unique_character']:.0f} + "
+                f"quality assurance ${AMENITY_PREMIUM_OVER_STR['quality_assurance']:.0f})."
+            ),
         }
 
     def guest_facing_justification(self, rate: float, room_name: str,

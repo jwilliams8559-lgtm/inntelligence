@@ -531,6 +531,73 @@ interface DiscoveryResult {
   ranked_competitors: { rank: number; name: string; tier: number; score: number }[]
 }
 
+interface PropertyTypeOption { id: string; label: string; description: string; applies_boutique_premium: boolean }
+
+function PropertyTypePanel() {
+  const [options,  setOptions]  = useState<PropertyTypeOption[]>([])
+  const [current,  setCurrent]  = useState<string>('boutique_inn_bb')
+  const [boutiquePremium, setBoutiquePremium] = useState<number>(1.45)
+  const [amenityTotal,    setAmenityTotal]    = useState<number>(136)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/property-config').then(r => r.json()).then(j => {
+      const cls = j.property_classification
+      if (!cls) return
+      setOptions(cls.options || [])
+      setCurrent(cls.property_type)
+      setBoutiquePremium(cls.boutique_inn_premium)
+      setAmenityTotal(cls.amenity_premium_over_str)
+    })
+  }, [])
+
+  async function save(id: string) {
+    setSaving(true)
+    setCurrent(id)
+    await fetch('/api/property-type', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ property_type: id }),
+    }).catch(() => {})
+    setSaving(false)
+  }
+
+  const active = options.find(o => o.id === current)
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+      <h2 className="font-bold text-navy">Property Type</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Classification drives the boutique inn premium ({boutiquePremium}×) over STR comps
+        and the ${amenityTotal}/night amenity value driver in EVE.
+      </p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        {options.map(o => (
+          <button key={o.id} onClick={() => save(o.id)} disabled={saving}
+            className={`text-left p-3 rounded-lg border-2 transition-all ${
+              current === o.id ? 'border-gold bg-gold/5 shadow-md'
+                                : 'border-slate-200 bg-white hover:border-navy/30'
+            }`}>
+            <div className="flex items-baseline justify-between">
+              <div className="font-bold text-navy text-sm">{o.label}</div>
+              {current === o.id && <span className="text-[10px] text-gold-dark font-bold">✓</span>}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1 leading-snug">{o.description}</div>
+          </button>
+        ))}
+      </div>
+      {active?.applies_boutique_premium && (
+        <div className="bg-sage/5 border border-sage/20 rounded-lg p-3 mt-3 text-xs">
+          <strong className="text-sage-dark">{active.label}</strong>
+          <span className="text-slate-700"> is selected. The rate engine applies the {boutiquePremium}× premium over the
+          STR comp average, auto-reclassifies Airbnb/VRBO entries as Budget Anchor (excluded from
+          the weighted comp average), and adds the ${amenityTotal}/night breakfast and service amenity
+          premium to your EVE analysis.</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface DirectBookingData {
   property_name: string
   monthly_bookings: number
@@ -790,6 +857,7 @@ export default function Settings({ tenant, property }: Props) {
     <div className="flex-1 overflow-y-auto bg-cream p-5 space-y-5">
       <h1 className="text-navy font-bold text-xl">Settings</h1>
 
+      <PropertyTypePanel />
       <AutopilotPanel tenant={tenant} property={property} roomTypes={roomTypes} />
       <PriceFencesPanel />
       <AnnualPriceReviewPanel />

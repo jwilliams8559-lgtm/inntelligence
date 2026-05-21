@@ -101,6 +101,11 @@ ACTIVE_PROPERTY = {
     "latitude":  32.4316,
     "longitude": -80.6698,
     "timezone": "America/New_York",
+    # Property classification — drives boutique inn premium logic in the
+    # rate engine. Options: boutique_inn_bb, upscale_hotel, boutique_hotel,
+    # glamping_resort. boutique_inn_bb activates BOUTIQUE_INN_PREMIUM,
+    # auto-reclassifies STR comps, and adds the breakfast value driver.
+    "property_type": "boutique_inn_bb",
     "total_rooms": 14,
     "target_occupancy_min": 0.70,
     "target_occupancy_max": 0.85,
@@ -130,13 +135,66 @@ ROOM_TYPES = [
 # 601 Bay Street ("Bay Street Inn") removed 2026-05-19 — private residence, not a hotel.
 # Always verify Google Places results before adding to competitor set.
 COMPETITORS = [
-    {"id": "c1", "name": "607 Bay Inn",            "city": "Beaufort", "state": "SC", "avail_color": "yellow"},
-    {"id": "c2", "name": "Airbnb Near Bay (avg)",  "city": "Beaufort", "state": "SC", "avail_color": "green"},
-    {"id": "c3", "name": "Beaufort Inn",            "city": "Beaufort", "state": "SC", "avail_color": "red"},
-    {"id": "c4", "name": "City Loft Hotel",         "city": "Beaufort", "state": "SC", "avail_color": "green"},
-    {"id": "c5", "name": "Cuthbert House Inn",      "city": "Beaufort", "state": "SC", "avail_color": "green"},
-    {"id": "c6", "name": "Rhett House Inn",         "city": "Beaufort", "state": "SC", "avail_color": "yellow"},
+    {"id": "c1", "name": "607 Bay Inn",            "city": "Beaufort", "state": "SC", "avail_color": "yellow",
+     "property_type": "airbnb_str"},
+    {"id": "c2", "name": "Airbnb Near Bay (avg)",  "city": "Beaufort", "state": "SC", "avail_color": "green",
+     "property_type": "airbnb_str"},
+    {"id": "c3", "name": "Beaufort Inn",            "city": "Beaufort", "state": "SC", "avail_color": "red",
+     "property_type": "upscale_hotel"},
+    {"id": "c4", "name": "City Loft Hotel",         "city": "Beaufort", "state": "SC", "avail_color": "green",
+     "property_type": "upscale_hotel"},
+    {"id": "c5", "name": "Cuthbert House Inn",      "city": "Beaufort", "state": "SC", "avail_color": "green",
+     "property_type": "boutique_inn"},
+    {"id": "c6", "name": "Rhett House Inn",         "city": "Beaufort", "state": "SC", "avail_color": "yellow",
+     "property_type": "boutique_inn"},
+    {"id": "c7", "name": "Montage Palmetto Bluff",  "city": "Bluffton", "state": "SC", "avail_color": "green",
+     "property_type": "luxury_resort"},
+    {"id": "c8", "name": "Hampton Inn Beaufort",    "city": "Beaufort", "state": "SC", "avail_color": "green",
+     "property_type": "budget_hotel"},
 ]
+
+# ── Property type classification (2026-05-21) ─────────────────────
+# Property types determine how each competitor influences your rate
+# recommendation. Airbnb/VRBO are excluded from the recommendation
+# math but still rendered in the Price Ladder for transparency.
+
+PROPERTY_TYPES = {
+    "boutique_inn":   {"label": "Boutique Inn",   "badge_color": "sage",  "weight": 1.0,
+                       "tier": 1, "is_direct_comp": True},
+    "upscale_hotel":  {"label": "Hotel",          "badge_color": "navy",  "weight": 0.4,
+                       "tier": 3, "is_direct_comp": False},
+    "luxury_resort":  {"label": "Luxury Resort",  "badge_color": "gold",  "weight": 0.1,
+                       "tier": 1, "is_direct_comp": False},
+    "airbnb_str":     {"label": "STR / Airbnb",   "badge_color": "amber", "weight": 0.0,
+                       "tier": 4, "is_direct_comp": False,
+                       "tooltip": ("Short-term rental — not a direct competitor. "
+                                   "Boutique inns command a 40-60% premium over STRs once "
+                                   "breakfast, service, and amenities are included.")},
+    "budget_hotel":   {"label": "Budget Anchor",  "badge_color": "slate", "weight": 0.05,
+                       "tier": 4, "is_direct_comp": False},
+}
+
+# The multiplier applied to the weighted comp set average when the
+# property type is boutique_inn. 1.45 = 45% premium over STR-anchored
+# average — earned via breakfast, innkeeper service, and amenities.
+BOUTIQUE_INN_PREMIUM = 1.45
+
+# Estimated guest fees ladder on top of an STR sticker rate (cleaning
+# fee + service fee). Used to render the "true guest cost" line on
+# the Price Ladder so the apparent rate gap shrinks honestly.
+STR_TRUE_GUEST_COST_MULTIPLIER = 1.35
+
+# Per-night amenity premium that a boutique inn delivers versus a
+# comparable STR. Drives the EVE narrative and the rate-justification
+# reasoning when the comp set includes Airbnb/VRBO entries.
+AMENITY_PREMIUM_OVER_STR = {
+    "breakfast_for_two":  38.00,
+    "innkeeper_service":  28.00,
+    "premium_amenities":  20.00,
+    "unique_character":   35.00,
+    "quality_assurance":  15.00,
+}
+AMENITY_PREMIUM_OVER_STR_TOTAL = sum(AMENITY_PREMIUM_OVER_STR.values())  # $136
 
 GUEST_PACKAGES = [
     {"id": "romance",       "icon": "💑", "name": "Romance Package",

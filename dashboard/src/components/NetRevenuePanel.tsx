@@ -52,6 +52,9 @@ interface EveResp {
   premium_vs_nba_pct: number
   summary: string
   guest_facing_justification: string
+  str_amenity_premium?: { key: string; name: string; value_estimate: number }[]
+  str_amenity_premium_total?: number
+  str_summary?: string
 }
 
 export default function NetRevenuePanel({ rate, roomName, roomCategory, nights = 1, eventContext }: Props) {
@@ -277,6 +280,27 @@ export default function NetRevenuePanel({ rate, roomName, roomCategory, nights =
               </div>
             ))}
           </div>
+
+          {/* STR amenity premium — separate justification vs Airbnb/VRBO */}
+          {eve.str_amenity_premium && eve.str_amenity_premium_total && (
+            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div className="flex items-baseline justify-between mb-1">
+                <div className="text-[10px] uppercase tracking-wider text-amber-800 font-bold">vs Short-Term Rental</div>
+                <div className="text-lg font-bold text-amber-800">+${eve.str_amenity_premium_total}/night</div>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
+                {eve.str_amenity_premium.map(d => (
+                  <div key={d.key} className="flex justify-between">
+                    <span className="text-amber-900">{d.name}</span>
+                    <span className="font-semibold text-amber-800">+${d.value_estimate.toFixed(0)}</span>
+                  </div>
+                ))}
+              </div>
+              {eve.str_summary && (
+                <div className="text-[10px] text-amber-700 italic mt-2 leading-snug">{eve.str_summary}</div>
+              )}
+            </div>
+          )}
 
           <div className="mt-3 bg-navy/5 border-l-2 border-navy rounded p-2 text-[11px] italic text-slate-700">
             <div className="flex items-start justify-between gap-2">

@@ -21,12 +21,14 @@ class CompetitorScraper:
     """
 
     BASE_RATES = {
-        "607 Bay Inn":             {"base": 295, "weekend_mult": 1.18},
-        "Airbnb Near Bay (avg)":   {"base": 265, "weekend_mult": 1.12},
+        "607 Bay Inn":             {"base": 195, "weekend_mult": 1.18},  # STR
+        "Airbnb Near Bay (avg)":   {"base": 175, "weekend_mult": 1.12},  # STR
         "Beaufort Inn":            {"base": 315, "weekend_mult": 1.16},
         "City Loft Hotel":         {"base": 255, "weekend_mult": 1.14},
         "Cuthbert House Inn":      {"base": 375, "weekend_mult": 1.17},
         "Rhett House Inn":         {"base": 375, "weekend_mult": 1.18},
+        "Montage Palmetto Bluff":  {"base": 825, "weekend_mult": 1.22},  # luxury ceiling
+        "Hampton Inn Beaufort":    {"base": 165, "weekend_mult": 1.10},  # budget anchor
     }
 
     def __init__(self, seed: int | None = 42) -> None:
@@ -72,6 +74,18 @@ class CompetitorScraper:
             comp["name"]: int(self._rate_for_date(comp["name"], today))
             for comp in COMPETITORS
         }
+
+    def get_current_snapshot_typed(self) -> list[dict]:
+        """Same data with property_type so rate_engine can weight correctly."""
+        today = date.today()
+        return [
+            {
+                "name":          comp["name"],
+                "rate":          int(self._rate_for_date(comp["name"], today)),
+                "property_type": comp.get("property_type", "upscale_hotel"),
+            }
+            for comp in COMPETITORS
+        ]
 
     # ── Legacy compatibility shims (called by the original /api/dashboard route) ──
 

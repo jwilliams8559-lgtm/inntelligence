@@ -293,15 +293,14 @@ def _v2_plan_features():
 
 
 def _v2_daily_rates(check_in: date) -> list:
-    comp_snap = _v2_scraper.get_current_snapshot()
-    comp_rates = list(comp_snap.values())
+    comp_entries = _v2_scraper.get_current_snapshot_typed()
     results = []
     fc = _v2_demand.forecast(check_in)
     for room in V2_ROOM_TYPES:
         rec = _v2_rate.recommend(
             room=room, demand_score=fc.score, demand_label=fc.label,
             demand_drivers=fc.drivers, confidence=fc.confidence,
-            comp_rates=comp_rates, target_date=check_in,
+            comp_entries=comp_entries, target_date=check_in,
         )
         rack_mid = room["base"]
         delta_pct = ((rec.recommended_rate - rack_mid) / rack_mid) * 100
@@ -2065,9 +2064,42 @@ def v2_api_competitors_discover():
     })
 
 
+PROPERTY_TYPE_OPTIONS = [
+    {"id": "boutique_inn_bb", "label": "Boutique Inn / B&B",
+     "applies_boutique_premium": True,
+     "description": "Activates the 1.45x boutique inn premium over STR comps and adds breakfast value driver."},
+    {"id": "upscale_hotel",   "label": "Upscale Hotel",
+     "applies_boutique_premium": False,
+     "description": "Independent upscale hotel — uses standard market pricing."},
+    {"id": "boutique_hotel",  "label": "Boutique Hotel",
+     "applies_boutique_premium": True,
+     "description": "Hotel with boutique character — partial premium applied."},
+    {"id": "glamping_resort", "label": "Glamping / Resort",
+     "applies_boutique_premium": False,
+     "description": "Resort or glamping — different value driver mix."},
+]
+
+
+@app.route("/api/property-type-options")
+def v2_api_property_type_options():
+    return jsonify({"options": PROPERTY_TYPE_OPTIONS})
+
+
+@app.route("/api/property-type", methods=["PATCH"])
+def v2_api_property_type_set():
+    body = request.get_json(force=True, silent=True) or {}
+    new_type = body.get("property_type")
+    valid_ids = {o["id"] for o in PROPERTY_TYPE_OPTIONS}
+    if new_type not in valid_ids:
+        return jsonify({"error": f"Invalid property_type: {new_type}"}), 400
+    V2_PROPERTY["property_type"] = new_type
+    return jsonify({"property_type": new_type, "ok": True})
+
+
 @app.route("/api/property-config")
 def v2_api_property_config():
     """Property + plan_tier (from authenticated user) + active feature gates."""
+    from config.settings import BOUTIQUE_INN_PREMIUM, AMENITY_PREMIUM_OVER_STR_TOTAL
     user = _auth_current_user() or {}
     tier = user.get("plan_tier", V2_PROPERTY.get("plan_tier", "professional"))
     return jsonify({
@@ -2076,6 +2108,12 @@ def v2_api_property_config():
         "features":  V2_FEATURE_GATES.get(tier, V2_FEATURE_GATES["professional"]),
         "all_tiers": V2_FEATURE_GATES,
         "user":      {"email": user.get("email"), "role": user.get("role")},
+        "property_classification": {
+            "property_type":            V2_PROPERTY.get("property_type", "boutique_inn_bb"),
+            "boutique_inn_premium":     BOUTIQUE_INN_PREMIUM,
+            "amenity_premium_over_str": AMENITY_PREMIUM_OVER_STR_TOTAL,
+            "options":                  PROPERTY_TYPE_OPTIONS,
+        },
     })
 
 

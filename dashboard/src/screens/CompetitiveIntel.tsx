@@ -22,6 +22,41 @@ function TierBadge({ tier }: { tier?: number | null }) {
   )
 }
 
+type PropertyType = 'boutique_inn' | 'upscale_hotel' | 'luxury_resort' | 'airbnb_str' | 'budget_hotel'
+
+// Mirrors PROPERTY_TYPES in config/settings.py — sources kept in sync manually.
+const PROPERTY_TYPE_BY_NAME: Record<string, PropertyType> = {
+  '607 Bay Inn':            'airbnb_str',
+  'Airbnb Near Bay (avg)':  'airbnb_str',
+  'Cuthbert House Inn':     'boutique_inn',
+  'Rhett House Inn':        'boutique_inn',
+  'Beaufort Inn':           'upscale_hotel',
+  'The Beaufort Inn':       'upscale_hotel',
+  'City Loft Hotel':        'upscale_hotel',
+  'Montage Palmetto Bluff': 'luxury_resort',
+  'Hampton Inn Beaufort':   'budget_hotel',
+}
+
+const PROPERTY_TYPE_BADGE: Record<PropertyType, { label: string; cls: string; tooltip?: string }> = {
+  boutique_inn:  { label: 'Boutique Inn', cls: 'bg-sage/15 text-sage-dark' },
+  upscale_hotel: { label: 'Hotel',        cls: 'bg-navy/10 text-navy' },
+  luxury_resort: { label: 'Luxury Resort',cls: 'bg-gold/15 text-gold-dark' },
+  budget_hotel:  { label: 'Budget Anchor',cls: 'bg-slate-100 text-slate-500' },
+  airbnb_str:    { label: 'STR / Airbnb', cls: 'bg-amber-100 text-amber-800',
+                   tooltip: 'Short-term rental — not a direct competitor. Boutique inns command a 40–60% premium over STRs once breakfast, service, and amenities are included.' },
+}
+
+const STR_TRUE_GUEST_COST_MULTIPLIER = 1.35
+
+function PropertyTypeBadge({ ptype }: { ptype: PropertyType }) {
+  const cfg = PROPERTY_TYPE_BADGE[ptype]
+  return (
+    <span title={cfg.tooltip} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cfg.cls} ${cfg.tooltip ? 'cursor-help' : ''}`}>
+      {cfg.label}
+    </span>
+  )
+}
+
 function PriceLadder({
   yourRate, yourName, compRates, competitors, dateStr, dateLabel,
 }: {
@@ -35,25 +70,26 @@ function PriceLadder({
   const compMap = new Map(competitors.map(c => [c.id, c]))
   const dayRates = compRates.filter(r => r.rate_date === dateStr)
 
-  // Dedupe by (name, tier) — keep highest rate, preserve sold-out flag
-  const dedup = new Map<string, { name: string; rate: number; tier: number; soldOut: boolean }>()
+  // Dedupe by name — keep highest rate, preserve sold-out flag
+  const dedup = new Map<string, { name: string; rate: number; tier: number; soldOut: boolean; ptype: PropertyType }>()
   dayRates.forEach(cr => {
     const comp = compMap.get(cr.competitor_id)
     if (!comp || cr.rate_amount == null) return
     const name = comp.competitor_name ?? comp.name ?? 'Competitor'
     const tier = comp.property_tier ?? 1
-    const key  = `${name}::${tier}`
+    const ptype = PROPERTY_TYPE_BY_NAME[name] ?? (tier === 4 ? 'budget_hotel' : tier === 3 ? 'luxury_resort' : tier === 2 ? 'upscale_hotel' : 'boutique_inn')
+    const key  = name
     const cur  = dedup.get(key)
     if (!cur || cr.rate_amount > cur.rate) {
-      dedup.set(key, { name, rate: cr.rate_amount, tier, soldOut: cr.is_sold_out || cur?.soldOut || false })
+      dedup.set(key, { name, rate: cr.rate_amount, tier, ptype, soldOut: cr.is_sold_out || cur?.soldOut || false })
     } else if (cr.is_sold_out && cur) {
       cur.soldOut = true
     }
   })
 
-  const entries: { name: string; rate: number; tier: number; soldOut: boolean; isYou: boolean }[] =
+  const entries: { name: string; rate: number; tier: number; ptype: PropertyType; soldOut: boolean; isYou: boolean }[] =
     [...dedup.values()].map(e => ({ ...e, isYou: false }))
-  if (yourRate) entries.push({ name: yourName, rate: yourRate, tier: 0, soldOut: false, isYou: true })
+  if (yourRate) entries.push({ name: yourName, rate: yourRate, tier: 0, ptype: 'boutique_inn', soldOut: false, isYou: true })
   entries.sort((a, b) => b.rate - a.rate)
   if (entries.length === 0) return null
 
@@ -65,28 +101,40 @@ function PriceLadder({
       </div>
       <div className="space-y-1">
         {entries.map((e, i) => {
-          const tierColor = e.tier === 0 ? 'bg-navy text-white'
-                          : e.tier === 3 ? 'bg-purple-50 border-purple-200'
-                          : e.tier === 1 ? 'bg-cream border-slate-100'
-                          : e.tier === 2 ? 'bg-gold/5 border-gold/15'
-                          :                'bg-slate-50 border-slate-100'
+          const isStr = e.ptype === 'airbnb_str'
+          const rowBg = e.isYou ? 'bg-navy text-white'
+                      : isStr   ? 'bg-amber-50 border-amber-200'
+                      : e.ptype === 'luxury_resort' ? 'bg-gold/5 border-gold/15'
+                      : e.ptype === 'boutique_inn'  ? 'bg-sage/5 border-sage/15'
+                      : e.ptype === 'budget_hotel'  ? 'bg-slate-50 border-slate-100'
+                                                      : 'bg-cream border-slate-100'
+          const trueCost = isStr ? Math.round(e.rate * STR_TRUE_GUEST_COST_MULTIPLIER) : null
           return (
-            <div key={i}
-                 className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border ${tierColor}`}>
-              <span className={`text-sm font-bold w-14 text-right
-                ${e.isYou ? 'text-gold' : e.soldOut ? 'text-coral line-through' : 'text-navy'}`}>
-                ${e.rate.toFixed(0)}
-              </span>
-              <span className={`flex-1 text-xs font-medium truncate
-                ${e.isYou ? 'text-white' : 'text-slate-700'}`}>
-                {e.isYou ? `★ ${e.name}` : e.name}
-              </span>
-              {e.soldOut && (
-                <span className="text-[9px] font-bold bg-coral text-white px-1.5 py-0.5 rounded">
-                  SOLD OUT
+            <div key={i} className={`px-2.5 py-1.5 rounded-lg border ${rowBg}`}>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-bold w-14 text-right
+                  ${e.isYou ? 'text-gold'
+                    : isStr ? 'text-amber-700 line-through'
+                    : e.soldOut ? 'text-coral line-through'
+                    : 'text-navy'}`}>
+                  ${e.rate.toFixed(0)}
                 </span>
+                <span className={`flex-1 text-xs font-medium truncate
+                  ${e.isYou ? 'text-white' : 'text-slate-700'}`}>
+                  {e.isYou ? `★ ${e.name}` : e.name}
+                </span>
+                {e.soldOut && (
+                  <span className="text-[9px] font-bold bg-coral text-white px-1.5 py-0.5 rounded">
+                    SOLD OUT
+                  </span>
+                )}
+                {!e.isYou && <PropertyTypeBadge ptype={e.ptype} />}
+              </div>
+              {isStr && trueCost && (
+                <div className="text-[10px] text-amber-700 mt-0.5 ml-16">
+                  True guest cost with fees: <strong>${trueCost}</strong> <span className="text-amber-500">(cleaning + service fees)</span>
+                </div>
               )}
-              {!e.isYou && <TierBadge tier={e.tier} />}
             </div>
           )
         })}
