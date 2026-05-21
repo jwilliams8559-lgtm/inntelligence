@@ -1364,6 +1364,26 @@ def v2_api_behavior_report():
     return jsonify(BehaviorEngine().combined_behavior_report(_current_tenant_id()))
 
 
+# ════════════════════════════════════════════════════════════════════
+# Historical trends (Gap 3)
+# ════════════════════════════════════════════════════════════════════
+
+@app.route("/api/historical/trends")
+@require_feature("historical_trends")
+def v2_api_historical_trends():
+    from modules.analytics.historical_engine import HistoricalEngine
+    months = int(request.args.get("months", 24))
+    return jsonify(HistoricalEngine().monthly_kpi_trend(_current_tenant_id(), months))
+
+
+@app.route("/api/historical/competitive-positioning")
+@require_feature("historical_trends")
+def v2_api_historical_comp():
+    from modules.analytics.historical_engine import HistoricalEngine
+    days = int(request.args.get("days", 90))
+    return jsonify(HistoricalEngine().competitive_positioning_history(_current_tenant_id(), days))
+
+
 @app.route("/api/fnb/config")
 @require_feature("fb_yield_module")
 def v2_api_fnb_config():

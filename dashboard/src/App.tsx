@@ -14,6 +14,7 @@ import CompetitiveIntel from './screens/CompetitiveIntel'
 import ReputationScreen from './screens/ReputationScreen'
 import FnBScreen from './screens/FnBScreen'
 import PerformanceScreen from './screens/PerformanceScreen'
+import HistoricalScreen from './screens/HistoricalScreen'
 import GuestCRM from './screens/GuestCRM'
 import BehaviorScreen from './screens/BehaviorScreen'
 import Packages from './screens/Packages'
@@ -125,6 +126,7 @@ function Authenticated() {
         {screen === 'behavior'     && <BehaviorScreen   {...screenProps} />}
         {screen === 'packages'     && <Packages         {...screenProps} />}
         {screen === 'performance'  && <PerformanceScreen />}
+        {screen === 'historical'   && <HistoricalScreen   {...screenProps} />}
         {screen === 'management'   && APP_ROLE === 'shg_admin' && <ManagementConsole {...screenProps} />}
         {screen === 'settings'     && <Settings         {...screenProps} />}
       </Layout>
