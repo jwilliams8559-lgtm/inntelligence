@@ -123,7 +123,7 @@ def widget_embed_html(property_name: str, config: dict[str, Any]) -> str:
     accent        = config.get("accent_color", "#A07830")
     perk_line     = f'<div style="font-size:12px;color:#fff;opacity:.85;margin-top:4px">+ {perk}</div>' if perk else ""
 
-    return f"""<!-- The Gracious Collection direct-book widget for {property_name} -->
+    return f"""<!-- INNtelligence direct-book widget for {property_name} -->
 <a href="#book" style="display:block;max-width:380px;text-decoration:none;border-radius:12px;overflow:hidden;font-family:Georgia,serif;box-shadow:0 4px 16px rgba(0,0,0,.12)">
   <div style="background:{primary};padding:18px 22px;color:#fff">
     <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:{accent};font-weight:bold">{discount_pct}% Off · Direct Only</div>

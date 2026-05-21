@@ -7,7 +7,7 @@ const DEMO_ACCOUNTS: Account[] = [
   { email: 'demo@graciouscollection.com',       password: 'demo2026',  label: 'Anchorage 1770 Inn',         sub: 'Professional tier · Innkeeper view',  icon: '★', accent: 'gold' },
   { email: 'essentials@graciouscollection.com', password: 'demo2026',  label: 'Essentials Demo Inn',        sub: 'Essentials tier · Locked features',   icon: '●', accent: 'slate' },
   { email: 'portfolio@graciouscollection.com',  password: 'demo2026',  label: 'Portfolio Demo Properties',  sub: 'Portfolio tier · Multi-property',     icon: '◆', accent: 'navy' },
-  { email: 'admin@graciouscollection.com',      password: 'admin2026', label: 'TGC Admin',                  sub: 'Management Console · Onboarding',     icon: '⚙', accent: 'gold' },
+  { email: 'admin@graciouscollection.com',      password: 'admin2026', label: 'INNtelligence Admin',        sub: 'Management Console · Onboarding',     icon: '⚙', accent: 'gold' },
 ]
 
 export default function LoginScreen() {
@@ -39,11 +39,14 @@ export default function LoginScreen() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-6">
-          <div className="text-gold font-serif font-bold text-3xl tracking-wide" style={{ fontFamily: 'Georgia, serif' }}>
-            The Gracious Collection
+          <div className="text-gold font-serif font-bold text-4xl tracking-wide" style={{ fontFamily: 'Georgia, serif' }}>
+            INNtelligence
           </div>
-          <div className="text-white/60 text-[10px] uppercase tracking-[3px] mt-1">
-            Boutique Hospitality Intelligence
+          <div className="text-white/70 text-xs mt-1 tracking-wide">
+            by The Gracious Collection
+          </div>
+          <div className="text-white/40 text-[10px] uppercase tracking-[3px] mt-1">
+            Revenue intelligence for innkeepers
           </div>
         </div>
 
@@ -98,7 +101,7 @@ export default function LoginScreen() {
         </div>
 
         <div className="text-center text-[10px] text-white/40 mt-6">
-          The Gracious Collection © 2026 · graciouscollection.com
+          INNtelligence by The Gracious Collection © 2026 · graciouscollection.com
         </div>
       </div>
     </div>

@@ -67,7 +67,7 @@ const STEPS: Step[] = [
   },
   {
     screen: 'reputation',
-    title: 'That\'s The Gracious Collection',
+    title: 'That\'s INNtelligence',
     body: 'Pricing intelligence built for boutique inns, not hotel chains. Built around how your guests actually decide — and how your competitors actually price.',
     cta: '',
   },

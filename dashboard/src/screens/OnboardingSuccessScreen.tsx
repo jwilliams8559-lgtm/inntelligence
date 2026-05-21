@@ -49,7 +49,7 @@ export default function OnboardingSuccessScreen() {
           </a>
         </div>
 
-        <p className="text-[10px] text-slate-400 mt-6">The Gracious Collection · 404-909-5818 · jwilliams8559@gmail.com</p>
+        <p className="text-[10px] text-slate-400 mt-6">INNtelligence by The Gracious Collection · 404-909-5818 · jwilliams8559@gmail.com</p>
       </div>
     </div>
   )

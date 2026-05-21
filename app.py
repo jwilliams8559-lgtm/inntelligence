@@ -826,7 +826,12 @@ def v2_api_competitors_by_room_type():
 
 @app.route("/api/health")
 def v2_api_health():
-    return jsonify({"status": "ok", "property": V2_PROPERTY["name"]})
+    return jsonify({
+        "status":   "ok",
+        "product":  "INNtelligence",
+        "company":  "The Gracious Collection",
+        "property": V2_PROPERTY["name"],
+    })
 
 
 # ── New JSON-only endpoints (Section B4) ────────────────────────────

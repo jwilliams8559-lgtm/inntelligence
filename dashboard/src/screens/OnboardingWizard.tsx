@@ -687,7 +687,7 @@ function SuccessState({ data, innName, totalRooms, rooms, ownerFirstName, city, 
   }
 
   function welcomeMailto() {
-    const subject = encodeURIComponent('Welcome to The Gracious Collection — Your pricing engine is live')
+    const subject = encodeURIComponent('Welcome to INNtelligence — Your pricing engine is live')
     const body = encodeURIComponent(
 `Dear ${ownerFirstName},
 
@@ -708,8 +708,7 @@ Your first step: log in and review the Rate Calendar. You'll see your pending ra
 
 I'll be in touch within 24 hours to schedule your onboarding call.
 
-Jim Williams
-The Gracious Collection
+Jim Williams · INNtelligence by The Gracious Collection
 404-909-5818
 jwilliams8559@gmail.com`)
     window.location.href = `mailto:${data.owner_email}?subject=${subject}&body=${body}`

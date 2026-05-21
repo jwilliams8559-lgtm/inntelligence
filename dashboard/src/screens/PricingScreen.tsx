@@ -34,7 +34,7 @@ export default function PricingScreen() {
          style={{ background: 'linear-gradient(135deg, #FAF7F0 0%, #F5EFE0 100%)' }}>
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-10">
-          <div className="text-gold text-[10px] uppercase tracking-[4px] font-bold">The Gracious Collection</div>
+          <div className="text-gold text-[10px] uppercase tracking-[4px] font-bold">INNtelligence by The Gracious Collection</div>
           <h1 className="font-bold text-navy text-4xl mt-1" style={{ fontFamily: 'Georgia, serif' }}>Pricing for boutique inns</h1>
           <p className="text-slate-600 mt-2 text-sm">14-day free trial on every plan. No credit card required.</p>
         </div>
@@ -93,7 +93,7 @@ export default function PricingScreen() {
         </div>
 
         <div className="text-center text-[10px] text-slate-400 mt-10">
-          The Gracious Collection © 2026 · graciouscollection.com · jwilliams8559@gmail.com
+          INNtelligence by The Gracious Collection © 2026 · graciouscollection.com · jwilliams8559@gmail.com
         </div>
       </div>
     </div>

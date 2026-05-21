@@ -149,7 +149,7 @@ export default function ManagementConsole({ }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-[11px] uppercase tracking-[3px] text-gold font-bold">Management Console</div>
-          <h1 className="text-navy font-bold text-2xl">The Gracious Collection</h1>
+          <h1 className="text-navy font-bold text-2xl">INNtelligence — Management Console</h1>
           <div className="text-sm text-slate-500">Strategic command center · {new Date().toLocaleDateString()}</div>
         </div>
         <div className="flex items-center gap-4">
@@ -250,7 +250,7 @@ export default function ManagementConsole({ }: Props) {
       {/* SECTION 2 — Revenue Dashboard */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-navy">TGC Revenue</h2>
+          <h2 className="font-bold text-navy">INNtelligence Revenue</h2>
           <span className="text-xs text-slate-400">Honest framing — pre-revenue</span>
         </div>
         {/* E1 — pre-revenue MRR target callout */}
@@ -417,8 +417,8 @@ export default function ManagementConsole({ }: Props) {
               <th className="px-4 py-2 text-left">Market</th>
               <th className="px-2 py-2 text-right">Avg Occupancy</th>
               <th className="px-2 py-2 text-right">Avg ADR</th>
-              <th className="px-2 py-2 text-right">TGC Properties</th>
-              <th className="px-2 py-2 text-right">TGC Clients</th>
+              <th className="px-2 py-2 text-right">INN Properties</th>
+              <th className="px-2 py-2 text-right">INN Clients</th>
               <th className="px-2 py-2 text-right">Opportunity</th>
               <th className="px-4 py-2 text-left">Status</th>
             </tr>
@@ -602,7 +602,7 @@ export default function ManagementConsole({ }: Props) {
       </section>
 
       <div className="text-[10px] text-slate-400 text-center pb-3">
-        The Gracious Collection · Boutique Hospitality Intelligence · Management Console
+        INNtelligence by The Gracious Collection · Management Console
       </div>
 
       {/* Onboarding wizard modal */}

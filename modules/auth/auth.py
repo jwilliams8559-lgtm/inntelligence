@@ -39,7 +39,7 @@ DEMO_ACCOUNTS = {
     "admin@graciouscollection.com": {
         "tenant_id":     "tgc-admin",
         "plan_tier":     "portfolio",
-        "property_name": "The Gracious Collection",
+        "property_name": "INNtelligence Admin",
         "role":          "tgc_admin",
         "password_hash": "admin2026",
     },

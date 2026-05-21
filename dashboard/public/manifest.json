@@ -1,0 +1,17 @@
+{
+  "name": "INNtelligence by The Gracious Collection",
+  "short_name": "INNtelligence",
+  "description": "Revenue intelligence for boutique innkeepers.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF7F0",
+  "theme_color": "#1A3A5C",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -416,7 +416,7 @@ export default function Onboarding({ tenant, property }: Props) {
         )}
 
         <div className="mt-6 text-[10px] text-slate-300 text-center">
-          The Gracious Collection · onboarding wizard · {tenant.slug}
+          INNtelligence · onboarding wizard · {tenant.slug}
         </div>
       </div>
     </div>

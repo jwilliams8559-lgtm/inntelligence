@@ -5,7 +5,7 @@ source venv/bin/activate
 pip install -r requirements.txt -q
 echo "
   ╔═══════════════════════════════════════════════════════════╗
-  ║   The Gracious Collection — AI Pricing Engine            ║
+  ║   INNtelligence by The Gracious Collection — Pricing Engine ║
   ║   http://localhost:5001                                  ║
   ║   Ctrl-C to stop                                         ║
   ╚═══════════════════════════════════════════════════════════╝

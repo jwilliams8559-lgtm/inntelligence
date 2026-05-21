@@ -118,7 +118,7 @@ export default function HelpDrawer({ open, onClose }: Props) {
         </div>
 
         <div className="px-5 py-2 bg-cream border-t border-slate-200 text-[10px] text-slate-400 text-center">
-          The Gracious Collection · Need more help? Email Jim Williams directly.
+          INNtelligence by The Gracious Collection · Need more help? Email Jim Williams directly.
         </div>
       </div>
     </div>

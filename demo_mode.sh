@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch The Gracious Collection in demo mode for an iPad or LAN-shared session.
+# Launch INNtelligence in demo mode for an iPad or LAN-shared session.
 # Prints the LAN-accessible URL so the iPad can connect to the same dashboard
 # the Mac sees on localhost.
 set -e
@@ -12,7 +12,7 @@ LAN_IP=${LAN_IP:-localhost}
 cat <<EOF
 
 ═══════════════════════════════════════════════════════════════
-  The Gracious Collection — Demo Mode
+  INNtelligence by The Gracious Collection — Demo Mode
   Dashboard (Mac):   http://localhost:5173
   Dashboard (iPad):  http://$LAN_IP:5173
   API:               http://$LAN_IP:5001

@@ -86,7 +86,7 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
         <div className="bg-gold text-white text-xs font-semibold tracking-wide py-1.5 px-4 shadow-sm flex-shrink-0 flex items-center justify-center gap-3">
           <span className="opacity-90">★ Demo Environment</span>
           <span className="opacity-50">·</span>
-          <span>The Gracious Collection Rate Intelligence Center</span>
+          <span>INNtelligence — Rate Intelligence Center</span>
           <span className="opacity-50">·</span>
           <span>Anchorage 1770 Inn, Beaufort SC</span>
           <button
@@ -103,10 +103,10 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
       <aside className="w-52 lg:w-56 flex-shrink-0 bg-navy flex flex-col shadow-xl">
         {/* Logo */}
         <div className="px-4 pt-6 pb-4 border-b border-navy-light">
-          <div className="text-white font-bold text-sm leading-tight">The Gracious Collection</div>
-          <div className="text-gold text-[10px] font-medium mt-0.5 leading-tight tracking-wide">Boutique Hospitality Intelligence</div>
+          <div className="text-gold font-bold text-lg leading-tight" style={{ fontFamily: 'Georgia, serif' }}>INNtelligence</div>
+          <div className="text-white/70 text-[10px] mt-0.5 leading-tight tracking-wide">by The Gracious Collection</div>
           <div className="text-white/60 text-[10px] mt-1 leading-tight">
-            Rate Intelligence Center
+            Revenue intelligence for innkeepers
           </div>
         </div>
 
@@ -142,7 +142,7 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
                 </span>
               )}
               {item.adminOnly && (
-                <span className="ml-auto text-[9px] uppercase tracking-wide bg-gold/20 text-gold px-1.5 py-0.5 rounded">TGC</span>
+                <span className="ml-auto text-[9px] uppercase tracking-wide bg-gold/20 text-gold px-1.5 py-0.5 rounded">Admin</span>
               )}
             </button>
           ))}

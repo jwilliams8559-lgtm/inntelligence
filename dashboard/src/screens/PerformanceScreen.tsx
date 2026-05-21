@@ -64,7 +64,7 @@ function Body() {
     <div className="flex-1 overflow-y-auto bg-cream p-5 pb-20 space-y-5">
       <div>
         <h1 className="text-navy font-bold text-xl">Monthly Performance Report — {r.period}</h1>
-        <p className="text-slate-500 text-sm">What The Gracious Collection engine earned you this month.</p>
+        <p className="text-slate-500 text-sm">What the INNtelligence engine earned you this month.</p>
       </div>
 
       {/* HERO ROI CARD */}

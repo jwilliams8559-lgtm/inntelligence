@@ -1,8 +1,8 @@
-# The Gracious Collection — Founding Member Program
+# INNtelligence — Founding Member Program
 
 ## What we are building
 
-The Gracious Collection (TGC) is boutique hospitality intelligence —
+INNtelligence (by The Gracious Collection, LLC) is boutique hospitality intelligence —
 an AI-driven Rate Intelligence Center built specifically for the 8-to-40-room
 independent inn. Most revenue management platforms target hotel chains with
 1,000+ rooms and price tags to match. We're solving the same problem at
@@ -138,4 +138,4 @@ Across the next 12 months we're adding:
 
 ---
 
-The Gracious Collection · Boutique Hospitality Intelligence · 2026
+INNtelligence by The Gracious Collection · Revenue intelligence for innkeepers · 2026
