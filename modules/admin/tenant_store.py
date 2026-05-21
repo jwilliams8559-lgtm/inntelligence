@@ -222,6 +222,17 @@ _DEFAULT_PMS_CATALOG: list[dict[str, Any]] = [
     {"id": "lodgify",     "name": "Lodgify",     "tier": "tier_2", "auth_fields": [
         {"key": "api_key", "label": "API Key", "type": "password"},
     ]},
+    {"id": "innkeepers_advantage", "name": "Innkeeper's Advantage", "tier": "tier_2",
+     "notes": "B&B-focused PMS. No public REST API; integration is partner-mediated. "
+              "Contact Innkeeper's Advantage at 724-933-3330 to provision API access. "
+              "CSV fallback: export reservations and rates from your back office "
+              "and use the CSV Import option below if API access is not available.",
+     "auth_fields": [
+        {"key": "partner_token", "label": "Partner Token", "type": "password",
+         "help": "Issued by Innkeeper's Advantage on partner approval. Request via support."},
+        {"key": "property_id",   "label": "Property ID",   "type": "text",
+         "help": "Your Innkeeper's Advantage property identifier."},
+     ]},
     {"id": "siteminder",  "name": "SiteMinder",  "tier": "channel_manager", "auth_fields": [
         {"key": "api_key", "label": "API Key", "type": "password"},
     ]},

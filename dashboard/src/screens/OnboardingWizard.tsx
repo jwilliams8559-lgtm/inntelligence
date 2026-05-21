@@ -14,6 +14,7 @@ interface CompetitorCandidate {
 }
 interface PmsDef {
   id: string; name: string; tier: string
+  notes?: string
   auth_fields: { key: string; label: string; type: string; help?: string }[]
 }
 interface Provisioned {
@@ -540,6 +541,11 @@ function Step4(p: any) {
       {selected && selected.auth_fields.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
           <div className="text-sm font-bold text-navy">{selected.name} credentials</div>
+          {(selected as any).notes && (
+            <div className="bg-amber-50 border border-amber-200 rounded p-2 text-[11px] text-amber-800">
+              ⓘ {(selected as any).notes}
+            </div>
+          )}
           {selected.auth_fields.map((f: any) => (
             <label key={f.key} className="block text-xs">
               <div className="text-slate-600 font-semibold mb-1">{f.label} {f.help && <span title={f.help} className="text-slate-400 cursor-help">ⓘ</span>}</div>
