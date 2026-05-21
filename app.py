@@ -352,15 +352,21 @@ def _v2_calendar(check_in: date, days: int = 90) -> list:
 
 def _v2_per_room_calendar(check_in: date, days: int = 90) -> dict:
     """Per-room rate recommendations for the next `days` days using
-    boutique-weighted comp_entries. Keyed by room name so the React
-    Rate Calendar can overlay these on top of Supabase rate_recommendations.
+    boutique-weighted comp_entries. Returns aliases under multiple key
+    spellings so the React Rate Calendar can match whichever room-type
+    name Supabase happens to use (Waterfront Suite, Water View Suite,
+    Garden View Room, Cottage Room, etc).
     """
     comp_entries = _v2_scraper.get_current_snapshot_typed()
     grid: dict[str, dict[str, dict]] = {}
+
+    # Cache per-room grids first
+    per_room: dict[str, dict[str, dict]] = {}
+    by_category: dict[str, list[dict]] = {}
     for room in V2_ROOM_TYPES:
         room_grid: dict[str, dict] = {}
         for i in range(min(days, 365)):
-            d = check_in + timedelta(days=i)
+            d  = check_in + timedelta(days=i)
             fc = _v2_demand.forecast(d)
             rec = _v2_rate.recommend(room, fc.score, fc.label, fc.drivers,
                                      fc.confidence, comp_entries=comp_entries, target_date=d)
@@ -371,9 +377,41 @@ def _v2_per_room_calendar(check_in: date, days: int = 90) -> dict:
                 "minimum_stay":     rec.minimum_stay,
                 "reasoning":        rec.reasoning,
                 "comp_avg":         int(rec.comp_avg) if rec.comp_avg else None,
+                "comp_pos":         rec.comp_pos,
+                "amenity_premium":  rec.amenity_premium,
             }
-        grid[room["id"]]   = room_grid     # by id (waterfront_201 etc)
-        grid[room["name"]] = room_grid     # by display name too
+        per_room[room["id"]]   = room_grid
+        per_room[room["name"]] = room_grid
+        by_category.setdefault(room.get("category", "other"), []).append((room, room_grid))
+
+    # Supabase-friendly aliases keyed by category. Average per date across
+    # the rooms in that category so the React grid picks the right rate
+    # regardless of which Supabase room_type record matched.
+    CATEGORY_ALIASES: dict[str, list[str]] = {
+        "waterfront": ["Waterfront Suite",  "Waterfront",  "Waterfront Room"],
+        "waterview":  ["Water View Suite",  "Waterview Suite", "Water View Room", "Water View", "Waterview"],
+        "garden":     ["Garden View Room",  "Garden Room",     "Garden View",     "Garden"],
+        "premium":    ["Private Cottage",   "Cottage Room",    "Cottage",         "Premium Suite"],
+        "cottage":    ["Cottage Room",      "Private Cottage", "Cottage"],
+    }
+    for category, rooms_with_grids in by_category.items():
+        if not rooms_with_grids:
+            continue
+        # Build a category-level grid: average rate across rooms in the category
+        sample_grid = rooms_with_grids[0][1]
+        category_grid: dict[str, dict] = {}
+        for date_iso in sample_grid:
+            rates = [rg[date_iso]["recommended_rate"] for _, rg in rooms_with_grids if date_iso in rg]
+            avg_rate = round(sum(rates) / len(rates)) if rates else 0
+            ref = sample_grid[date_iso]
+            category_grid[date_iso] = {
+                **ref,
+                "recommended_rate": avg_rate,
+            }
+        for alias in CATEGORY_ALIASES.get(category, []):
+            grid[alias] = category_grid
+
+    grid.update(per_room)
     return {
         "start_date": check_in.isoformat(),
         "days":       days,
@@ -791,26 +829,31 @@ def v2_api_competitors_by_room_type():
     dates   = [check_in + timedelta(days=i) for i in range(days)]
     labels  = [d.strftime("%a %b %-d") for d in dates]
 
-    # Our rates for this room category (representative room = first in category)
+    # Our rates for this room category — uses boutique-weighted comp_entries
+    # so the recommendation honors the 1.45x STR floor.
     rep_room = next((r for r in ROOM_TYPES if r["id"] == our_cat["room_ids"][0]), ROOM_TYPES[0])
+    comp_entries_today = _v2_scraper.get_current_snapshot_typed()
     our_rates = []
     for d in dates:
         fc  = _v2_demand.forecast(d)
         rec = _v2_rate.recommend(rep_room, fc.score, fc.label, fc.drivers,
-                                  fc.confidence, None, d)
+                                  fc.confidence, comp_entries=comp_entries_today, target_date=d)
         our_rates.append(int(rec.recommended_rate))
 
-    # Competitor rates for the equivalent room type
+    # Competitor rates for the equivalent room type — tag each row with its
+    # property_type so the React UI can render the STR badge and exclude
+    # STRs from the peer comp average.
     competitors_out: list = []
     for comp in _C_LIST:
         name      = comp["name"]
+        ptype     = comp.get("property_type", "boutique_inn")
         equiv     = (COMPETITOR_ROOM_TYPES.get(name) or {}).get(room_cat)
         snap7     = _v2_scraper.get_7day_snapshot(check_in)
         blended   = snap7["competitors"].get(name, [300] * 7)
-        # Stretch the 7-day base rates across the requested window
         extended  = (blended * ((days // 7) + 2))[:days]
         entry = {
             "name":             name,
+            "property_type":    ptype,
             "tier":             comp.get("tier", "Direct Boutique Competitor"),
             "distance":         comp.get("distance_miles"),
             "tripadvisor":      comp.get("tripadvisor_rating"),
@@ -821,26 +864,39 @@ def v2_api_competitors_by_room_type():
             "no_equivalent_msg": (None if equiv
                                    else f"{name} has no {our_cat['label']} equivalent"),
         }
-        if equiv:
+        if ptype == "airbnb_str":
+            # STR base rates are not room-type stratified — use the blended
+            # series directly as a single-room representation.
+            entry["rates"] = [int(r) for r in extended]
+        elif equiv:
             premium = equiv.get("rate_premium_vs_base", 0) or 0
             entry["rates"] = [int(r * (1 + premium)) for r in extended]
         else:
             entry["rates"] = [None] * days
         competitors_out.append(entry)
 
-    # Per-date position vs comp set average
+    # Per-date position vs PEER comp average. STR and budget_hotel rates
+    # are excluded from the peer average (boutique inns price against
+    # boutique peers, not against Airbnbs or budget hotels).
     position_by_date: list = []
     for i, our_r in enumerate(our_rates):
-        comp_rates = [c["rates"][i] for c in competitors_out if c["rates"][i] is not None]
-        if comp_rates:
-            avg = sum(comp_rates) / len(comp_rates)
+        peer_rates = [
+            c["rates"][i] for c in competitors_out
+            if c["rates"][i] is not None
+            and c["property_type"] not in ("airbnb_str", "budget_hotel")
+        ]
+        str_rates = [c["rates"][i] for c in competitors_out
+                     if c["rates"][i] is not None and c["property_type"] == "airbnb_str"]
+        if peer_rates:
+            avg = sum(peer_rates) / len(peer_rates)
             pct = (our_r - avg) / avg
             position_by_date.append({
                 "date":       dates[i].isoformat(),
                 "our_rate":   our_r,
                 "comp_avg":   int(avg),
-                "comp_min":   min(comp_rates),
-                "comp_max":   max(comp_rates),
+                "comp_min":   min(peer_rates),
+                "comp_max":   max(peer_rates),
+                "str_avg":    int(sum(str_rates) / len(str_rates)) if str_rates else None,
                 "pct_vs_avg": round(pct * 100, 1),
                 "position":   "Premium" if pct > 0.12
                               else "Below Market" if pct < -0.12

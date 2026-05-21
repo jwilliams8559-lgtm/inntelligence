@@ -123,10 +123,17 @@ class CompetitorScraper:
         }
 
     def detect_rate_drops(self) -> list:
-        """Competitors who dropped > 15% (30-day forward vs 30-day-then-minus-14 forward)."""
+        """Competitors who dropped > 15% over a 14-day window.
+
+        Skips airbnb_str and budget_hotel property types — a boutique inn
+        should never reactive-price against an STR or budget anchor.
+        """
         today = date.today()
         alerts = []
         for comp in COMPETITORS:
+            ptype = comp.get("property_type", "boutique_inn")
+            if ptype in ("airbnb_str", "budget_hotel"):
+                continue
             rate_now = self._rate_for_date(comp["name"], today + timedelta(days=30))
             rate_14d = self._rate_for_date(comp["name"], today + timedelta(days=30) - timedelta(days=14))
             if rate_14d > 0 and (rate_14d - rate_now) / rate_14d > 0.15:
@@ -219,15 +226,20 @@ class CompetitorScraper:
                         sum(r.get("count", 1) for r in ROOM_TYPES)) if ROOM_TYPES else 419
         drops = self.detect_rate_drops()
         if not drops and COMPETITORS:
+            # Demo fallback: synthesize a soft drop on the cheapest BOUTIQUE
+            # competitor (not the cheapest overall — which would be an STR
+            # whose rate is not a legitimate pricing target for a boutique inn).
             today = _date.today()
-            cheapest = min(COMPETITORS, key=lambda c: self._rate_for_date(c["name"], today + _td(days=14)))
-            now_rate = int(self._rate_for_date(cheapest["name"], today + _td(days=14)))
-            drops = [{
-                "competitor":   cheapest["name"],
-                "rate_now":     now_rate,
-                "rate_14d_ago": int(now_rate / 0.83),
-                "drop_pct":     17,
-            }]
+            peer_comps = [c for c in COMPETITORS if c.get("property_type") == "boutique_inn"]
+            if peer_comps:
+                cheapest = min(peer_comps, key=lambda c: self._rate_for_date(c["name"], today + _td(days=14)))
+                now_rate = int(self._rate_for_date(cheapest["name"], today + _td(days=14)))
+                drops = [{
+                    "competitor":   cheapest["name"],
+                    "rate_now":     now_rate,
+                    "rate_14d_ago": int(now_rate / 0.83),
+                    "drop_pct":     17,
+                }]
         target_date = (_date.today() + _td(days=30)).isoformat()
         return [
             self.generate_response_recommendation(

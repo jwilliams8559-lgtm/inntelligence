@@ -165,13 +165,14 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
     room_category: string; our_room_label: string; our_description: string
     our_base_rate: number; icon: string
     dates: string[]; date_labels: string[]; our_rates: number[]
-    competitors: { name: string; tier: string; distance: number | null
+    competitors: { name: string; property_type?: PropertyType; tier: string; distance: number | null
       tripadvisor: number | null; avail_color: string
       has_equivalent: boolean; comp_room_name: string | null
       comp_room_notes: string | null; no_equivalent_msg: string | null
       rates: (number | null)[] }[]
     position_by_date: { date: string; our_rate: number; comp_avg: number | null
-      comp_min?: number; comp_max?: number; pct_vs_avg?: number; position: string }[]
+      comp_min?: number; comp_max?: number; str_avg?: number | null
+      pct_vs_avg?: number; position: string }[]
   }
   const [roomData, setRoomData] = useState<RoomTypeApi | null>(null)
   useEffect(() => {
@@ -303,15 +304,24 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
     return { label: 'Significantly Below', cls: 'bg-coral/15 text-coral' }
   }
 
-  // Summary stats
+  // Summary stats — boutique peer comp avg only (STRs and budget anchors
+  // are visible in the table for context but not used as a pricing baseline).
   const summaryDates = dates.map(d => {
     const dStr = format(d, 'yyyy-MM-dd')
-    const your  = yourMap.get(dStr)?.recommended_rate ?? null
-    const rows  = rateMatrix.get(dStr)
+    const your = yourMap.get(dStr)?.recommended_rate ?? null
+    const rows = rateMatrix.get(dStr)
     if (!rows) return null
-    const live  = [...rows.values()].filter(r => !r.soldOut && r.amount != null).map(r => r.amount!)
-    if (!live.length || !your) return null
-    return { your, avg: live.reduce((a, b) => a + b, 0) / live.length }
+    const peerRates: number[] = []
+    filteredCompetitors.forEach(c => {
+      const r = rows.get(c.id)
+      if (!r || r.soldOut || r.amount == null) return
+      const cname = c.competitor_name || c.name || ''
+      const ptype = PROPERTY_TYPE_BY_NAME[cname] ?? ((c.property_tier ?? 1) === 4 ? 'budget_hotel' : 'boutique_inn')
+      if (ptype === 'airbnb_str' || ptype === 'budget_hotel') return
+      peerRates.push(r.amount)
+    })
+    if (!peerRates.length || !your) return null
+    return { your, avg: peerRates.reduce((a, b) => a + b, 0) / peerRates.length }
   }).filter(Boolean) as { your: number; avg: number }[]
 
   const overallPct = summaryDates.length
@@ -381,7 +391,7 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
           <div className={`text-2xl font-bold ${overallPct >= 0 ? 'text-sage' : 'text-coral'}`}>
             {overallPct >= 0 ? '+' : ''}{overallPct}%
           </div>
-          <div className="text-xs text-slate-400">vs comp avg (14d)</div>
+          <div className="text-xs text-slate-400">vs boutique peer avg (14d)</div>
         </div>
       </div>
 
@@ -434,7 +444,7 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
                 <span className="text-lg mr-2">{roomData.icon}</span>
                 <span className="text-navy">{roomData.our_room_label}:</span>{' '}
                 <span className={avgPct >= 0 ? 'text-sage' : 'text-coral'}>
-                  You are priced {avgPct >= 0 ? '+' : ''}{avgPct}% {avgPct >= 0 ? 'above' : 'below'} comp set average
+                  You are priced {avgPct >= 0 ? '+' : ''}{avgPct}% {avgPct >= 0 ? 'above' : 'below'} boutique peer average
                 </span>
                 <span className="text-slate-500"> (${avgOurs} vs ${avgCompAvg} comp avg) over the next 14 days</span>
               </div>
@@ -448,15 +458,23 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
                     <tr className="bg-navy text-white">
                       <th className="sticky left-0 bg-navy px-4 py-3 text-left font-semibold text-xs w-24">Date</th>
                       <th className="px-4 py-3 text-right font-semibold text-xs text-gold">Your {roomData.our_room_label}</th>
-                      {visible.map(c => (
-                        <th key={c.name} className="px-3 py-3 text-right font-semibold text-xs whitespace-nowrap"
-                            title={`${c.name}\n${c.tier}\n${c.distance ? `📍 ${c.distance} mi` : ''}\n${c.tripadvisor ? `⭐ ${c.tripadvisor}` : ''}\nEquivalent: ${c.comp_room_name ?? 'N/A'}`}>
-                          <div>{c.name.split(' ').slice(0, 2).join(' ')}</div>
-                          <div className="font-normal italic text-[10px] text-white/60 mt-0.5">
-                            {c.has_equivalent ? c.comp_room_name : '— no equivalent —'}
-                          </div>
-                        </th>
-                      ))}
+                      {visible.map(c => {
+                        const ptype = (c.property_type ?? PROPERTY_TYPE_BY_NAME[c.name]) as PropertyType | undefined
+                        const isStr = ptype === 'airbnb_str'
+                        return (
+                          <th key={c.name}
+                              title={isStr ? PROPERTY_TYPE_BADGE.airbnb_str.tooltip : `${c.name}\n${c.tier}\n${c.distance ? `📍 ${c.distance} mi` : ''}\n${c.tripadvisor ? `⭐ ${c.tripadvisor}` : ''}\nEquivalent: ${c.comp_room_name ?? 'N/A'}`}
+                              className={`px-3 py-3 text-right font-semibold text-xs whitespace-nowrap ${isStr ? 'bg-amber-700/40' : ''}`}>
+                            <div>
+                              {c.name.split(' ').slice(0, 2).join(' ')}
+                              {isStr && <sup className="ml-1 text-[8px] text-amber-200 font-bold">STR</sup>}
+                            </div>
+                            <div className="font-normal italic text-[10px] text-white/60 mt-0.5">
+                              {isStr ? 'STR — not a peer' : c.has_equivalent ? c.comp_room_name : '— no equivalent —'}
+                            </div>
+                          </th>
+                        )
+                      })}
                       <th className="px-4 py-3 text-right font-semibold text-xs">Comp Avg</th>
                       <th className="px-4 py-3 text-center font-semibold text-xs">Position</th>
                     </tr>
@@ -480,11 +498,23 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
                           </td>
                           {visible.map(c => {
                             const r = c.rates[di]
+                            const ptype = (c.property_type ?? PROPERTY_TYPE_BY_NAME[c.name]) as PropertyType | undefined
+                            const isStr = ptype === 'airbnb_str'
+                            const trueCost = isStr && r != null ? Math.round(r * STR_TRUE_GUEST_COST_MULTIPLIER) : null
                             return (
-                              <td key={c.name} className="px-3 py-2.5 text-right" title={c.comp_room_notes ?? ''}>
-                                {r != null
-                                  ? <span className="text-slate-700">${r}</span>
-                                  : <span className="text-slate-300 italic">N/A</span>}
+                              <td key={c.name}
+                                  className={`px-3 py-2.5 text-right ${isStr ? 'bg-amber-50/60' : ''}`}
+                                  title={c.comp_room_notes ?? ''}>
+                                {r == null ? (
+                                  <span className="text-slate-300 italic">N/A</span>
+                                ) : isStr ? (
+                                  <div>
+                                    <div className="text-amber-700 line-through text-xs">${r}</div>
+                                    {trueCost && <div className="text-amber-800 text-[10px] font-semibold">+fees ${trueCost}</div>}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-700">${r}</span>
+                                )}
                               </td>
                             )
                           })}
@@ -611,8 +641,21 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
                 const dow    = format(d, 'EEE')
                 const your   = yourMap.get(dStr)
                 const matrix = rateMatrix.get(dStr) ?? new Map()
-                const live   = [...matrix.values()].filter(r => !r.soldOut && r.amount != null).map(r => r.amount!)
-                const avg    = live.length ? Math.round(live.reduce((a, b) => a + b, 0) / live.length) : null
+                // Boutique-only comp avg: exclude STR and budget_hotel from the
+                // peer comparison since pricing a boutique inn against an Airbnb
+                // would price the inn below market. Filter via PROPERTY_TYPE_BY_NAME.
+                const boutiquePeerRates: number[] = []
+                filteredCompetitors.forEach(c => {
+                  const row = matrix.get(c.id)
+                  if (!row || row.soldOut || row.amount == null) return
+                  const cname = c.competitor_name || c.name || ''
+                  const ptype = PROPERTY_TYPE_BY_NAME[cname] ?? ((c.property_tier ?? 1) === 4 ? 'budget_hotel' : 'boutique_inn')
+                  if (ptype === 'airbnb_str' || ptype === 'budget_hotel') return
+                  boutiquePeerRates.push(row.amount)
+                })
+                const avg = boutiquePeerRates.length
+                  ? Math.round(boutiquePeerRates.reduce((a, b) => a + b, 0) / boutiquePeerRates.length)
+                  : null
                 const pos    = your?.recommended_rate && avg ? positionLabel(your.recommended_rate, avg) : null
                 const wf     = d.getMonth() === 6 && d.getDate() >= 17 && d.getDate() <= 26
 
