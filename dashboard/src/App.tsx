@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginScreen from './screens/LoginScreen'
 import PricingScreen from './screens/PricingScreen'
 import OnboardingSuccessScreen from './screens/OnboardingSuccessScreen'
+import DemoMode from './demo/DemoMode'
 import Layout from './components/Layout'
 import RateCalendar from './screens/RateCalendar'
 import DemandDashboard from './screens/DemandDashboard'
@@ -33,6 +34,7 @@ export default function App() {
   const path = window.location.pathname
   if (path === '/pricing')          return <PricingScreen />
   if (path === '/onboard/success')  return <OnboardingSuccessScreen />
+  if (path === '/demo')             return <DemoMode />
   return (
     <AuthProvider>
       <AppInner />
