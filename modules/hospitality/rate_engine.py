@@ -37,6 +37,8 @@ class RateRecommendation:
     str_floor_applied: bool    = False
     str_baseline_avg: Optional[float] = None
     amenity_premium:  int      = 0
+    top_boutique_comp_name: Optional[str]   = None
+    top_boutique_comp_rate: Optional[float] = None
 
 
 class RateEngine:
@@ -98,12 +100,14 @@ class RateEngine:
         has_str_in_set = False
 
         boutique_peer_avg = None
+        top_boutique_comp_name: str | None = None
+        top_boutique_comp_rate: float | None = None
         if comp_entries:
             # Weighted average using property_type weights from settings.
-            # Boutique-only peer avg drives the floor below.
+            # Top boutique anchor drives the target — not the avg.
             num, denom = 0.0, 0.0
             str_rates: list[float] = []
-            peer_rates: list[float] = []
+            peer_with_equiv: list[tuple[str, float]] = []  # (name, rate)
             for e in comp_entries:
                 rate = e.get("rate")
                 if rate is None:
@@ -115,29 +119,57 @@ class RateEngine:
                 if ptype == "airbnb_str":
                     has_str_in_set = True
                     str_rates.append(rate)
-                # boutique_inn ONLY counts as a peer. Upscale hotels are
-                # reference points but a boutique inn should price like its
-                # boutique peers, not at hotel rates.
-                elif ptype == "boutique_inn":
-                    peer_rates.append(rate)
+                # Only count boutique_inn comps WITH an equivalent room as
+                # peers. A boutique inn without a waterfront listing is not
+                # a valid waterfront peer — using its base rate would
+                # artificially lower the floor.
+                elif ptype == "boutique_inn" and e.get("has_equivalent", True):
+                    peer_with_equiv.append((e.get("name", "Comp"), rate))
             if denom > 0:
                 comp_avg = num / denom
-            if peer_rates:
-                boutique_peer_avg = sum(peer_rates) / len(peer_rates)
+            if peer_with_equiv:
+                rates_only = [r for _, r in peer_with_equiv]
+                boutique_peer_avg = sum(rates_only) / len(rates_only)
+                # TOP comp = highest-priced boutique peer with an equivalent
+                top_name, top_rate = max(peer_with_equiv, key=lambda x: x[1])
+                top_boutique_comp_name = top_name
+                top_boutique_comp_rate = top_rate
             if str_rates:
                 str_baseline_avg = sum(str_rates) / len(str_rates)
                 # STR floor: a boutique inn should never quote below STR avg * 1.45
                 premium_floor = self.round_to_5(str_baseline_avg * BOUTIQUE_INN_PREMIUM)
                 if final < premium_floor:
                     final = self.round_to_5(min(max(final, premium_floor), hi))
-            # Boutique peer floor: never price below the boutique peer
-            # average. This is the line that prevents Garden View landing
-            # below City Loft on a Saturday — the engine's demand math could
-            # produce a low number, but the peer floor pulls it back up.
-            if boutique_peer_avg:
-                peer_floor = self.round_to_5(boutique_peer_avg)
-                if final < peer_floor:
-                    final = self.round_to_5(min(max(final, peer_floor), hi))
+
+            # Top-boutique-comp anchor — INNtelligence prices at or above
+            # the top boutique peer (Cuthbert House etc) on every date.
+            # New ownership at Anchorage 1770 earns small premiums on
+            # weekends and peak events; never quotes below the top peer.
+            if top_boutique_comp_rate:
+                # Demand-tier premium
+                if   demand_score < 50: demand_premium = 0.00
+                elif demand_score < 70: demand_premium = 0.00
+                elif demand_score < 85: demand_premium = 0.03
+                else:                   demand_premium = 0.05
+                # Weekend bonus (Fri/Sat) — leisure travel demand the
+                # demand_engine score does not fully capture
+                weekend_bonus = 0.02 if (target_date and target_date.weekday() in (4, 5)) else 0.0
+                premium_pct = max(demand_premium + weekend_bonus, 0.0)
+
+                target_rate  = top_boutique_comp_rate * (1 + premium_pct)
+                # Round the floor UP to the next $5 so we never dip below
+                # Cuthbert by a couple dollars due to floor rounding.
+                import math as _math
+                floor_rate   = _math.ceil(top_boutique_comp_rate / 5) * 5
+                ceiling_rate = top_boutique_comp_rate * 1.12     # never more than 12% above
+
+                final = max(final, target_rate)
+                final = min(ceiling_rate, max(floor_rate, final))
+                # Snap to nearest $5 but never below floor
+                final = self.round_to_5(final)
+                if final < floor_rate:
+                    final = floor_rate
+                final = min(max(final, lo), hi)
         elif comp_rates:
             comp_avg = sum(comp_rates) / len(comp_rates)
 
@@ -185,6 +217,22 @@ class RateEngine:
             reason_parts.append(
                 f"Comp set average is ${int(comp_avg):,} — you are {comp_pos.lower()}."
             )
+        if top_boutique_comp_rate and top_boutique_comp_name:
+            pct_vs_top = (final - top_boutique_comp_rate) / top_boutique_comp_rate * 100
+            if pct_vs_top >= 0:
+                reason_parts.append(
+                    f"Boutique peer positioning: {top_boutique_comp_name} at "
+                    f"${int(top_boutique_comp_rate):,}. Your ${int(final):,} is "
+                    f"+{pct_vs_top:.1f}% above. Anchorage 1770 offers Ribaut Social "
+                    f"Club restaurant, rooftop bar, and chef breakfast — amenities "
+                    f"{top_boutique_comp_name} does not have."
+                )
+            else:
+                reason_parts.append(
+                    f"Boutique peer positioning: {top_boutique_comp_name} at "
+                    f"${int(top_boutique_comp_rate):,}. Your ${int(final):,} is "
+                    f"{pct_vs_top:.1f}% (soft demand)."
+                )
         if has_str_in_set and str_baseline_avg:
             reason_parts.append(
                 f"Boutique inn amenity premium over comparable STR: "
@@ -247,6 +295,8 @@ class RateEngine:
             str_floor_applied=str_floor_applied_flag,
             str_baseline_avg=str_baseline_avg,
             amenity_premium=int(AMENITY_PREMIUM_OVER_STR_TOTAL) if has_str_in_set else 0,
+            top_boutique_comp_name=top_boutique_comp_name,
+            top_boutique_comp_rate=top_boutique_comp_rate,
         )
 
     # ── Section 3: Price fence helper ──────────────────────────────────

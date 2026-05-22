@@ -885,32 +885,46 @@ def v2_api_competitors_by_room_type():
             entry["rates"] = [None] * days
         competitors_out.append(entry)
 
-    # Per-date position vs PEER comp average. STR and budget_hotel rates
-    # are excluded from the peer average (boutique inns price against
-    # boutique peers, not against Airbnbs or budget hotels).
+    # Per-date position vs TOP BOUTIQUE COMP (not the peer average).
+    # The innkeeper-meaningful question is "where am I vs Cuthbert?",
+    # not "where am I vs an average that includes hotels".
     position_by_date: list = []
     for i, our_r in enumerate(our_rates):
-        peer_rates = [
-            c["rates"][i] for c in competitors_out
-            if c["rates"][i] is not None
-            and c["property_type"] not in ("airbnb_str", "budget_hotel")
-        ]
-        str_rates = [c["rates"][i] for c in competitors_out
-                     if c["rates"][i] is not None and c["property_type"] == "airbnb_str"]
-        if peer_rates:
-            avg = sum(peer_rates) / len(peer_rates)
-            pct = (our_r - avg) / avg
+        boutique_peers = [c for c in competitors_out
+                          if c["rates"][i] is not None
+                          and c["property_type"] == "boutique_inn"
+                          and c.get("has_equivalent", True)]
+        peer_rates = [c["rates"][i] for c in competitors_out
+                      if c["rates"][i] is not None
+                      and c["property_type"] not in ("airbnb_str", "budget_hotel")]
+        str_rates  = [c["rates"][i] for c in competitors_out
+                      if c["rates"][i] is not None and c["property_type"] == "airbnb_str"]
+        top_comp_name = None
+        top_comp_rate = None
+        if boutique_peers:
+            top = max(boutique_peers, key=lambda c: c["rates"][i])
+            top_comp_name = top["name"]
+            top_comp_rate = top["rates"][i]
+
+        if top_comp_rate:
+            pct_vs_top = (our_r - top_comp_rate) / top_comp_rate
+            position = (
+                "Premium"            if pct_vs_top >= 0.05
+                else "At Market"     if pct_vs_top >= 0.00
+                else "Slightly Below" if pct_vs_top >= -0.05
+                else "Below Market"  if pct_vs_top >= -0.12
+                else "Significantly Below"
+            )
             position_by_date.append({
-                "date":       dates[i].isoformat(),
-                "our_rate":   our_r,
-                "comp_avg":   int(avg),
-                "comp_min":   min(peer_rates),
-                "comp_max":   max(peer_rates),
-                "str_avg":    int(sum(str_rates) / len(str_rates)) if str_rates else None,
-                "pct_vs_avg": round(pct * 100, 1),
-                "position":   "Premium" if pct > 0.12
-                              else "Below Market" if pct < -0.12
-                              else "At Market",
+                "date":              dates[i].isoformat(),
+                "our_rate":          our_r,
+                "top_comp_name":     top_comp_name,
+                "top_comp_rate":     top_comp_rate,
+                "pct_vs_top":        round(pct_vs_top * 100, 1),
+                "comp_avg":          int(sum(peer_rates) / len(peer_rates)) if peer_rates else None,
+                "str_avg":           int(sum(str_rates) / len(str_rates)) if str_rates else None,
+                "pct_vs_avg":        round((our_r - sum(peer_rates) / len(peer_rates)) / (sum(peer_rates) / len(peer_rates)) * 100, 1) if peer_rates else None,
+                "position":          position,
             })
         else:
             position_by_date.append({

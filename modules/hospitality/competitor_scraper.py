@@ -90,16 +90,21 @@ class CompetitorScraper:
         for comp in COMPETITORS:
             base_rate = int(self._rate_for_date(comp["name"], d))
             adjusted  = base_rate
+            has_equiv = False
             if room_category:
                 mapping = COMPETITOR_ROOM_TYPES.get(comp["name"], {})
                 equiv   = mapping.get(room_category)
                 if equiv and equiv.get("rate_premium_vs_base") is not None:
-                    adjusted = int(base_rate * (1 + equiv["rate_premium_vs_base"]))
+                    adjusted  = int(base_rate * (1 + equiv["rate_premium_vs_base"]))
+                    has_equiv = True
+            else:
+                has_equiv = True   # no category filter → everyone counts
             out.append({
-                "name":          comp["name"],
-                "rate":          adjusted,
-                "base_rate":     base_rate,
-                "property_type": comp.get("property_type", "upscale_hotel"),
+                "name":           comp["name"],
+                "rate":           adjusted,
+                "base_rate":      base_rate,
+                "property_type":  comp.get("property_type", "upscale_hotel"),
+                "has_equivalent": has_equiv,
             })
         return out
 
