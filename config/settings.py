@@ -309,22 +309,35 @@ GIFT_SHOP_CATEGORIES = [
 ]
 
 KNOWN_ANNUAL_EVENTS = [
-    {"name": "Parris Island USMC Graduation",     "month": 5,  "day": 6,  "pricing_nudge": 20, "source": "City Visitors Bureau"},
-    {"name": "Downtown Farmers Market",            "month": 5,  "day": 9,  "pricing_nudge": 8,  "source": "Tourist Board"},
-    {"name": "Original Gullah Festival",           "month": 5,  "day": 20, "pricing_nudge": 18, "source": "Eventbrite"},
-    {"name": "First Friday Art Walk",              "month": 6,  "day": 5,  "pricing_nudge": 20, "source": "City Visitors Bureau"},
-    {"name": "Music Festival of the Lowcountry",  "month": 6,  "day": 17, "pricing_nudge": 13, "source": "Tourist Board"},
-    {"name": "4th of July Celebrations",          "month": 7,  "day": 1,  "pricing_nudge": 18, "source": "Tourist Board"},
-    {"name": "Black Roses Freedom Festival",      "month": 7,  "day": 3,  "pricing_nudge": 15, "source": "Eventbrite"},
-    {"name": "Beaufort Water Festival",           "month": 7,  "day": 17, "pricing_nudge": 25, "duration_days": 10, "source": "Tourist Board"},
-    {"name": "Beaufort Film Festival",            "month": 2,  "day": 14, "pricing_nudge": 12, "source": "Tourist Board"},
-    {"name": "Shrimp Festival",                   "month": 10, "day": 15, "pricing_nudge": 15, "source": "City Visitors Bureau"},
-    {"name": "Holiday Parade & Tree Lighting",    "month": 12, "day": 5,  "pricing_nudge": 10, "source": "City Visitors Bureau"},
+    # Q1
+    {"name": "MLK Weekend",                       "month": 1,  "day": 18, "pricing_nudge":  8, "duration_days": 3, "source": "Tourist Board"},
+    {"name": "Beaufort International Film Festival","month": 3, "day": 7,  "pricing_nudge": 15, "duration_days": 4, "source": "Tourist Board"},
+    {"name": "St. Patrick's Day Beaufort",        "month": 3,  "day": 21, "pricing_nudge": 12, "source": "City Visitors Bureau"},
+    # Q2
+    {"name": "Beaufort Wine & Food Festival",     "month": 4,  "day": 11, "pricing_nudge": 22, "duration_days": 3, "source": "Tourist Board"},
+    {"name": "Easter Weekend",                    "month": 4,  "day": 18, "pricing_nudge": 18, "duration_days": 3, "source": "Tourist Board"},
     {"name": "USCB Commencement",                 "month": 5,  "day": 2,  "pricing_nudge": 12, "source": "Tourist Board"},
-    {"name": "Martin Luther King Jr. Weekend",    "month": 1,  "day": 18, "pricing_nudge": 10, "source": "Tourist Board"},
-    {"name": "Memorial Day Weekend",              "month": 5,  "day": 23, "pricing_nudge": 20, "duration_days": 3, "source": "Tourist Board"},
-    {"name": "Labor Day Weekend",                 "month": 9,  "day": 4,  "pricing_nudge": 20, "duration_days": 3, "source": "Tourist Board"},
-    {"name": "Thanksgiving Weekend",              "month": 11, "day": 26, "pricing_nudge": 15, "duration_days": 4, "source": "Tourist Board"},
+    {"name": "Beaufort Spring Festival",          "month": 5,  "day": 2,  "pricing_nudge": 12, "duration_days": 3, "source": "City Visitors Bureau"},
+    {"name": "Downtown Farmers Market",           "month": 5,  "day": 9,  "pricing_nudge":  8, "source": "Tourist Board"},
+    {"name": "Original Gullah Festival",          "month": 5,  "day": 20, "pricing_nudge": 18, "source": "Eventbrite"},
+    {"name": "Memorial Day Weekend",              "month": 5,  "day": 23, "pricing_nudge": 20, "duration_days": 4, "source": "Tourist Board"},
+    {"name": "Parris Island USMC Graduation",     "month": 6,  "day": 6,  "pricing_nudge": 18, "duration_days": 2, "source": "City Visitors Bureau"},
+    {"name": "First Friday Art Walk",             "month": 6,  "day": 5,  "pricing_nudge":  5, "source": "City Visitors Bureau"},
+    {"name": "Music Festival of the Lowcountry",  "month": 6,  "day": 17, "pricing_nudge": 13, "source": "Tourist Board"},
+    # Q3
+    {"name": "Independence Day",                  "month": 7,  "day": 4,  "pricing_nudge": 25, "duration_days": 4, "source": "Tourist Board"},
+    {"name": "Beaufort Water Festival",           "month": 7,  "day": 17, "pricing_nudge": 40, "duration_days": 10, "source": "Tourist Board"},
+    {"name": "Parris Island USMC Graduation",     "month": 8,  "day": 1,  "pricing_nudge": 18, "duration_days": 2, "source": "City Visitors Bureau"},
+    {"name": "Shrimp Festival",                   "month": 8,  "day": 22, "pricing_nudge": 15, "duration_days": 3, "source": "City Visitors Bureau"},
+    {"name": "Labor Day Weekend",                 "month": 9,  "day": 6,  "pricing_nudge": 18, "duration_days": 3, "source": "Tourist Board"},
+    {"name": "Beaufort Gullah Festival",          "month": 9,  "day": 26, "pricing_nudge": 12, "duration_days": 3, "source": "Eventbrite"},
+    # Q4
+    {"name": "Beaufort Fall Festival",            "month": 10, "day": 10, "pricing_nudge": 15, "duration_days": 3, "source": "Tourist Board"},
+    {"name": "Halloween Weekend",                 "month": 10, "day": 31, "pricing_nudge": 10, "duration_days": 2, "source": "Tourist Board"},
+    {"name": "Parris Island USMC Graduation",     "month": 11, "day": 1,  "pricing_nudge": 18, "duration_days": 2, "source": "City Visitors Bureau"},
+    {"name": "Thanksgiving Weekend",              "month": 11, "day": 27, "pricing_nudge": 22, "duration_days": 4, "source": "Tourist Board"},
+    {"name": "Christmas Tour of Homes",           "month": 12, "day": 6,  "pricing_nudge": 15, "duration_days": 2, "source": "City Visitors Bureau"},
+    {"name": "Christmas & New Year",              "month": 12, "day": 19, "pricing_nudge": 20, "duration_days": 14, "source": "Tourist Board"},
 ]
 
 EVENT_SOURCES = {
