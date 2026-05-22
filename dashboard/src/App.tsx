@@ -28,6 +28,20 @@ const SLUG = import.meta.env.VITE_TENANT_SLUG || 'anchorage-1770-demo'
 // hosting at a tenant-facing URL. Default = shg_admin for Jim's deployment.
 const APP_ROLE: AppRole = (import.meta.env.VITE_APP_ROLE as AppRole) || 'shg_admin'
 
+function LandingOrApp() {
+  // If user has a stored auth token, show the dashboard. Otherwise the
+  // public landing page.
+  const hasToken = typeof window !== 'undefined' && localStorage.getItem('tgc.auth.token')
+  if (!hasToken) return <LandingPage />
+  return <AuthProvider><AppInner /></AuthProvider>
+}
+
+function LoginOrApp() {
+  const hasToken = typeof window !== 'undefined' && localStorage.getItem('tgc.auth.token')
+  if (hasToken) return <AuthProvider><AppInner /></AuthProvider>
+  return <AuthProvider><AppInner /></AuthProvider>   // AppInner shows LoginScreen
+}
+
 export default function App() {
   // Public routes bypass auth so the pricing page and Stripe checkout
   // return are reachable without a session.
@@ -35,6 +49,11 @@ export default function App() {
   if (path === '/pricing')          return <PricingScreen />
   if (path === '/onboard/success')  return <OnboardingSuccessScreen />
   if (path === '/demo')             return <DemoMode />
+  // Public landing page at root for un-authenticated visitors. The
+  // AuthProvider check inside AppInner redirects logged-in users to
+  // the dashboard automatically.
+  if (path === '/' || path === '')  return <LandingOrApp />
+  if (path === '/login')            return <LoginOrApp />
   return (
     <AuthProvider>
       <AppInner />
