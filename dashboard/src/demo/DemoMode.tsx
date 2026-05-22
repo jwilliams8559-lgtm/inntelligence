@@ -54,9 +54,13 @@ export default function DemoMode() {
     if (muted) return
     // Brief delay so the screen mounts before voice starts
     const t = setTimeout(() => {
-      narrationRef.current.speak(step.narration, () => {
-        if (paused || muted) return
-        if (step.autoAdvance) advance()
+      narrationRef.current.speak({
+        stepId: step.id,
+        text:   step.narration,
+        onEnd:  () => {
+          if (paused || muted) return
+          if (step.autoAdvance) advance()
+        },
       })
     }, 600)
     return () => {
