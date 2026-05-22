@@ -293,10 +293,14 @@ def _v2_plan_features():
 
 
 def _v2_daily_rates(check_in: date) -> list:
-    comp_entries = _v2_scraper.get_current_snapshot_typed()
     results = []
     fc = _v2_demand.forecast(check_in)
     for room in V2_ROOM_TYPES:
+        # Use room-category-adjusted comp rates so a Waterfront room sees
+        # competitors' waterfront rates (Cuthbert ~$482), not their blended
+        # property base (~$377). Critical to keep recs above peer level.
+        comp_entries = _v2_scraper.get_current_snapshot_typed(
+            room_category=room.get("category"), target=check_in)
         rec = _v2_rate.recommend(
             room=room, demand_score=fc.score, demand_label=fc.label,
             demand_drivers=fc.drivers, confidence=fc.confidence,
@@ -357,7 +361,6 @@ def _v2_per_room_calendar(check_in: date, days: int = 90) -> dict:
     name Supabase happens to use (Waterfront Suite, Water View Suite,
     Garden View Room, Cottage Room, etc).
     """
-    comp_entries = _v2_scraper.get_current_snapshot_typed()
     grid: dict[str, dict[str, dict]] = {}
 
     # Cache per-room grids first
@@ -367,6 +370,11 @@ def _v2_per_room_calendar(check_in: date, days: int = 90) -> dict:
         room_grid: dict[str, dict] = {}
         for i in range(min(days, 365)):
             d  = check_in + timedelta(days=i)
+            # Per-day, room-category-adjusted comp entries. This is what
+            # makes Saturday May 23 see Cuthbert at the higher weekend rate
+            # ($559) and apply the boutique peer floor correctly.
+            comp_entries = _v2_scraper.get_current_snapshot_typed(
+                room_category=room.get("category"), target=d)
             fc = _v2_demand.forecast(d)
             rec = _v2_rate.recommend(room, fc.score, fc.label, fc.drivers,
                                      fc.confidence, comp_entries=comp_entries, target_date=d)
@@ -832,12 +840,14 @@ def v2_api_competitors_by_room_type():
     # Our rates for this room category — uses boutique-weighted comp_entries
     # so the recommendation honors the 1.45x STR floor.
     rep_room = next((r for r in ROOM_TYPES if r["id"] == our_cat["room_ids"][0]), ROOM_TYPES[0])
-    comp_entries_today = _v2_scraper.get_current_snapshot_typed()
+    # Room-category-aware comp entries — Cuthbert reads as its waterfront
+    # rate (~$482) not its blended base ($377). Critical for boutique peers.
     our_rates = []
     for d in dates:
         fc  = _v2_demand.forecast(d)
+        comp_entries_d = _v2_scraper.get_current_snapshot_typed(room_category=room_cat, target=d)
         rec = _v2_rate.recommend(rep_room, fc.score, fc.label, fc.drivers,
-                                  fc.confidence, comp_entries=comp_entries_today, target_date=d)
+                                  fc.confidence, comp_entries=comp_entries_d, target_date=d)
         our_rates.append(int(rec.recommended_rate))
 
     # Competitor rates for the equivalent room type — tag each row with its

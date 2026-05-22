@@ -75,17 +75,33 @@ class CompetitorScraper:
             for comp in COMPETITORS
         }
 
-    def get_current_snapshot_typed(self) -> list[dict]:
-        """Same data with property_type so rate_engine can weight correctly."""
-        today = date.today()
-        return [
-            {
+    def get_current_snapshot_typed(self, room_category: str | None = None,
+                                   target: date | None = None) -> list[dict]:
+        """Per-competitor rates with property_type so the rate_engine can
+        weight correctly. When room_category is supplied, each competitor's
+        base rate is adjusted by COMPETITOR_ROOM_TYPES.rate_premium_vs_base
+        for that category — so a Waterfront query sees Cuthbert at ~$482
+        not the property-blended base ~$377. STRs and competitors with no
+        room-type mapping retain their base rate.
+        """
+        from config.settings import COMPETITOR_ROOM_TYPES
+        d = target or date.today()
+        out: list[dict] = []
+        for comp in COMPETITORS:
+            base_rate = int(self._rate_for_date(comp["name"], d))
+            adjusted  = base_rate
+            if room_category:
+                mapping = COMPETITOR_ROOM_TYPES.get(comp["name"], {})
+                equiv   = mapping.get(room_category)
+                if equiv and equiv.get("rate_premium_vs_base") is not None:
+                    adjusted = int(base_rate * (1 + equiv["rate_premium_vs_base"]))
+            out.append({
                 "name":          comp["name"],
-                "rate":          int(self._rate_for_date(comp["name"], today)),
+                "rate":          adjusted,
+                "base_rate":     base_rate,
                 "property_type": comp.get("property_type", "upscale_hotel"),
-            }
-            for comp in COMPETITORS
-        ]
+            })
+        return out
 
     # ── Legacy compatibility shims (called by the original /api/dashboard route) ──
 

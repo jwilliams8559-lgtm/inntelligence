@@ -97,10 +97,13 @@ class RateEngine:
         str_baseline_avg = None
         has_str_in_set = False
 
+        boutique_peer_avg = None
         if comp_entries:
-            # Weighted average using property_type weights from settings
+            # Weighted average using property_type weights from settings.
+            # Boutique-only peer avg drives the floor below.
             num, denom = 0.0, 0.0
             str_rates: list[float] = []
+            peer_rates: list[float] = []
             for e in comp_entries:
                 rate = e.get("rate")
                 if rate is None:
@@ -112,23 +115,36 @@ class RateEngine:
                 if ptype == "airbnb_str":
                     has_str_in_set = True
                     str_rates.append(rate)
+                # boutique_inn ONLY counts as a peer. Upscale hotels are
+                # reference points but a boutique inn should price like its
+                # boutique peers, not at hotel rates.
+                elif ptype == "boutique_inn":
+                    peer_rates.append(rate)
             if denom > 0:
                 comp_avg = num / denom
+            if peer_rates:
+                boutique_peer_avg = sum(peer_rates) / len(peer_rates)
             if str_rates:
                 str_baseline_avg = sum(str_rates) / len(str_rates)
-                # Floor: a boutique inn should never quote below STR avg * 1.45
+                # STR floor: a boutique inn should never quote below STR avg * 1.45
                 premium_floor = self.round_to_5(str_baseline_avg * BOUTIQUE_INN_PREMIUM)
                 if final < premium_floor:
-                    final = max(final, premium_floor)
-                    final = self.round_to_5(min(final, hi))
+                    final = self.round_to_5(min(max(final, premium_floor), hi))
+            # Boutique peer floor: never price below the boutique peer
+            # average. This is the line that prevents Garden View landing
+            # below City Loft on a Saturday — the engine's demand math could
+            # produce a low number, but the peer floor pulls it back up.
+            if boutique_peer_avg:
+                peer_floor = self.round_to_5(boutique_peer_avg)
+                if final < peer_floor:
+                    final = self.round_to_5(min(max(final, peer_floor), hi))
         elif comp_rates:
             comp_avg = sum(comp_rates) / len(comp_rates)
 
         if comp_avg:
+            # Soft ceiling: don't price more than 25% above comp_avg in soft demand
             if final > comp_avg * 1.25 and demand_score < 70:
                 final = self.round_to_5(min(final, comp_avg * 1.15))
-            if final < comp_avg * 0.80 and demand_score >= 40:
-                final = self.round_to_5(max(final, comp_avg * 0.85))
             pct_vs_comp = (final - comp_avg) / comp_avg
             if pct_vs_comp > 0.12:
                 comp_pos = "Premium"
