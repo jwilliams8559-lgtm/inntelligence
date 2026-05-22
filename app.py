@@ -392,6 +392,44 @@ def _v2_per_room_calendar(check_in: date, days: int = 90) -> dict:
         per_room[room["name"]] = room_grid
         by_category.setdefault(room.get("category", "other"), []).append((room, room_grid))
 
+    # Hierarchy enforcement — make sure Waterfront > Water View > Cottage
+    # >= Garden on every date by snapping each lower tier to a band
+    # relative to the Waterfront anchor.
+    from modules.hospitality.rate_engine import enforce_hierarchy_top_down
+    sample_date_keys = list((next(iter(per_room.values()), {}) or {}).keys())
+    for date_iso in sample_date_keys:
+        # Get category-representative rates by name (matches Supabase aliases)
+        wf_rates = [per_room[r["name"]][date_iso]["recommended_rate"]
+                    for r in V2_ROOM_TYPES if r.get("category") == "waterfront"
+                    and r["name"] in per_room and date_iso in per_room[r["name"]]]
+        wv_rates = [per_room[r["name"]][date_iso]["recommended_rate"]
+                    for r in V2_ROOM_TYPES if r.get("category") == "waterview"
+                    and r["name"] in per_room and date_iso in per_room[r["name"]]]
+        co_rates = [per_room[r["name"]][date_iso]["recommended_rate"]
+                    for r in V2_ROOM_TYPES if r.get("category") == "premium"
+                    and r["name"] in per_room and date_iso in per_room[r["name"]]]
+        gv_rates = [per_room[r["name"]][date_iso]["recommended_rate"]
+                    for r in V2_ROOM_TYPES if r.get("category") == "garden"
+                    and r["name"] in per_room and date_iso in per_room[r["name"]]]
+        canon = {
+            "Waterfront Suite":   round(sum(wf_rates) / len(wf_rates)) if wf_rates else None,
+            "Water View Suite":   round(sum(wv_rates) / len(wv_rates)) if wv_rates else None,
+            "Cottage Room":       round(sum(co_rates) / len(co_rates)) if co_rates else None,
+            "Garden View Room":   round(sum(gv_rates) / len(gv_rates)) if gv_rates else None,
+        }
+        canon = {k: v for k, v in canon.items() if v is not None}
+        enforced = enforce_hierarchy_top_down(canon)
+        # Push the canonical (possibly-snapped) tier rates back into per_room
+        for tier_name, new_rate in enforced.items():
+            cat = {"Waterfront Suite": "waterfront", "Water View Suite": "waterview",
+                   "Cottage Room": "premium", "Garden View Room": "garden"}[tier_name]
+            for room in V2_ROOM_TYPES:
+                if room.get("category") != cat: continue
+                if room["name"] in per_room and date_iso in per_room[room["name"]]:
+                    per_room[room["name"]][date_iso]["recommended_rate"] = new_rate
+                    if room["id"] in per_room and date_iso in per_room[room["id"]]:
+                        per_room[room["id"]][date_iso]["recommended_rate"] = new_rate
+
     # Supabase-friendly aliases keyed by category. Average per date across
     # the rooms in that category so the React grid picks the right rate
     # regardless of which Supabase room_type record matched.

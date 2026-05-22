@@ -41,6 +41,47 @@ class RateRecommendation:
     top_boutique_comp_rate: Optional[float] = None
 
 
+def enforce_hierarchy_top_down(rates_by_room: dict) -> dict:
+    """Snap a per-room rate dict to the canonical room hierarchy:
+    Waterfront > Water View > Cottage >= Garden. Caps each tier as a
+    band relative to the tier above so Garden never accidentally exceeds
+    Cottage, etc. Top-down (Waterfront anchors everything) so the boutique
+    peer floor on Waterfront cascades naturally to lower tiers.
+    """
+    def find(aliases):
+        for a in aliases:
+            if a in rates_by_room:
+                return a, rates_by_room[a]
+        return None, None
+
+    wf_key, wf = find(["Waterfront Suite", "Waterfront 201", "Waterfront 202",
+                       "Waterfront 203", "Waterfront 204"])
+    wv_key, wv = find(["Water View Suite", "Waterview Suite",
+                       "Water View 301", "Water View 302", "Water View 303",
+                       "Water View 304", "Water View 305"])
+    co_key, co = find(["Cottage Room", "Private Cottage", "Cottage"])
+    gv_key, gv = find(["Garden View Room", "Garden Room", "Garden View",
+                       "Garden Room 101", "Garden Room 102",
+                       "Garden Room 103", "Garden Room 104"])
+
+    if wf is None:
+        return rates_by_room
+    out = dict(rates_by_room)
+
+    if wv_key:
+        wv_new = max(round(wf * 0.72), min(round(wf * 0.88), wv or 0))
+        out[wv_key] = wv_new
+        wv = wv_new
+    if co_key and wv:
+        co_new = max(round(wv * 0.78), min(round(wv * 0.92), co or 0))
+        out[co_key] = co_new
+        co = co_new
+    if gv_key and co:
+        gv_new = max(round(co * 0.85), min(round(co * 0.97), gv or 0))
+        out[gv_key] = gv_new
+    return out
+
+
 class RateEngine:
     # S-curve control points: (demand_score, multiplier)
     CURVE = [
