@@ -2,11 +2,11 @@ export type DemoScreen =
   | 'calendar' | 'demand' | 'events' | 'competitive' | 'reputation'
   | 'fnb' | 'crm' | 'behavior' | 'packages' | 'performance' | 'historical'
 
-export interface InteractiveStep {
-  /** Pulsing label rendered near the spotlight to direct the user. */
-  instruction:    string
-  /** CSS selector for the element the user must click to advance. */
+export interface ActionStep {
+  /** CSS selector for the element the cursor should animate to and click. */
   targetSelector: string
+  /** Milliseconds after narration starts to begin the cursor animation. */
+  delayMs: number
 }
 
 export interface DemoStep {
@@ -17,11 +17,13 @@ export interface DemoStep {
    * back to a screen-wide darkening when the selector matches nothing. */
   spotlightSelector?: string
   narration: string
-  /** When true, advance fires automatically when narration audio ends.
-   * Set to false on interactive steps — DemoMode waits for a click on
-   * `interactive.targetSelector` (or the manual Next button). */
+  /** All steps auto-advance when narration audio ends. The animated
+   * cursor (if `action` is defined) drives a click partway through. */
   autoAdvance: boolean
-  interactive?: InteractiveStep
+  /** When set, the AnimatedCursor moves from screen center to the
+   * target element and programmatically clicks it. Narration continues
+   * uninterrupted; the demo is fully self-driven. */
+  action?: ActionStep
 }
 
 /**
@@ -38,58 +40,69 @@ export const DEMO_STEPS: DemoStep[] = [
     id: 1, title: 'Water Festival Alert', screen: 'calendar',
     spotlightSelector: '[data-tour="festival-alert"], [data-demo="festival-alert"]',
     narration:
-      "Let me show you what INNtelligence does for Anchorage 1770 Inn — a 14-room historic boutique property on Bay Street in Beaufort, South Carolina. The moment you open INNtelligence, before you even look at the rate calendar, before you check your competitors — you see this. An alert. A gold banner across the top of the screen. Beaufort Water Festival. July 17th through July 26th. Approaching. No premium applied yet. That's INNtelligence telling you something important. The single biggest tourism event in the Lowcountry is 57 days away. Your rooms haven't been priced for it yet. And your competitors? They're already moving. This is the difference between a tool that reacts and a tool that anticipates. INNtelligence monitors the Beaufort events calendar continuously — not just major festivals, but USMC graduations at Parris Island, the Wine and Food Festival, First Friday Art Walks, everything that brings visitors to town. It detected the Water Festival automatically, calculated its historical impact on room demand, and flagged it for your attention. You didn't have to set a reminder. You didn't have to check a calendar. It just told you. Let's click Review and see what it's recommending.",
+      "Let me show you what INNtelligence does for Anchorage 1770 Inn — a 14-room historic boutique property on Bay Street in Beaufort, South Carolina. The moment you open INNtelligence, before you even look at the rate calendar, before you check your competitors — you see this. An alert. A gold banner across the top of the screen. Beaufort Water Festival. July 17th through July 26th. Approaching. No premium applied yet. That's INNtelligence telling you something important. The single biggest tourism event in the Lowcountry is 57 days away. Your rooms haven't been priced for it yet. And your competitors? They're already moving. This is the difference between a tool that reacts and a tool that anticipates. INNtelligence monitors the Beaufort events calendar continuously — not just major festivals, but USMC graduations at Parris Island, the Wine and Food Festival, First Friday Art Walks, everything that brings visitors to town. It detected the Water Festival automatically, calculated its historical impact on room demand, and flagged it for your attention. You didn't have to set a reminder. You didn't have to check a calendar. It just told you. Let me take you to the rate calendar.",
     autoAdvance: true,
   },
   {
     id: 2, title: 'The 90-Day Rate Calendar', screen: 'calendar',
     spotlightSelector: '[data-tour="rate-cell-festival"], [data-demo="rate-grid"], table',
     narration:
-      "This is the Rate Calendar — the command center of INNtelligence. What you're looking at is a 90-day forward view of every room at Anchorage 1770, with a rate recommendation for every single date. The Waterfront Suites across the top. Water View Suites below. Garden View Rooms. The Private Cottage. Every room type, every day, for the next three months. The gold cells — you can see them stretching across July 17th through the 26th — those are Water Festival dates. INNtelligence colors them automatically so you never miss your peak revenue period. Each cell shows you three things. The recommended rate in large text. The base rate below it in gray — so you always know how far the engine has moved from your starting point. And a dot indicating the status: yellow means pending, waiting for your approval; green means approved and live on all seven of your OTA channels simultaneously. Right now there are 363 pending recommendations sitting in this calendar. Three hundred and sixty-three individual rate decisions that INNtelligence has already made, waiting for a human to review and approve them. I want you to click on July 20th — the Saturday at the peak of Water Festival — and see exactly how INNtelligence arrived at its recommendation for the Waterfront Suite.",
-    autoAdvance: false,
-    interactive: {
-      instruction:    "Click July 20th — the Water Festival peak night",
-      targetSelector: '[data-tour="rate-cell-festival"], [data-festival="true"], .festival-cell, td.gold-cell',
+      "This is the Rate Calendar — the command center of INNtelligence. What you're looking at is a 90-day forward view of every room at Anchorage 1770, with a rate recommendation for every single date. The Waterfront Suites across the top. Water View Suites below. Garden View Rooms. The Private Cottage. Every room type, every day, for the next three months. The gold cells — you can see them stretching across July 17th through the 26th — those are Water Festival dates. INNtelligence colors them automatically so you never miss your peak revenue period. Each cell shows you three things. The recommended rate in large text. The base rate below it in gray — so you always know how far the engine has moved from your starting point. And a dot indicating the status: yellow means pending, waiting for your approval; green means approved and live on all seven of your OTA channels simultaneously. Right now there are 363 pending recommendations sitting in this calendar. Three hundred and sixty-three individual rate decisions that INNtelligence has already made, waiting for a human to review and approve them. Let me click on July 20th — the Saturday at the peak of Water Festival — and show you exactly how INNtelligence arrived at its recommendation for the Waterfront Suite.",
+    autoAdvance: true,
+    action: {
+      // Real DOM: festival rate cells are <td class="… bg-gold/8 cursor-pointer …">.
+      // Tailwind's slash escape means we match by attribute. Falls back to the
+      // first cursor-pointer td under any header tagged data-tour='rate-cell-festival'.
+      targetSelector: "td[class*='bg-gold'].cursor-pointer, [data-festival='true'], .festival-cell, td.gold-cell",
+      delayMs: 4000,
     },
   },
   {
     id: 3, title: 'Plain-English Reasoning', screen: 'calendar',
     spotlightSelector: '[data-demo="rate-grid"], table',
     narration:
-      "This is the feature that makes INNtelligence genuinely different from every other pricing tool on the market. And I want you to pay close attention to it, because it's the thing our customers talk about most. For every single rate recommendation — every one — INNtelligence shows you exactly why it's recommending that number. In plain English. No algorithm jargon. No unexplained outputs from a black box. Just a clear, readable explanation you could read out loud to a skeptical spouse or business partner and have them immediately understand. For the Waterfront Suite on July 20th, the demand score is 92 out of 100. That's Peak. The highest category. Here's what's driving that score. Booking pace this week is running 23 percent ahead of the same period last year — guests are booking the Water Festival earlier than they did in 2025. The Water Festival historically drives 94 percent occupancy across Beaufort's boutique properties. And your two closest direct competitors — Cuthbert House Inn and Rhett House Inn — are both already sold out for that weekend. Completely full. At $560 and $510 respectively. And then there's this: because Anchorage 1770 provides chef-prepared breakfast every morning, the Ribaut Social Club restaurant on the premises, a rooftop bar, and the personal touch of innkeeper service — INNtelligence recognizes that you're offering approximately $136 more in real value per night than a comparable Airbnb on Bay Street. That's not a guess. It's a calculation based on what those individual amenities cost when purchased separately. The recommendation: $500 per night for the Waterfront Suite. Three-night minimum stay. Go ahead and click Approve — let's see what happens.",
-    autoAdvance: false,
-    interactive: {
-      instruction:    "Click Approve to publish this rate live",
-      targetSelector: '.approve-btn, [data-demo="approve"], button.approve, button[class*="approve"]:not([class*="approve-all"])',
+      "This is the feature that makes INNtelligence genuinely different from every other pricing tool on the market. And I want you to pay close attention to it, because it's the thing our customers talk about most. For every single rate recommendation — every one — INNtelligence shows you exactly why it's recommending that number. In plain English. No algorithm jargon. No unexplained outputs from a black box. Just a clear, readable explanation you could read out loud to a skeptical spouse or business partner and have them immediately understand. For the Waterfront Suite on July 20th, the demand score is 92 out of 100. That's Peak. The highest category. Here's what's driving that score. Booking pace this week is running 23 percent ahead of the same period last year — guests are booking the Water Festival earlier than they did in 2025. The Water Festival historically drives 94 percent occupancy across Beaufort's boutique properties. And your two closest direct competitors — Cuthbert House Inn and Rhett House Inn — are both already sold out for that weekend. Completely full. At $560 and $510 respectively. And then there's this: because Anchorage 1770 provides chef-prepared breakfast every morning, the Ribaut Social Club restaurant on the premises, a rooftop bar, and the personal touch of innkeeper service — INNtelligence recognizes that you're offering approximately $136 more in real value per night than a comparable Airbnb on Bay Street. That's not a guess. It's a calculation based on what those individual amenities cost when purchased separately. The recommendation: $500 per night for the Waterfront Suite. Three-night minimum stay. Watch what happens when I click Approve.",
+    autoAdvance: true,
+    action: {
+      // Drawer Approve button — single rate approval. Text-based selectors aren't
+      // standard CSS, so we rely on button position inside the drawer pane.
+      targetSelector: "[data-demo='approve'], .approve-btn, button.approve, aside button[class*='bg-gold']:not([class*='Approve All'])",
+      delayMs: 6000,
     },
   },
   {
     id: 4, title: 'One-Click Approval to 7 OTAs', screen: 'calendar',
     spotlightSelector: '[data-demo="approve-all"], button[class*="approve"]',
     narration:
-      "I just clicked Approve. That's it. One click on a button that took less than a second to press. And here's what just happened in the background while you watched me click. That $500 rate for the Waterfront Suite on July 20th is now live — simultaneously, right now — on Booking dot com, Expedia, Airbnb, VRBO, Hotels dot com, Trip dot com, and Agoda. Seven channels. Updated at exactly the same time. In 2.3 seconds. Think about what that used to look like. Logging into each platform separately. Finding the right dates. Entering the rate. Saving it. Moving to the next platform. Doing it again. Seven times. For one room. On one date. And if you have 14 rooms and 90 days to manage, that math becomes overwhelming very quickly. Innkeepers spend an average of 12 to 18 hours per week on manual rate management before they use INNtelligence. Every one of those hours is time you could have spent with a guest, developing a new package, working on the restaurant, or simply having a day off. After INNtelligence, most of our customers spend less than 30 minutes per week reviewing and approving recommendations. Everything else runs automatically. Now try clicking Approve All — let's publish everything at once.",
-    autoAdvance: false,
-    interactive: {
-      instruction:    "Click 'Approve All' to publish all 363 rates",
-      targetSelector: '.approve-all-btn, [data-demo="approve-all"], button[class*="approve-all"]',
+      "I just clicked Approve. That's it. One click on a button that took less than a second to press. And here's what just happened in the background while you watched me click. That $500 rate for the Waterfront Suite on July 20th is now live — simultaneously, right now — on Booking dot com, Expedia, Airbnb, VRBO, Hotels dot com, Trip dot com, and Agoda. Seven channels. Updated at exactly the same time. In 2.3 seconds. Think about what that used to look like. Logging into each platform separately. Finding the right dates. Entering the rate. Saving it. Moving to the next platform. Doing it again. Seven times. For one room. On one date. And if you have 14 rooms and 90 days to manage, that math becomes overwhelming very quickly. Innkeepers spend an average of 12 to 18 hours per week on manual rate management before they use INNtelligence. Every one of those hours is time you could have spent with a guest, developing a new package, working on the restaurant, or simply having a day off. After INNtelligence, most of our customers spend less than 30 minutes per week reviewing and approving recommendations. Everything else runs automatically. Now let me click Approve All — and publish everything at once.",
+    autoAdvance: true,
+    action: {
+      // Real DOM: "Approve All ({pendingCount})" button — white bg, gold text, no data attr.
+      // Match by aria/text via attribute selectors that fall through to existing markers.
+      targetSelector: "[data-demo='approve-all'], .approve-all-btn, button[class*='bg-white'][class*='text-gold']",
+      delayMs: 3000,
     },
   },
   {
     id: 5, title: 'Approve All + Autopilot', screen: 'calendar',
     spotlightSelector: '[data-demo="approve-all"], button[class*="approve"]',
     narration:
-      "You see this button in the top right corner — Approve All, 363. One click on that button publishes all 363 pending rate recommendations across all 14 room types, for the next 90 days, to all seven OTAs. Simultaneously. Now, you might be wondering: is that safe? What if I disagree with one of them? What if the engine makes a recommendation I don't like? That's exactly why INNtelligence gives you complete control at every level. You can approve all at once for speed. You can filter by room type and approve just the Waterfront Suites. You can review each recommendation individually, read the reasoning, and approve or override on a case-by-case basis. You can override any rate — type in whatever number you want — and the engine accepts it without complaint. You're always in control. INNtelligence never publishes anything you haven't approved. And for innkeepers who want even less friction, there's Autopilot mode. In Autopilot, you set the guardrails — maximum rate change per day, minimum confidence threshold, operating hours — and INNtelligence runs within those guardrails automatically. It publishes rates every morning, responds to real-time changes in competitor availability, adjusts for last-minute demand surges. Most of our customers run Autopilot on their standard room types and manual review on their premium suites. Best of both worlds. Let me take you to the Competitive Intelligence center.",
+      "You just saw 363 pending rate recommendations turn green simultaneously. One click. Every room, every day, every channel — all updated. Now, you might be wondering: is that safe? What if I disagree with one of them? What if the engine makes a recommendation I don't like? That's exactly why INNtelligence gives you complete control at every level. You can approve all at once for speed. You can filter by room type and approve just the Waterfront Suites. You can review each recommendation individually, read the reasoning, and approve or override on a case-by-case basis. You can override any rate — type in whatever number you want — and the engine accepts it without complaint. You're always in control. INNtelligence never publishes anything you haven't approved. And for innkeepers who want even less friction, there's Autopilot mode. In Autopilot, you set the guardrails — maximum rate change per day, minimum confidence threshold, operating hours — and INNtelligence runs within those guardrails automatically. It publishes rates every morning, responds to real-time changes in competitor availability, adjusts for last-minute demand surges. Most of our customers run Autopilot on their standard room types and manual review on their premium suites. Best of both worlds. Let me take you to the Competitive Intelligence center.",
     autoAdvance: true,
   },
   {
     id: 6, title: 'Competitive Intelligence', screen: 'competitive',
     spotlightSelector: '[data-demo="comp-table"], table',
     narration:
-      "This is the Competitive Intelligence center. And the first thing I want you to notice is what's on this screen — and what's deliberately set apart. INNtelligence monitors 39 properties in the Beaufort market. But it doesn't treat them all the same way, because they're not all the same. The green columns — Cuthbert House Inn, Rhett House Inn, Beaufort Inn — these are your direct boutique competitors. Properties that offer a genuinely comparable guest experience. When INNtelligence sets your rates, it pays close attention to these. The orange columns — you'll notice the labels say STR, not a peer — those are short-term rental properties. Airbnb listings, VRBO units. INNtelligence shows you their rates for context, because knowing what Airbnb is charging is useful information. But here's the critical difference: it does not use those rates to set yours. An Airbnb on Bay Street charging $199 a night is not your competition. Your guest at Anchorage 1770 gets a chef-prepared breakfast every morning, a genuine innkeeper who knows Beaufort and can tell them exactly where to eat and what to see, premium linens and toiletries, access to the Ribaut Social Club, and the rooftop bar. The Airbnb guest gets a key code and a welcome message. These are not the same products, and they should not be priced by the same logic. Click the Waterfront tab and see exactly where you stand relative to Cuthbert House right now.",
-    autoAdvance: false,
-    interactive: {
-      instruction:    "Click the Waterfront tab to see your comp position",
-      targetSelector: 'button[data-room="Waterfront"], .room-tab.waterfront, button[class*="waterfront"], [data-room-category="waterfront"]',
+      "This is the Competitive Intelligence center. And the first thing I want you to notice is what's on this screen — and what's deliberately set apart. INNtelligence monitors 39 properties in the Beaufort market. But it doesn't treat them all the same way, because they're not all the same. The green columns — Cuthbert House Inn, Rhett House Inn, Beaufort Inn — these are your direct boutique competitors. Properties that offer a genuinely comparable guest experience. When INNtelligence sets your rates, it pays close attention to these. The orange columns — you'll notice the labels say STR, not a peer — those are short-term rental properties. Airbnb listings, VRBO units. INNtelligence shows you their rates for context, because knowing what Airbnb is charging is useful information. But here's the critical difference: it does not use those rates to set yours. An Airbnb on Bay Street charging $199 a night is not your competition. Your guest at Anchorage 1770 gets a chef-prepared breakfast every morning, a genuine innkeeper who knows Beaufort and can tell them exactly where to eat and what to see, premium linens and toiletries, access to the Ribaut Social Club, and the rooftop bar. The Airbnb guest gets a key code and a welcome message. These are not the same products, and they should not be priced by the same logic. Let me click the Waterfront tab — and show you exactly where you stand relative to Cuthbert House right now.",
+    autoAdvance: true,
+    action: {
+      // Waterfront room-type filter pill on Competitive Intel.
+      // Buttons are rendered via .map() with no data attr; we target by sibling
+      // selectors in fallback. The capture script tags this via JS for the demo
+      // by adding data-tab="waterfront" before clicking.
+      targetSelector: "button[data-tab='waterfront'], .waterfront-tab, button[data-room='Waterfront']",
+      delayMs: 3000,
     },
   },
   {
@@ -103,11 +116,13 @@ export const DEMO_STEPS: DemoStep[] = [
     id: 8, title: 'Guest CRM', screen: 'crm',
     spotlightSelector: '[data-demo="guest-list"], table, .guest-card',
     narration:
-      "This is your Guest CRM — the relationship intelligence layer of INNtelligence. Every guest who has stayed at Anchorage 1770 is here, with their complete history: number of stays, total lifetime revenue, last visit date, how they booked, which rooms they prefer, and the segment tags INNtelligence has automatically assigned based on their behavior. Margaret Whitfield from Charleston. Six stays. $7,250 in lifetime revenue. Last visit April 2026. She has VIP and Local tags, because she's a high-value repeat guest who lives close enough to visit frequently. Catherine DuBose from Washington DC. Five stays. $6,420. Tagged Anniversary and VIP — INNtelligence detected that she and her partner consistently stay around the same dates each year, which means she's likely celebrating something meaningful to them. At the top of the screen, INNtelligence has already drafted 16 outreach campaigns — demand fill campaigns automatically generated for dates where occupancy is projected to be below target. It identifies which guest segments are most likely to book those specific gaps, personalizes the timing and the offer, and queues them up for your review. For Margaret, INNtelligence is recommending a personal reach-out about six weeks before Water Festival, because historical data shows past VIP guests who receive a personal invitation at that lead time convert at about 34 percent. That's not a mass email blast. It's a targeted, timed message to someone who has already demonstrated she loves your property. Click on Margaret and see her full profile.",
-    autoAdvance: false,
-    interactive: {
-      instruction:    "Click Margaret Whitfield to see her full profile",
-      targetSelector: '.guest-row:first-child, .guest-card:first-child, tr.guest:first-child, tbody tr:first-child',
+      "This is your Guest CRM — the relationship intelligence layer of INNtelligence. Every guest who has stayed at Anchorage 1770 is here, with their complete history: number of stays, total lifetime revenue, last visit date, how they booked, which rooms they prefer, and the segment tags INNtelligence has automatically assigned based on their behavior. Margaret Whitfield from Charleston. Six stays. $7,250 in lifetime revenue. Last visit April 2026. She has VIP and Local tags, because she's a high-value repeat guest who lives close enough to visit frequently. Catherine DuBose from Washington DC. Five stays. $6,420. Tagged Anniversary and VIP — INNtelligence detected that she and her partner consistently stay around the same dates each year, which means she's likely celebrating something meaningful to them. At the top of the screen, INNtelligence has already drafted 16 outreach campaigns — demand fill campaigns automatically generated for dates where occupancy is projected to be below target. It identifies which guest segments are most likely to book those specific gaps, personalizes the timing and the offer, and queues them up for your review. For Margaret, INNtelligence is recommending a personal reach-out about six weeks before Water Festival, because historical data shows past VIP guests who receive a personal invitation at that lead time convert at about 34 percent. That's not a mass email blast. It's a targeted, timed message to someone who has already demonstrated she loves your property. Let me click on Margaret and show you her full profile.",
+    autoAdvance: true,
+    action: {
+      // First guest row in CRM table — uses tbody tr:first-child as primary,
+      // since rows are rendered via .map() with no data attr.
+      targetSelector: ".guest-row:first-child, .guest-card:first-child, tbody tr:first-child",
+      delayMs: 4000,
     },
   },
   {
@@ -136,6 +151,6 @@ export const DEMO_STEPS: DemoStep[] = [
     spotlightSelector: '[data-tour="festival-alert"], [data-demo="festival-alert"]',
     narration:
       "Let me tell you who built INNtelligence and why, because I think it matters. My name is Jim Williams. I'm a Certified Pricing Professional with eleven years of experience in revenue management. I built pricing systems for major telecommunications companies. I understand demand modeling, competitive positioning, and yield optimization at an enterprise level. And I'm also an innkeeper. I fell in love with a historic property on Bay Street in Beaufort, South Carolina — Anchorage 1770 Inn, the exact property you've been watching throughout this demo — and I started the process of acquiring it. And in preparing to run it, I looked at every revenue management tool available for boutique inns. What I found was disappointing. Enterprise systems priced at $1,500 to $10,000 a month, built for chain hotels, adapted poorly for small independent properties. Simpler tools that priced rooms only — ignoring the restaurant, the bar, the entire guest relationship. And a few promising platforms that closed without warning when their venture funding ran out. So I built INNtelligence from scratch. Built it the way I would want it as an innkeeper. Transparent reasoning. Full control. All six revenue streams. Real Beaufort market data, real competitor monitoring, real event intelligence. And priced at $399 to $699 a month — a subscription that pays for itself many times over. The Water Festival starts in 57 days. Your Waterfront Suite rates are not yet at their Water Festival premium. Cuthbert House is already seeing sold-out dates. Every day between now and July 17th is an opportunity to capture revenue that your competitors are already capturing. INNtelligence starts with a 14-day free trial. No credit card. Personal onboarding from me directly. Let's talk.",
-    autoAdvance: false,
+    autoAdvance: true,
   },
 ]

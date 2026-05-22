@@ -5,6 +5,7 @@ import { DEMO_STEPS } from './demoScript'
 import SpotlightOverlay from './SpotlightOverlay'
 import DemoControls from './DemoControls'
 import { NarrationEngine } from './NarrationEngine'
+import AnimatedCursor from './AnimatedCursor'
 
 type Phase = 'entry' | 'running' | 'finished'
 
@@ -15,7 +16,9 @@ const TOKEN_KEY     = 'tgc.auth.token'
 /** Top-level demo route. Three phases:
  *    entry    full-screen splash with [Start Demo]
  *    running  AuthProvider+AppInner renders the actual app underneath
- *             a SpotlightOverlay; controls + narration drive the tour
+ *             a SpotlightOverlay; controls + narration drive the tour.
+ *             On action steps, an AnimatedCursor self-drives the click —
+ *             the viewer just watches.
  *    finished completion CTA modal
  */
 export default function DemoMode() {
@@ -37,7 +40,6 @@ export default function DemoMode() {
       }).then(r => r.json()).then(j => {
         if (j.token) {
           localStorage.setItem(TOKEN_KEY, j.token)
-          // Reload AuthProvider state — App reads token on mount
           window.dispatchEvent(new Event('inn:auth-refresh'))
         }
       }).catch(() => {})
@@ -46,22 +48,21 @@ export default function DemoMode() {
 
   const step = DEMO_STEPS[stepIdx]
 
-  // Drive screen navigation + narration when step changes
+  // Drive screen navigation + narration when step changes. Every step
+  // auto-advances when audio ends — the AnimatedCursor handles the
+  // simulated click partway through, but does not control advance.
   useEffect(() => {
     if (phase !== 'running' || !step) return
     window.dispatchEvent(new CustomEvent('tgc:navigate', { detail: step.screen }))
     if (paused) return
     if (muted) return
-    // Brief delay so the screen mounts before voice starts
     const t = setTimeout(() => {
       narrationRef.current.speak({
         stepId: step.id,
         text:   step.narration,
         onEnd:  () => {
           if (paused || muted) return
-          if (step.autoAdvance) advance()
-          // Non-autoAdvance steps wait for the user to click the interactive
-          // target (or hit Next). The instruction label is rendered below.
+          advance()
         },
       })
     }, 600)
@@ -71,39 +72,6 @@ export default function DemoMode() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepIdx, phase, paused, muted])
-
-  // Interactive click-to-advance: attach a one-time listener to the
-  // target element. Retries up to 30 times (~6s) for the element to
-  // appear after the screen navigation completes.
-  useEffect(() => {
-    if (phase !== 'running' || !step?.interactive) return
-    let attached = false
-    let cleanup: (() => void) | undefined
-    let timer: number | null = null
-
-    function attach(attempts = 0) {
-      const el = document.querySelector(step.interactive!.targetSelector) as HTMLElement | null
-      if (el) {
-        attached = true
-        const handler = () => {
-          el.removeEventListener('click', handler)
-          // Short delay so the click visually registers in the UI
-          window.setTimeout(() => advance(), 800)
-        }
-        el.addEventListener('click', handler)
-        cleanup = () => el.removeEventListener('click', handler)
-      } else if (attempts < 30) {
-        timer = window.setTimeout(() => attach(attempts + 1), 200)
-      }
-    }
-    timer = window.setTimeout(() => attach(0), 700)
-    return () => {
-      if (timer) clearTimeout(timer)
-      if (!attached) return
-      cleanup?.()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIdx, phase])
 
   function start() { setPhase('running'); setStepIdx(0); setPaused(false) }
   function advance() {
@@ -136,7 +104,6 @@ export default function DemoMode() {
 
   if (phase === 'finished') return <FinishedScreen onRestart={start} />
 
-  // RUNNING: render the full app underneath, overlay + controls on top.
   return (
     <AuthProvider>
       <AppInner />
@@ -173,19 +140,15 @@ export default function DemoMode() {
         }}>{step.narration}</div>
       )}
 
-      {/* Interactive instruction — pulsing gold pill near the spotlight */}
-      {step?.interactive && !paused && (
-        <div className="inn-pulse-gold" style={{
-          position: 'fixed', bottom: 160, left: '50%', transform: 'translateX(-50%)',
-          background: '#A07830', color: '#1A3A5C',
-          padding: '10px 24px', borderRadius: 24,
-          fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap',
-          fontFamily: 'Inter, system-ui, sans-serif',
-          boxShadow: '0 4px 20px rgba(160,120,48,0.5)',
-          zIndex: 9005, pointerEvents: 'none',
-        }}>
-          👆 {step.interactive.instruction} →
-        </div>
+      {/* Self-driving gold cursor. Remounts per step via key so the
+          animation restarts from screen center each time. */}
+      {step?.action && !paused && (
+        <AnimatedCursor
+          key={`cursor-${stepIdx}`}
+          active={phase === 'running'}
+          targetSelector={step.action.targetSelector}
+          delayMs={step.action.delayMs}
+        />
       )}
 
       <DemoControls
@@ -219,12 +182,12 @@ function EntryScreen({ onStart }: { onStart: () => void }) {
         }}>INNtelligence</div>
         <div style={{ color: '#9CA3AF', fontSize: 14, marginBottom: 40 }}>by The Gracious Collection</div>
         <div style={{ fontSize: 22, color: 'white', fontWeight: 600, marginBottom: 12 }}>
-          22-Minute Interactive Demo
+          22-Minute Guided Demo
         </div>
         <div style={{ fontSize: 16, color: '#9CA3AF', marginBottom: 48, lineHeight: 1.5 }}>
           A complete walkthrough of INNtelligence — rate recommendations,
           competitive intelligence, F&amp;B yield, guest CRM, and ROI reporting.
-          Click through each step at your own pace.
+          Sit back and watch; the demo drives itself.
         </div>
         <button onClick={onStart} style={{
           background: '#A07830', color: '#1A3A5C', border: 'none',
