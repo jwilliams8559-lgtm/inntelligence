@@ -47,12 +47,27 @@ def enforce_hierarchy_top_down(rates_by_room: dict) -> dict:
     band relative to the tier above so Garden never accidentally exceeds
     Cottage, etc. Top-down (Waterfront anchors everything) so the boutique
     peer floor on Waterfront cascades naturally to lower tiers.
+
+    Bands use ceil for the lower bound and floor for the upper bound so
+    integer rounding can never push the result one cent outside the band
+    — the validator (scripts/validate_rates.py) treats the same numeric
+    bounds as inclusive, so ceil/floor here is what makes the contract
+    "result is inside the band" actually hold.
     """
+    import math
+
     def find(aliases):
         for a in aliases:
             if a in rates_by_room:
                 return a, rates_by_room[a]
         return None, None
+
+    def _clamp(lo_pct: float, hi_pct: float, parent: float, current):
+        lo = math.ceil(parent * lo_pct)
+        hi = math.floor(parent * hi_pct)
+        if current is None:
+            return (lo + hi) // 2  # mid-band default when no rate yet
+        return max(lo, min(hi, int(round(current))))
 
     wf_key, wf = find(["Waterfront Suite", "Waterfront 201", "Waterfront 202",
                        "Waterfront 203", "Waterfront 204"])
@@ -69,15 +84,15 @@ def enforce_hierarchy_top_down(rates_by_room: dict) -> dict:
     out = dict(rates_by_room)
 
     if wv_key:
-        wv_new = max(round(wf * 0.72), min(round(wf * 0.88), wv or 0))
+        wv_new = _clamp(0.72, 0.88, wf, wv)
         out[wv_key] = wv_new
         wv = wv_new
     if co_key and wv:
-        co_new = max(round(wv * 0.78), min(round(wv * 0.92), co or 0))
+        co_new = _clamp(0.78, 0.92, wv, co)
         out[co_key] = co_new
         co = co_new
     if gv_key and co:
-        gv_new = max(round(co * 0.85), min(round(co * 0.97), gv or 0))
+        gv_new = _clamp(0.85, 0.97, co, gv)
         out[gv_key] = gv_new
     return out
 

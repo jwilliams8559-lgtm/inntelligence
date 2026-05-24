@@ -771,41 +771,60 @@ class RateRecommender:
 
         Returns rows updated.
         """
+        from modules.hospitality.rate_engine import enforce_hierarchy_top_down
+
         room_types = self._get_room_types(property_id)
-        total = 0
 
+        # Compute every (room, date) recommendation first, indexed by date so
+        # we can hierarchy-snap across room types before writing. The previous
+        # loop wrote one room type at a time, which made it impossible to
+        # enforce Waterfront > Waterview > Cottage >= Garden at the point of
+        # write — hierarchy violations could land in the DB and only get
+        # caught later by scripts/validate_rates.py.
+        per_date: dict[str, list[dict[str, Any]]] = {}
         for rt in room_types:
-            recs = self._get_pending_recs(property_id, rt["id"])
-            if not recs:
-                continue
-
-            updates: list[dict] = []
-            for rec in recs:
+            for rec in self._get_pending_recs(property_id, rt["id"]):
                 target_date  = date.fromisoformat(rec["target_date"])
                 demand_score = int(rec.get("demand_score") or 50)
-
                 recommendation = self.recommend_rate(
                     tenant_id, property_id, rt["id"], target_date,
                     demand_score=demand_score,
                 )
-
-                updates.append({
-                    "id":               rec["id"],
-                    "recommended_rate": recommendation.recommended_rate,
-                    "reasoning":        recommendation.reasoning,
-                    "confidence_score": recommendation.confidence_score,
-                    "minimum_stay_rec": recommendation.minimum_stay_required,
-                    "current_rate":     recommendation.current_rate,
+                per_date.setdefault(rec["target_date"], []).append({
+                    "rec_id":         rec["id"],
+                    "rt_name":        rt.get("name", ""),
+                    "recommendation": recommendation,
                 })
 
-            written = self._batch_patch(updates)
-            logger.info(
-                "Updated %d recommendations for room type %s",
-                written, rt.get("name", rt["id"]),
-            )
-            total += written
+        # WRITE-TIME HIERARCHY ENFORCEMENT — snap each date's set of rates to
+        # the canonical hierarchy before the PATCH. enforce_hierarchy_top_down
+        # is the same function the validator's checks were modeled after; if
+        # the engine writes a violation, the validator was always going to
+        # catch it, but only after the bad data was already in the DB. Snap
+        # here and the violation never gets written.
+        updates: list[dict] = []
+        for date_iso, entries in per_date.items():
+            rates_by_name = {e["rt_name"]: float(e["recommendation"].recommended_rate)
+                             for e in entries}
+            snapped = enforce_hierarchy_top_down(rates_by_name)
+            for e in entries:
+                rec_obj = e["recommendation"]
+                new_rate = snapped.get(e["rt_name"], rec_obj.recommended_rate)
+                updates.append({
+                    "id":               e["rec_id"],
+                    "recommended_rate": float(new_rate),
+                    "reasoning":        rec_obj.reasoning,
+                    "confidence_score": rec_obj.confidence_score,
+                    "minimum_stay_rec": rec_obj.minimum_stay_required,
+                    "current_rate":     rec_obj.current_rate,
+                })
 
-        return total
+        if not updates:
+            return 0
+        written = self._batch_patch(updates)
+        logger.info("Updated %d recommendations across %d dates (hierarchy-enforced)",
+                    written, len(per_date))
+        return written
 
     def score_room_images(self, image_urls: list[str]) -> dict:
         """Placeholder for Phase 6B Claude vision API integration.
