@@ -71,6 +71,92 @@ def _spline_multiplier(demand_score: int) -> float:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Canonical recommendation — SINGLE SOURCE OF TRUTH
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Every API endpoint that needs to surface "the current recommended rate for
+# room X on date Y" MUST go through canonical_recommendation(). It reads the
+# rate_recommendations table — the persisted output of the rate engine — and
+# never recomputes. This eliminates the class of bug where the Rate Calendar
+# (DB-backed) and Competitive Intel (recomputed) show different numbers for
+# the same room/date.
+#
+# Live recomputation is reserved for the WRITE path — RateRecommender.update_
+# all_recommendations() generates rates and writes them to the DB. Read paths
+# never touch the engine.
+
+def canonical_recommendation(property_id: str, room_type_id: str,
+                             target_date) -> dict[str, Any] | None:
+    """Read the canonical rate for (property, room, date) from the DB.
+
+    Returns the rate_recommendations row as a dict, or None if no record
+    exists for that (property, room_type, date) combination. Every API
+    endpoint that exposes a rate to a customer must call this — no
+    parallel live computation is allowed on read paths.
+    """
+    sb_url = os.environ.get("SUPABASE_URL")
+    sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not (sb_url and sb_key):
+        return None
+    date_iso = target_date.isoformat() if hasattr(target_date, "isoformat") else str(target_date)
+    try:
+        r = requests.get(
+            f"{sb_url}/rest/v1/rate_recommendations",
+            headers={"apikey": sb_key, "Authorization": f"Bearer {sb_key}"},
+            params={
+                "property_id":  f"eq.{property_id}",
+                "room_type_id": f"eq.{room_type_id}",
+                "target_date":  f"eq.{date_iso}",
+                "select":       "id,recommended_rate,status,demand_score,confidence_score,minimum_stay_rec,reasoning",
+                "limit":        1,
+            },
+            timeout=10,
+        )
+        r.raise_for_status()
+        rows = r.json()
+        return rows[0] if rows else None
+    except requests.RequestException:
+        return None
+
+
+def canonical_recommendations_bulk(property_id: str,
+                                   date_from, date_to) -> dict[tuple[str, str], dict]:
+    """Bulk read — returns {(room_type_id, date_iso): rec_dict}.
+
+    The bulk variant exists so /api/calendar/per-room can fetch a 90-day
+    window in one DB call instead of 360 individual lookups. Same SOT
+    guarantee: never recomputes.
+    """
+    sb_url = os.environ.get("SUPABASE_URL")
+    sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not (sb_url and sb_key):
+        return {}
+    df = date_from.isoformat() if hasattr(date_from, "isoformat") else str(date_from)
+    dt = date_to.isoformat()   if hasattr(date_to,   "isoformat") else str(date_to)
+    try:
+        r = requests.get(
+            f"{sb_url}/rest/v1/rate_recommendations",
+            headers={"apikey": sb_key, "Authorization": f"Bearer {sb_key}"},
+            params={
+                "property_id": f"eq.{property_id}",
+                "target_date": f"gte.{df}",
+                "select":      "room_type_id,target_date,recommended_rate,status,demand_score,confidence_score,minimum_stay_rec,reasoning",
+                "order":       "target_date",
+                "limit":       "10000",
+            },
+            timeout=30,
+        )
+        r.raise_for_status()
+        out: dict[tuple[str, str], dict] = {}
+        for row in r.json():
+            if row["target_date"] <= dt and row.get("recommended_rate") is not None:
+                out[(row["room_type_id"], row["target_date"])] = row
+        return out
+    except requests.RequestException:
+        return {}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Data classes
 # ─────────────────────────────────────────────────────────────────────────────
 

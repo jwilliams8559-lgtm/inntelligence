@@ -18,6 +18,83 @@ SUBSCRIPTION_COST = {
 }
 
 
+def _canonical_rate_for(date_str: str, room_name: str) -> int | None:
+    """Look up the DB-canonical recommended_rate for the demo property on
+    a given date + room name. Used so top_wins reflect what the customer
+    actually sees on the Rate Calendar — not hardcoded demo numbers.
+    Returns None if the rec doesn't exist."""
+    import os
+    import requests
+    from datetime import date as _date, datetime as _dt
+    sb_url = os.environ.get("SUPABASE_URL")
+    sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not (sb_url and sb_key):
+        return None
+    # Parse "Jul 20" → date object using the current year
+    today = _date.today()
+    for year in (today.year, today.year + 1):
+        try:
+            d = _dt.strptime(f"{date_str} {year}", "%b %d %Y").date()
+        except ValueError:
+            continue
+        if d >= today:
+            target_date = d
+            break
+    else:
+        return None
+    h = {"apikey": sb_key, "Authorization": f"Bearer {sb_key}"}
+    try:
+        props = requests.get(
+            f"{sb_url}/rest/v1/properties",
+            params={"select": "id", "limit": 1,
+                    "tenant_id": f"in.({_demo_tenant_id_csv(sb_url, sb_key)})"},
+            headers=h, timeout=10,
+        ).json()
+        if not props:
+            return None
+        pid = props[0]["id"]
+        rts = requests.get(
+            f"{sb_url}/rest/v1/room_types",
+            params={"property_id": f"eq.{pid}",
+                    "name":        f"eq.{room_name}",
+                    "select":      "id", "limit": 1},
+            headers=h, timeout=10,
+        ).json()
+        if not rts:
+            return None
+        rt_id = rts[0]["id"]
+        recs = requests.get(
+            f"{sb_url}/rest/v1/rate_recommendations",
+            params={"property_id":  f"eq.{pid}",
+                    "room_type_id": f"eq.{rt_id}",
+                    "target_date":  f"eq.{target_date.isoformat()}",
+                    "select":       "recommended_rate", "limit": 1},
+            headers=h, timeout=10,
+        ).json()
+        if recs and recs[0].get("recommended_rate") is not None:
+            return int(recs[0]["recommended_rate"])
+    except requests.RequestException:
+        pass
+    return None
+
+
+def _demo_tenant_id_csv(sb_url: str, sb_key: str) -> str:
+    """Resolve the demo tenant id once per call."""
+    import os
+    import requests
+    slug = os.environ.get("TGC_DEMO_TENANT_SLUG", "anchorage-1770-demo")
+    try:
+        rows = requests.get(
+            f"{sb_url}/rest/v1/tenants",
+            params={"slug": f"eq.{slug}", "select": "id"},
+            headers={"apikey": sb_key, "Authorization": f"Bearer {sb_key}"},
+            timeout=10,
+        ).json()
+        return ",".join(r["id"] for r in rows) or "00000000-0000-0000-0000-000000000000"
+    except requests.RequestException:
+        return "00000000-0000-0000-0000-000000000000"
+
+
 def get_report(property_config: dict[str, Any] | None = None, tier: str = "professional") -> dict[str, Any]:
     today = date.today()
     period = today.strftime("%B %Y")
@@ -48,32 +125,29 @@ def get_report(property_config: dict[str, Any] | None = None, tier: str = "profe
     direct_pct_last_month = 33
     commission_saved      = round(1240 * scale)
 
-    top_wins = [
-        {
-            "date":              "Jul 20",
-            "event":             "Water Festival",
-            "rate_recommended":  round(535 * scale),
-            "rate_prior_year":   round(378 * scale),
-            "lift_per_night":    round(157 * scale),
-            "room":              "Waterfront Suite",
-        },
-        {
-            "date":              "May 23",
-            "event":             "Memorial Day Weekend",
-            "rate_recommended":  round(495 * scale),
-            "rate_prior_year":   round(378 * scale),
-            "lift_per_night":    round(117 * scale),
-            "room":              "Waterfront Suite",
-        },
-        {
-            "date":              "Jun 5",
-            "event":             "First Friday Art Walk",
-            "rate_recommended":  round(450 * scale),
-            "rate_prior_year":   round(378 * scale),
-            "lift_per_night":    round(72  * scale),
-            "room":              "Multiple rooms",
-        },
+    # Top wins — SINGLE SOURCE OF TRUTH. Each win cites a specific (date,
+    # room) pair and MUST report the rate the customer would see on the
+    # Rate Calendar for that same cell. Hardcoded numbers here previously
+    # diverged from rate_recommendations and broke the integrity check.
+    _wins_spec = [
+        ("Jul 20", "Water Festival",          "Waterfront Suite", 378),
+        ("May 23", "Memorial Day Weekend",    "Waterfront Suite", 378),
+        ("Jun 5",  "First Friday Art Walk",   "Waterfront Suite", 378),
     ]
+    top_wins = []
+    for date_str, event, room, prior_year in _wins_spec:
+        recommended = _canonical_rate_for(date_str, room)
+        if recommended is None:
+            # No DB rec for this date — omit the win rather than fabricate
+            continue
+        top_wins.append({
+            "date":              date_str,
+            "event":             event,
+            "rate_recommended":  recommended,
+            "rate_prior_year":   round(prior_year * scale),
+            "lift_per_night":    recommended - round(prior_year * scale),
+            "room":              room,
+        })
 
     missed_opportunities = [
         {

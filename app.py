@@ -354,115 +354,125 @@ def _v2_calendar(check_in: date, days: int = 90) -> list:
     return cal
 
 
+_CANONICAL_TENANT_SLUG = os.environ.get("TGC_DEMO_TENANT_SLUG", "anchorage-1770-demo")
+_canonical_cache: dict[str, Any] = {"property_id": None, "room_types": None}
+
+
+def _canonical_property_id() -> str | None:
+    """Resolve and cache the demo tenant's property_id. Returns None if the
+    DB is unreachable or the tenant doesn't exist."""
+    if _canonical_cache["property_id"]:
+        return _canonical_cache["property_id"]
+    sb_url = os.environ.get("SUPABASE_URL")
+    sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not (sb_url and sb_key):
+        return None
+    try:
+        h = {"apikey": sb_key, "Authorization": f"Bearer {sb_key}"}
+        tr = requests.get(f"{sb_url}/rest/v1/tenants",
+                          params={"slug": f"eq.{_CANONICAL_TENANT_SLUG}", "select": "id"},
+                          headers=h, timeout=10).json()
+        if not tr:
+            return None
+        pr = requests.get(f"{sb_url}/rest/v1/properties",
+                          params={"tenant_id": f"eq.{tr[0]['id']}", "select": "id", "limit": 1},
+                          headers=h, timeout=10).json()
+        if not pr:
+            return None
+        _canonical_cache["property_id"] = pr[0]["id"]
+        return _canonical_cache["property_id"]
+    except requests.RequestException:
+        return None
+
+
+def _canonical_room_types() -> list[dict]:
+    """Cached DB room_types for the demo property."""
+    if _canonical_cache["room_types"] is not None:
+        return _canonical_cache["room_types"]
+    pid = _canonical_property_id()
+    if not pid:
+        return []
+    sb_url = os.environ["SUPABASE_URL"]
+    sb_key = os.environ["SUPABASE_SERVICE_KEY"]
+    try:
+        rows = requests.get(f"{sb_url}/rest/v1/room_types",
+                            params={"property_id": f"eq.{pid}",
+                                    "select":      "id,name,base_rate"},
+                            headers={"apikey": sb_key,
+                                     "Authorization": f"Bearer {sb_key}"},
+                            timeout=10).json()
+        _canonical_cache["room_types"] = rows
+        return rows
+    except requests.RequestException:
+        return []
+
+
+# Names a DB room_type might use → React-friendly alias keys the calendar grid
+# uses on its own room headers. Keep this stable; RateCalendar.tsx looks up
+# both rt.name and rt.id.
+_DB_NAME_TO_ALIASES: dict[str, list[str]] = {
+    "Waterfront Suite": ["Waterfront Suite", "Waterfront", "Waterfront Room"],
+    "Waterview Suite":  ["Water View Suite", "Waterview Suite", "Water View Room", "Water View", "Waterview"],
+    "Water View Suite": ["Water View Suite", "Waterview Suite", "Water View Room", "Water View", "Waterview"],
+    "Garden View Room": ["Garden View Room", "Garden Room", "Garden View", "Garden"],
+    "Cottage Room":     ["Cottage Room", "Private Cottage", "Cottage", "Premium Suite"],
+    "Private Cottage":  ["Cottage Room", "Private Cottage", "Cottage", "Premium Suite"],
+}
+
+
 def _v2_per_room_calendar(check_in: date, days: int = 90) -> dict:
-    """Per-room rate recommendations for the next `days` days using
-    boutique-weighted comp_entries. Returns aliases under multiple key
-    spellings so the React Rate Calendar can match whichever room-type
-    name Supabase happens to use (Waterfront Suite, Water View Suite,
-    Garden View Room, Cottage Room, etc).
+    """Per-room rate calendar — reads from rate_recommendations table.
+
+    SINGLE SOURCE OF TRUTH: this endpoint MUST agree, cell-for-cell, with
+    the direct Supabase read the React RateCalendar grid performs. Both
+    paths pull from rate_recommendations. No live recomputation on the
+    read path — that previously produced rates that disagreed with the
+    Approve/Reject cells customers click on.
+
+    The response shape (rates keyed by both room_type_id and alias name)
+    is preserved so RateCalendar.tsx's existing overlay-merge logic keeps
+    working — it just stops producing divergent overlays.
     """
+    from engine.rate_engine import canonical_recommendations_bulk
+
+    property_id = _canonical_property_id()
+    end_date    = check_in + timedelta(days=days)
     grid: dict[str, dict[str, dict]] = {}
 
-    # Cache per-room grids first
-    per_room: dict[str, dict[str, dict]] = {}
-    by_category: dict[str, list[dict]] = {}
-    for room in V2_ROOM_TYPES:
+    if not property_id:
+        return {"start_date": check_in.isoformat(), "days": days, "rates": grid,
+                "source": "canonical_db", "warning": "no canonical property"}
+
+    recs       = canonical_recommendations_bulk(property_id, check_in, end_date)
+    room_types = _canonical_room_types()
+
+    for rt in room_types:
         room_grid: dict[str, dict] = {}
-        for i in range(min(days, 365)):
-            d  = check_in + timedelta(days=i)
-            # Per-day, room-category-adjusted comp entries. This is what
-            # makes Saturday May 23 see Cuthbert at the higher weekend rate
-            # ($559) and apply the boutique peer floor correctly.
-            comp_entries = _v2_scraper.get_current_snapshot_typed(
-                room_category=room.get("category"), target=d)
-            fc = _v2_demand.forecast(d)
-            rec = _v2_rate.recommend(room, fc.score, fc.label, fc.drivers,
-                                     fc.confidence, comp_entries=comp_entries, target_date=d)
-            room_grid[d.isoformat()] = {
-                "recommended_rate": int(rec.recommended_rate),
-                "demand_score":     fc.score,
-                "demand_label":     fc.label,
-                "minimum_stay":     rec.minimum_stay,
-                "reasoning":        rec.reasoning,
-                "comp_avg":         int(rec.comp_avg) if rec.comp_avg else None,
-                "comp_pos":         rec.comp_pos,
-                "amenity_premium":  rec.amenity_premium,
+        for i in range(days):
+            iso = (check_in + timedelta(days=i)).isoformat()
+            rec = recs.get((rt["id"], iso))
+            if rec is None:
+                continue
+            room_grid[iso] = {
+                "recommended_rate": int(rec["recommended_rate"]),
+                "demand_score":     rec.get("demand_score"),
+                "demand_label":     None,
+                "minimum_stay":     rec.get("minimum_stay_rec"),
+                "reasoning":        rec.get("reasoning"),
+                "comp_avg":         None,
+                "comp_pos":         None,
+                "amenity_premium":  None,
             }
-        per_room[room["id"]]   = room_grid
-        per_room[room["name"]] = room_grid
-        by_category.setdefault(room.get("category", "other"), []).append((room, room_grid))
+        grid[rt["id"]]   = room_grid
+        grid[rt["name"]] = room_grid
+        for alias in _DB_NAME_TO_ALIASES.get(rt["name"], ()):
+            grid.setdefault(alias, room_grid)
 
-    # Hierarchy enforcement — make sure Waterfront > Water View > Cottage
-    # >= Garden on every date by snapping each lower tier to a band
-    # relative to the Waterfront anchor.
-    from modules.hospitality.rate_engine import enforce_hierarchy_top_down
-    sample_date_keys = list((next(iter(per_room.values()), {}) or {}).keys())
-    for date_iso in sample_date_keys:
-        # Get category-representative rates by name (matches Supabase aliases)
-        wf_rates = [per_room[r["name"]][date_iso]["recommended_rate"]
-                    for r in V2_ROOM_TYPES if r.get("category") == "waterfront"
-                    and r["name"] in per_room and date_iso in per_room[r["name"]]]
-        wv_rates = [per_room[r["name"]][date_iso]["recommended_rate"]
-                    for r in V2_ROOM_TYPES if r.get("category") == "waterview"
-                    and r["name"] in per_room and date_iso in per_room[r["name"]]]
-        co_rates = [per_room[r["name"]][date_iso]["recommended_rate"]
-                    for r in V2_ROOM_TYPES if r.get("category") == "premium"
-                    and r["name"] in per_room and date_iso in per_room[r["name"]]]
-        gv_rates = [per_room[r["name"]][date_iso]["recommended_rate"]
-                    for r in V2_ROOM_TYPES if r.get("category") == "garden"
-                    and r["name"] in per_room and date_iso in per_room[r["name"]]]
-        canon = {
-            "Waterfront Suite":   round(sum(wf_rates) / len(wf_rates)) if wf_rates else None,
-            "Water View Suite":   round(sum(wv_rates) / len(wv_rates)) if wv_rates else None,
-            "Cottage Room":       round(sum(co_rates) / len(co_rates)) if co_rates else None,
-            "Garden View Room":   round(sum(gv_rates) / len(gv_rates)) if gv_rates else None,
-        }
-        canon = {k: v for k, v in canon.items() if v is not None}
-        enforced = enforce_hierarchy_top_down(canon)
-        # Push the canonical (possibly-snapped) tier rates back into per_room
-        for tier_name, new_rate in enforced.items():
-            cat = {"Waterfront Suite": "waterfront", "Water View Suite": "waterview",
-                   "Cottage Room": "premium", "Garden View Room": "garden"}[tier_name]
-            for room in V2_ROOM_TYPES:
-                if room.get("category") != cat: continue
-                if room["name"] in per_room and date_iso in per_room[room["name"]]:
-                    per_room[room["name"]][date_iso]["recommended_rate"] = new_rate
-                    if room["id"] in per_room and date_iso in per_room[room["id"]]:
-                        per_room[room["id"]][date_iso]["recommended_rate"] = new_rate
-
-    # Supabase-friendly aliases keyed by category. Average per date across
-    # the rooms in that category so the React grid picks the right rate
-    # regardless of which Supabase room_type record matched.
-    CATEGORY_ALIASES: dict[str, list[str]] = {
-        "waterfront": ["Waterfront Suite",  "Waterfront",  "Waterfront Room"],
-        "waterview":  ["Water View Suite",  "Waterview Suite", "Water View Room", "Water View", "Waterview"],
-        "garden":     ["Garden View Room",  "Garden Room",     "Garden View",     "Garden"],
-        "premium":    ["Private Cottage",   "Cottage Room",    "Cottage",         "Premium Suite"],
-        "cottage":    ["Cottage Room",      "Private Cottage", "Cottage"],
-    }
-    for category, rooms_with_grids in by_category.items():
-        if not rooms_with_grids:
-            continue
-        # Build a category-level grid: average rate across rooms in the category
-        sample_grid = rooms_with_grids[0][1]
-        category_grid: dict[str, dict] = {}
-        for date_iso in sample_grid:
-            rates = [rg[date_iso]["recommended_rate"] for _, rg in rooms_with_grids if date_iso in rg]
-            avg_rate = round(sum(rates) / len(rates)) if rates else 0
-            ref = sample_grid[date_iso]
-            category_grid[date_iso] = {
-                **ref,
-                "recommended_rate": avg_rate,
-            }
-        for alias in CATEGORY_ALIASES.get(category, []):
-            grid[alias] = category_grid
-
-    grid.update(per_room)
     return {
         "start_date": check_in.isoformat(),
         "days":       days,
         "rates":      grid,
-        "source":     "boutique_weighted_v2",
+        "source":     "canonical_db",
     }
 
 
@@ -875,18 +885,30 @@ def v2_api_competitors_by_room_type():
     dates   = [check_in + timedelta(days=i) for i in range(days)]
     labels  = [d.strftime("%a %b %-d") for d in dates]
 
-    # Our rates for this room category — uses boutique-weighted comp_entries
-    # so the recommendation honors the 1.45x STR floor.
-    rep_room = next((r for r in ROOM_TYPES if r["id"] == our_cat["room_ids"][0]), ROOM_TYPES[0])
-    # Room-category-aware comp entries — Cuthbert reads as its waterfront
-    # rate (~$482) not its blended base ($377). Critical for boutique peers.
+    # Our rates for this room category — SINGLE SOURCE OF TRUTH: read from
+    # rate_recommendations, not recompute. The Rate Calendar grid shows the
+    # DB value; this endpoint must show the same number or the customer
+    # sees contradictory rates between screens for the same room/date.
+    from engine.rate_engine import canonical_recommendations_bulk
+    _CAT_TO_DB_NAME = {
+        "waterfront": "Waterfront Suite",
+        "waterview":  "Waterview Suite",
+        "garden":     "Garden View Room",
+        "cottage":    "Cottage Room",
+        "premium":    "Cottage Room",
+    }
+    db_room_name = _CAT_TO_DB_NAME.get(room_cat)
+    canonical_pid = _canonical_property_id()
+    canonical_rt  = next((rt for rt in _canonical_room_types()
+                          if rt["name"] == db_room_name), None)
     our_rates = []
-    for d in dates:
-        fc  = _v2_demand.forecast(d)
-        comp_entries_d = _v2_scraper.get_current_snapshot_typed(room_category=room_cat, target=d)
-        rec = _v2_rate.recommend(rep_room, fc.score, fc.label, fc.drivers,
-                                  fc.confidence, comp_entries=comp_entries_d, target_date=d)
-        our_rates.append(int(rec.recommended_rate))
+    if canonical_pid and canonical_rt:
+        recs = canonical_recommendations_bulk(canonical_pid, dates[0], dates[-1])
+        for d in dates:
+            rec = recs.get((canonical_rt["id"], d.isoformat()))
+            our_rates.append(int(rec["recommended_rate"]) if rec else None)
+    else:
+        our_rates = [None] * len(dates)
 
     # Competitor rates for the equivalent room type — tag each row with its
     # property_type so the React UI can render the STR badge and exclude
@@ -944,7 +966,7 @@ def v2_api_competitors_by_room_type():
             top_comp_name = top["name"]
             top_comp_rate = top["rates"][i]
 
-        if top_comp_rate:
+        if top_comp_rate and our_r is not None:
             pct_vs_top = (our_r - top_comp_rate) / top_comp_rate
             position = (
                 "Premium"            if pct_vs_top >= 0.05
@@ -965,9 +987,15 @@ def v2_api_competitors_by_room_type():
                 "position":          position,
             })
         else:
+            # No top boutique peer OR our_rate is missing — still surface
+            # comp_avg (excluding STRs + budget hotels) so the integrity
+            # check can validate the exclusion logic.
             position_by_date.append({
                 "date":     dates[i].isoformat(),
-                "our_rate": our_r, "comp_avg": None, "position": "No data",
+                "our_rate": our_r,
+                "comp_avg": int(sum(peer_rates) / len(peer_rates)) if peer_rates else None,
+                "str_avg":  int(sum(str_rates)  / len(str_rates))  if str_rates  else None,
+                "position": "No data",
             })
 
     return jsonify({
