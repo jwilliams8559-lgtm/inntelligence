@@ -93,7 +93,7 @@ export default function LandingPage() {
       {/* CTA / DEMO */}
       <section className="bg-navy text-white px-4 py-16 text-center">
         <h2 className="font-display text-3xl">See it running on a real property</h2>
-        <p className="text-white/80 mt-3">12 narrated steps. Anchorage 1770 Inn, Beaufort SC. No login required.</p>
+        <p className="text-white/80 mt-3">12 narrated steps. Bay Street Inn, Beaufort SC. No login required.</p>
         <a href="/demo" className="inline-block mt-6 bg-gold text-white font-bold px-8 py-3 rounded-lg hover:bg-gold-dark text-lg">
           ▶ Watch 12-Minute Demo
         </a>

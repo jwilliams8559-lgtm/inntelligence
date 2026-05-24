@@ -42,10 +42,10 @@ class RateRecommendation:
 
 
 def enforce_hierarchy_top_down(rates_by_room: dict) -> dict:
-    """Snap a per-room rate dict to the canonical room hierarchy:
-    Waterfront > Water View > Cottage >= Garden. Caps each tier as a
-    band relative to the tier above so Garden never accidentally exceeds
-    Cottage, etc. Top-down (Waterfront anchors everything) so the boutique
+    """Snap a per-room rate dict to the canonical Bay Street Inn hierarchy:
+    Waterfront > Water View > Garden >= Classic. Caps each tier as a band
+    relative to the tier above so Classic never accidentally exceeds
+    Garden, etc. Top-down (Waterfront anchors everything) so the boutique
     peer floor on Waterfront cascades naturally to lower tiers.
 
     Bands use ceil for the lower bound and floor for the upper bound so
@@ -71,13 +71,15 @@ def enforce_hierarchy_top_down(rates_by_room: dict) -> dict:
 
     wf_key, wf = find(["Waterfront Suite", "Waterfront 201", "Waterfront 202",
                        "Waterfront 203", "Waterfront 204"])
-    wv_key, wv = find(["Water View Suite", "Waterview Suite",
+    wv_key, wv = find(["Water View Room", "Water View Suite", "Waterview Suite",
                        "Water View 301", "Water View 302", "Water View 303",
                        "Water View 304", "Water View 305"])
-    co_key, co = find(["Cottage Room", "Private Cottage", "Cottage"])
-    gv_key, gv = find(["Garden View Room", "Garden Room", "Garden View",
-                       "Garden Room 101", "Garden Room 102",
-                       "Garden Room 103", "Garden Room 104"])
+    gd_key, gd = find(["Garden Room", "Garden View Room", "Garden View",
+                       "Garden Room 101", "Garden Room 102", "Garden Room 103",
+                       "Garden Room 104", "Garden Room 105", "Garden Room 106"])
+    cl_key, cl = find(["Classic Room", "Cottage Room", "Private Cottage", "Cottage",
+                       "Classic Room 101", "Classic Room 102",
+                       "Classic Room 103", "Classic Room 104"])
 
     if wf is None:
         return rates_by_room
@@ -87,13 +89,13 @@ def enforce_hierarchy_top_down(rates_by_room: dict) -> dict:
         wv_new = _clamp(0.72, 0.88, wf, wv)
         out[wv_key] = wv_new
         wv = wv_new
-    if co_key and wv:
-        co_new = _clamp(0.78, 0.92, wv, co)
-        out[co_key] = co_new
-        co = co_new
-    if gv_key and co:
-        gv_new = _clamp(0.85, 0.97, co, gv)
-        out[gv_key] = gv_new
+    if gd_key and wv:
+        gd_new = _clamp(0.78, 0.92, wv, gd)
+        out[gd_key] = gd_new
+        gd = gd_new
+    if cl_key and gd:
+        cl_new = _clamp(0.85, 0.97, gd, cl)
+        out[cl_key] = cl_new
     return out
 
 
@@ -199,8 +201,8 @@ class RateEngine:
 
             # Top-boutique-comp anchor — INNtelligence prices at or above
             # the top boutique peer (Cuthbert House etc) on every date.
-            # New ownership at Anchorage 1770 earns small premiums on
-            # weekends and peak events; never quotes below the top peer.
+            # Bay Street Inn earns small premiums on weekends and peak
+            # events; never quotes below the top peer.
             if top_boutique_comp_rate:
                 # Demand-tier premium
                 if   demand_score < 50: demand_premium = 0.00
@@ -279,8 +281,8 @@ class RateEngine:
                 reason_parts.append(
                     f"Boutique peer positioning: {top_boutique_comp_name} at "
                     f"${int(top_boutique_comp_rate):,}. Your ${int(final):,} is "
-                    f"+{pct_vs_top:.1f}% above. Anchorage 1770 offers Ribaut Social "
-                    f"Club restaurant, rooftop bar, and chef breakfast — amenities "
+                    f"+{pct_vs_top:.1f}% above. Bay Street Inn offers The Parlor "
+                    f"restaurant, The Rooftop bar, and chef breakfast — amenities "
                     f"{top_boutique_comp_name} does not have."
                 )
             else:
@@ -634,7 +636,7 @@ class EVEEngine:
             "justified_rate":        justified_rate,
             "justified_rate_label":  f"${justified_rate:.0f}/night",
             "premium_vs_nba_pct":    round(total_premium / nba["avg_rate"] * 100, 1),
-            "summary":               (f"Anchorage 1770 delivers ${total_premium} in "
+            "summary":               (f"Bay Street Inn delivers ${total_premium} in "
                                        f"quantifiable value above {nba['name']} (${nba['avg_rate']}/night), "
                                        f"justifying a rack rate of ${justified_rate:.0f}+ per night."),
             "str_amenity_premium":         str_amenity_premium,
@@ -656,10 +658,10 @@ class EVEEngine:
         top_drivers = sorted(eve["value_drivers"], key=lambda x: x["value_estimate"], reverse=True)[:3]
         driver_text = " · ".join(d["name"].split(" Premium")[0].split(" Access")[0] for d in top_drivers)
         base = (
-            f"The {room_name} at Anchorage 1770 Inn is priced at ${rate:.0f}/night, "
-            f"reflecting our waterfront location on the National Register of Historic "
-            f"Places, personal boutique service, and direct access to the Ribaut Social "
-            f"Club restaurant — experiences unavailable at any other property in Beaufort. "
+            f"The {room_name} at Bay Street Inn is priced at ${rate:.0f}/night, "
+            f"reflecting our Bay Street location in Beaufort's historic district, "
+            f"personal boutique service, and direct access to The Parlor "
+            f"restaurant — experiences unavailable at any other property in Beaufort. "
             f"Top value drivers: {driver_text}."
         )
         if event_context:

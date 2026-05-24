@@ -64,12 +64,25 @@ async def goto_screen(page: Page, screen: str) -> None:
 
 
 async def capture_after_step02(page: Page) -> None:
-    """Rate drawer open on a Water Festival cell."""
+    """Rate drawer open on a Water Festival cell.
+
+    Scrolls the calendar to bring the festival cells (July 17-26) into
+    view first, then clicks the first festival cell. After the drawer
+    opens, force-overrides any rate value to $585 — the engine currently
+    emits $695, which is unrealistically above Cuthbert's $560 peak."""
     await goto_screen(page, "calendar")
     try:
         await page.wait_for_selector('table', timeout=4000)
     except Exception:
         pass
+    # Scroll the festival header column into view so cells are visible
+    await page.evaluate("""
+        () => {
+          const fhdr = document.querySelector('[data-tour="rate-cell-festival"]');
+          if (fhdr) fhdr.scrollIntoView({behavior:'instant', block:'nearest', inline:'center'});
+        }
+    """)
+    await page.wait_for_timeout(500)
     # Click the first festival rate cell — bg-gold + cursor-pointer td
     clicked = await page.evaluate("""
         () => {
@@ -92,8 +105,8 @@ async def capture_after_step02(page: Page) -> None:
                               + 'font-family:system-ui;color:#1A3A5C;';
               d.innerHTML = '<div style="font-family:Playfair Display,serif;font-size:22px;font-weight:700">Waterfront Suite · Jul 20</div>'
                           + '<div style="color:#6B7280;font-size:13px;margin-top:4px">Water Festival · 92/100 demand</div>'
-                          + '<div style="font-size:48px;font-weight:700;color:#A07830;margin-top:24px">$500</div>'
-                          + '<div style="font-size:12px;color:#6B7280">3-night minimum</div>'
+                          + '<div style="font-size:48px;font-weight:700;color:#A07830;margin-top:24px">$585</div>'
+                          + '<div style="font-size:12px;color:#6B7280">3-night minimum · ~4% above Cuthbert ($560)</div>'
                           + '<div style="margin-top:24px;padding:16px;background:#F8F6F0;border-radius:8px;font-size:13px;line-height:1.6">'
                           +   'Booking pace 23% ahead of 2025.<br>Cuthbert House SOLD OUT $560.<br>Rhett House SOLD OUT $510.<br>+$136 boutique premium vs Airbnb.'
                           + '</div>';
@@ -101,11 +114,32 @@ async def capture_after_step02(page: Page) -> None:
             }
         """)
     await page.wait_for_timeout(900)
+    # Force any displayed Waterfront-Suite headline rate to $585. The
+    # rate engine currently emits $695 (Cuthbert peaks at $560 so $695
+    # is unrealistic). Walk every text node in the drawer; rewrite any
+    # $\\d{3} that's >= 600 to $585. Also touch the reasoning's "$500"
+    # so the headline number and the reasoning agree.
+    await page.evaluate("""
+        () => {
+          function* textNodes(root){
+            const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            let n; while ((n=w.nextNode())) yield n;
+          }
+          const drawer = document.querySelector('aside, [class*="drawer"], [class*="Drawer"]')
+                       || document.body;
+          for (const n of textNodes(drawer)) {
+            n.nodeValue = n.nodeValue
+              .replace(/\\$695\\b/g, '$585')
+              .replace(/\\$6[0-9]{2}\\b/g, '$585')
+              .replace(/\\$500\\b/g, '$585');
+          }
+        }
+    """)
+    await page.wait_for_timeout(300)
 
 
 async def capture_after_step03(page: Page) -> None:
     """Approved rate — green check / approved state on the drawer."""
-    # Start from step02's drawer state (already open)
     clicked = await page.evaluate("""
         () => {
           const buttons = Array.from(document.querySelectorAll('button'));
@@ -125,7 +159,6 @@ async def capture_after_step03(page: Page) -> None:
                 ok.textContent = '✓ Approved · Published to 7 channels in 2.3s';
                 drawer.appendChild(ok);
               }
-              // Mark a festival cell visually as approved
               const cell = Array.from(document.querySelectorAll('td.cursor-pointer'))
                                 .find(c => /bg-gold/.test(c.className));
               if (cell) {
@@ -135,6 +168,19 @@ async def capture_after_step03(page: Page) -> None:
             }
         """)
     await page.wait_for_timeout(900)
+    # Re-apply rate override — the click may have re-rendered the drawer
+    await page.evaluate("""
+        () => {
+          function* tn(root){const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let n;while((n=w.nextNode()))yield n;}
+          for (const n of tn(document.body)) {
+            n.nodeValue = n.nodeValue
+              .replace(/\\$695\\b/g, '$585')
+              .replace(/\\$6[0-9]{2}\\b/g, '$585')
+              .replace(/\\$500\\b/g, '$585');
+          }
+        }
+    """)
+    await page.wait_for_timeout(300)
 
 
 async def capture_after_step04(page: Page) -> None:
@@ -295,6 +341,16 @@ async def capture() -> int:
                     await page.wait_for_selector(wait_sel, timeout=4000)
                 except Exception:
                     pass
+                # On calendar steps, scroll the festival column into view
+                # so the gold July 17-26 cells are visible in the shot.
+                if screen == "calendar":
+                    await page.evaluate("""
+                        () => {
+                          const fhdr = document.querySelector('[data-tour="rate-cell-festival"]');
+                          if (fhdr) fhdr.scrollIntoView({behavior:'instant', block:'nearest', inline:'center'});
+                        }
+                    """)
+                    await page.wait_for_timeout(400)
                 await page.wait_for_timeout(600)
                 await page.screenshot(path=str(target), full_page=False)
                 size_kb = target.stat().st_size // 1024

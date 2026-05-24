@@ -346,7 +346,7 @@ export default function PackageDiscovery() {
               </span>
             </div>
             <p className="text-xs text-slate-500 mb-3">
-              {recs.length} packages optimized for Anchorage 1770 Inn based on your market, competitors, and revenue potential.
+              {recs.length} packages optimized for Bay Street Inn based on your market, competitors, and revenue potential.
             </p>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">

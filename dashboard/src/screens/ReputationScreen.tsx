@@ -82,7 +82,7 @@ function Body() {
               <strong className="text-gold">{data.rate_premium_justified_pct}%</strong> rate premium above the average competitor.
             </div>
             <div className="text-xs text-slate-500 mt-1">
-              At Anchorage's ~$380 base rate, that's worth approximately <strong>${Math.round(380 * data.rate_premium_justified_pct / 100)}/booking</strong>.
+              At Bay Street Inn's ~$395 base rate, that's worth approximately <strong>${Math.round(380 * data.rate_premium_justified_pct / 100)}/booking</strong>.
             </div>
           </div>
         </div>
@@ -116,7 +116,7 @@ function Body() {
               <YAxis domain={[3.5, 5]} tick={{ fontSize: 10 }} />
               <Tooltip />
               <Legend iconType="line" iconSize={10} wrapperStyle={{ fontSize: 10 }} />
-              <Line type="monotone" dataKey="you" stroke="#A07830" strokeWidth={3} dot={{ r: 3 }} name="Anchorage 1770" />
+              <Line type="monotone" dataKey="you" stroke="#A07830" strokeWidth={3} dot={{ r: 3 }} name="Bay Street Inn" />
               {Object.keys(data.competitor_scores).slice(0, 4).map((name, i) => (
                 <Line key={name} type="monotone" dataKey={name}
                   stroke={['#94A3B8', '#64748B', '#475569', '#334155'][i % 4]}

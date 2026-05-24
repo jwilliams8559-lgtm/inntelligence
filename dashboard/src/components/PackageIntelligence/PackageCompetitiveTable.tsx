@@ -38,7 +38,7 @@ export default function PackageCompetitiveTable() {
               <thead className="bg-navy text-white">
                 <tr>
                   <th className="sticky left-0 bg-navy px-3 py-2 text-left font-semibold w-56 min-w-56">Package</th>
-                  <th className="px-3 py-2 text-right font-semibold whitespace-nowrap text-gold">Anchorage 1770</th>
+                  <th className="px-3 py-2 text-right font-semibold whitespace-nowrap text-gold">Bay Street Inn</th>
                   {comps.map(c => (
                     <th key={c} className="px-3 py-2 text-right font-semibold whitespace-nowrap">
                       {c.split(' ').slice(0, 2).join(' ')}

@@ -29,7 +29,7 @@ export default function DemoMode() {
   const narrationRef = useRef(new NarrationEngine())
 
   // Auto-login as the demo professional user so the app renders the
-  // Anchorage 1770 dashboard under the spotlight.
+  // Bay Street Inn dashboard under the spotlight.
   useEffect(() => {
     if (phase !== 'running') return
     const existing = localStorage.getItem(TOKEN_KEY)
@@ -47,6 +47,30 @@ export default function DemoMode() {
   }, [phase])
 
   const step = DEMO_STEPS[stepIdx]
+
+  // On Rate Calendar steps (1 & 2), scroll the calendar grid so the
+  // gold Water Festival cells (July 17-26) are immediately visible.
+  // The festival header carries data-tour="rate-cell-festival"; we
+  // smooth-scroll its column into view inside the calendar's overflow
+  // container. Retries because the grid takes a moment to mount.
+  useEffect(() => {
+    if (phase !== 'running' || !step) return
+    if (stepIdx !== 0 && stepIdx !== 1) return
+    if (step.screen !== 'calendar') return
+
+    let cancelled = false
+    function scrollToFestival(attempt = 0) {
+      if (cancelled) return
+      const cell = document.querySelector('[data-tour="rate-cell-festival"]') as HTMLElement | null
+      if (cell) {
+        cell.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+        return
+      }
+      if (attempt < 25) setTimeout(() => scrollToFestival(attempt + 1), 200)
+    }
+    const t = setTimeout(() => scrollToFestival(), 800)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [stepIdx, phase, step?.screen])
 
   // Drive screen navigation + narration when step changes. Every step
   // auto-advances when audio ends — the AnimatedCursor handles the
@@ -116,7 +140,7 @@ export default function DemoMode() {
         textAlign: 'center', fontFamily: 'Inter, system-ui, sans-serif',
         letterSpacing: '0.5px',
       }}>
-        DEMO MODE — Anchorage 1770 Inn, Beaufort SC
+        DEMO MODE — Bay Street Inn, Beaufort SC
         <button onClick={exit} style={{
           position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
           background: 'rgba(26,58,92,0.15)', border: '1px solid rgba(26,58,92,0.4)',
@@ -185,9 +209,9 @@ function EntryScreen({ onStart }: { onStart: () => void }) {
           22-Minute Guided Demo
         </div>
         <div style={{ fontSize: 16, color: '#9CA3AF', marginBottom: 48, lineHeight: 1.5 }}>
-          A complete walkthrough of INNtelligence — rate recommendations,
-          competitive intelligence, F&amp;B yield, guest CRM, and ROI reporting.
-          Sit back and watch; the demo drives itself.
+          See how Bay Street Inn — a 19-room historic boutique property on
+          Beaufort's Bay Street — manages pricing, restaurant yield, guest
+          relationships, and revenue with INNtelligence.
         </div>
         <button onClick={onStart} style={{
           background: '#A07830', color: '#1A3A5C', border: 'none',
@@ -224,7 +248,7 @@ function FinishedScreen({ onRestart }: { onRestart: () => void }) {
           padding: 16, borderRadius: 8, fontWeight: 700, fontSize: 18, marginBottom: 10,
           fontFamily: 'Playfair Display, Georgia, serif',
         }}>Start My Free Trial</a>
-        <a href="mailto:jwilliams8559@gmail.com?subject=INNtelligence Demo — I want to learn more"
+        <a href="mailto:jim@graciouscollection.com?subject=INNtelligence Demo - I want to learn more"
            style={{ display: 'block', color: '#1A3A5C', fontSize: 14, textDecoration: 'none', padding: 12, border: '1px solid #E8E4DC', borderRadius: 8 }}>
           Schedule a Call with Jim
         </a>

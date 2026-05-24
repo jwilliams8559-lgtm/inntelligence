@@ -23,7 +23,7 @@ import Packages from './screens/Packages'
 import ManagementConsole from './screens/ManagementConsole'
 import Settings from './screens/Settings'
 
-const SLUG = import.meta.env.VITE_TENANT_SLUG || 'anchorage-1770-demo'
+const SLUG = import.meta.env.VITE_TENANT_SLUG || 'bay-street-inn-demo'
 // In production the role is read from JWT app_role claim. For the demo we
 // expose VITE_APP_ROLE so the management console can be toggled off when
 // hosting at a tenant-facing URL. Default = shg_admin for Jim's deployment.

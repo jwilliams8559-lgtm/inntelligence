@@ -128,7 +128,7 @@ function Body() {
 function Tabs({ tab, setTab }: { tab: TabKey; setTab: (t: TabKey) => void }) {
   const items: { id: TabKey; icon: string; label: string }[] = [
     { id: 'combined',   icon: '📊', label: 'Combined' },
-    { id: 'restaurant', icon: '🍽️', label: 'Ribaut Social Club' },
+    { id: 'restaurant', icon: '🍽️', label: 'The Parlor' },
     { id: 'bar',        icon: '🍸', label: 'Rooftop Bar' },
   ]
   return (
@@ -195,7 +195,7 @@ function RestaurantView({ summary, daily, recs }: { summary: Summary; daily: Dai
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
       <div className="lg:col-span-3 space-y-4">
         <div className="bg-white rounded-xl border border-slate-100 p-5">
-          <h2 className="font-bold text-navy">Ribaut Social Club — Daily Performance</h2>
+          <h2 className="font-bold text-navy">The Parlor — Daily Performance</h2>
           <p className="text-xs text-slate-500 mb-3">Covers and revenue over the next {summary.period_days} days. Gold band = Water Festival.</p>
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={daily} margin={{ top: 5, right: 35, left: 0, bottom: 0 }}>
@@ -378,7 +378,7 @@ function PrivateEventCalculator({ defaultOutlet = 'rooftop_bar' }: { defaultOutl
         <label className="block">
           <div className="text-slate-500 font-semibold mb-0.5">Outlet</div>
           <select className="w-full border border-slate-200 rounded px-2 py-1.5" value={outletId} onChange={e => setOutletId(e.target.value)}>
-            <option value="rsc_restaurant">Ribaut Social Club</option>
+            <option value="rsc_restaurant">The Parlor</option>
             <option value="rooftop_bar">Rooftop Bar</option>
           </select>
         </label>

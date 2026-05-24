@@ -159,7 +159,7 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
   const [loading,     setLoading]     = useState(true)
 
   // ── Section C — Room-type comparison mode ──
-  type RoomCategory = 'all' | 'waterfront' | 'waterview' | 'garden' | 'cottage'
+  type RoomCategory = 'all' | 'waterfront' | 'waterview' | 'garden' | 'classic'
   const [roomCategory, setRoomCategory] = useState<RoomCategory>('all')
   interface RoomTypeApi {
     room_category: string; our_room_label: string; our_description: string
@@ -409,7 +409,7 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
           { val: 'waterfront' as const, lbl: 'Waterfront',    icon: '🌊' },
           { val: 'waterview'  as const, lbl: 'Water View',    icon: '💧' },
           { val: 'garden'     as const, lbl: 'Garden',        icon: '🌿' },
-          { val: 'cottage'    as const, lbl: 'Cottage',       icon: '🏡' },
+          { val: 'classic'    as const, lbl: 'Classic',       icon: '🛏️' },
         ]).map(opt => (
           <button key={opt.val} onClick={() => setRoomCategory(opt.val)}
             className={`px-3 py-1 rounded-full font-semibold transition-colors ${
@@ -716,7 +716,7 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
       <div className="grid grid-cols-3 gap-4">
         <PriceLadder
           yourRate={yourMap.get(format(addDays(today, 1), 'yyyy-MM-dd'))?.recommended_rate ?? null}
-          yourName="Anchorage 1770 (Waterfront)"
+          yourName="Bay Street Inn (Waterfront)"
           compRates={compRates}
           competitors={competitors}
           dateStr={format(addDays(today, 1), 'yyyy-MM-dd')}
@@ -724,7 +724,7 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
         />
         <PriceLadder
           yourRate={yourMap.get('2026-07-20')?.recommended_rate ?? null}
-          yourName="Anchorage 1770 (Waterfront)"
+          yourName="Bay Street Inn (Waterfront)"
           compRates={compRates}
           competitors={competitors}
           dateStr="2026-07-20"

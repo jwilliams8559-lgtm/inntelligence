@@ -298,7 +298,7 @@ function RevenueStreamsPanel({ propertyTotalRooms }: { propertyTotalRooms: numbe
       <div className="space-y-1.5 text-sm">
         <Row label="Room Revenue (proj.)"   value={roomRev}  locked={false} description={`${propertyTotalRooms} rooms · 75% occupancy · avg $${avgRate}`} />
         <LockedFeature featureName="F&B Revenue Module" featureKey="fb_module"
-          description="Track restaurant, bar, and private event revenue alongside room revenue. Includes Ribaut Social Club covers, bar sales, and event nights.">
+          description="Track restaurant, bar, and private event revenue alongside room revenue. Includes The Parlor covers, The Rooftop bar sales, and event nights.">
           <Row label="F&B Revenue (proj.)"   value={fbRev}   locked={false} description={fb ? `Restaurant + bar + ${fb.config?.event_nights_per_month ?? 0} event nights` : ''} />
         </LockedFeature>
         <LockedFeature featureName="Package Revenue Module" featureKey="packages_module"

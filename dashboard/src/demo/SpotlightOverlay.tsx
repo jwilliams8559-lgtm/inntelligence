@@ -62,7 +62,7 @@ export default function SpotlightOverlay({ selector, active, padding = 16 }: Pro
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 9000,
-        background: 'rgba(0,0,0,0.6)', pointerEvents: 'none',
+        background: 'rgba(0,0,0,0.45)', pointerEvents: 'none',
         transition: 'all 0.4s ease',
       }} />
     )
@@ -78,7 +78,7 @@ export default function SpotlightOverlay({ selector, active, padding = 16 }: Pro
             <rect x={left} y={top} width={width} height={height} rx={10} fill="black" />
           </mask>
         </defs>
-        <rect width={size.w} height={size.h} fill="rgba(0,0,0,0.7)" mask="url(#spotlight-cutout)" style={{ transition: 'all 0.4s ease' }} />
+        <rect width={size.w} height={size.h} fill="rgba(0,0,0,0.45)" mask="url(#spotlight-cutout)" style={{ transition: 'all 0.4s ease' }} />
         {/* Gold inner border */}
         <rect x={left - 2} y={top - 2} width={width + 4} height={height + 4} rx={12}
               fill="none" stroke="#A07830" strokeWidth={3}

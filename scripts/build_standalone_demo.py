@@ -160,7 +160,7 @@ body{background:#0F2744;font-family:'Inter',system-ui,sans-serif;color:white;ove
 .ring{position:absolute;left:50%;top:50%;width:34px;height:34px;margin-left:-17px;margin-top:-17px;border:2px solid #A07830;border-radius:50%;opacity:0;pointer-events:none;z-index:19;}
 .ring.pulse{animation:cursor-ring 0.8s ease-out forwards;}
 @keyframes cursor-ring{0%{transform:scale(0.6);opacity:0.85;}100%{transform:scale(2.1);opacity:0;}}
-.step-info{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(15,39,68,0.97) 40%);padding:60px 32px 24px;pointer-events:none;z-index:15;}
+.step-info{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(15,39,68,0.78) 55%);padding:60px 32px 24px;pointer-events:none;z-index:15;}
 .step-num{font-size:11px;color:#A07830;font-weight:600;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
 .step-title{font-family:'Playfair Display',Georgia,serif;font-size:clamp(20px,3vw,30px);font-weight:700;margin-bottom:6px;}
 .step-sub{font-size:14px;color:#9CA3AF;margin-bottom:6px;}
@@ -196,14 +196,14 @@ body{background:#0F2744;font-family:'Inter',system-ui,sans-serif;color:white;ove
   <div class="logo">INNtelligence</div>
   <div class="byline">by The Gracious Collection</div>
   <div class="headline">22-Minute Guided Demo</div>
-  <div class="body-text">A complete walkthrough of INNtelligence — rate recommendations, competitive intelligence, F&amp;B yield, guest CRM, and ROI reporting. Sit back and watch; the demo drives itself.</div>
+  <div class="body-text">See how Bay Street Inn — a 19-room historic boutique property on Beaufort's Bay Street — manages pricing, restaurant yield, guest relationships, and revenue with INNtelligence. Sit back and watch; the demo drives itself.</div>
   <button class="btn-gold" onclick="startDemo()">&#9654; Start Demo</button>
   <button class="btn-outline" onclick="window.open('https://app.graciouscollection.com/pricing','_blank')">Skip to pricing &rarr;</button>
   <div style="margin-top:24px;font-size:12px;color:#4B5563;">Enable sound for the best experience. Captions available when muted.</div>
 </div>
 
 <div id="demo">
-  <div class="topbar">DEMO — INNtelligence for Anchorage 1770 Inn, Beaufort SC
+  <div class="topbar">DEMO — INNtelligence for Bay Street Inn, Beaufort SC
     <button class="topbar-exit" onclick="exitDemo()">Exit</button>
   </div>
   <div class="stage" id="stage">
@@ -251,7 +251,7 @@ body{background:#0F2744;font-family:'Inter',system-ui,sans-serif;color:white;ove
     <input class="cinput" type="text" placeholder="Your property name">
     <input class="cinput" type="email" placeholder="Your email address">
     <button class="ccta" onclick="window.open('https://app.graciouscollection.com/pricing','_blank')">Start My Free Trial &rarr;</button>
-    <a class="clink" href="mailto:jwilliams8559@gmail.com?subject=INNtelligence Demo - I want to learn more">Schedule a call with Jim &rarr;</a>
+    <a class="clink" href="mailto:jim@graciouscollection.com?subject=INNtelligence Demo - I want to learn more">Schedule a call with Jim &rarr;</a>
     <button class="crestart" onclick="restart()">Watch demo again</button>
   </div>
 </div>

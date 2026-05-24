@@ -93,8 +93,8 @@ LOG_BACKUP_COUNT = 30
 # ════════════════════════════════════════════════════════════════════════════
 
 ACTIVE_PROPERTY = {
-    "name": "Anchorage 1770 Inn",
-    "address": "1103 Bay Street",
+    "name": "Bay Street Inn",
+    "address": "Bay Street",
     "city": "Beaufort",
     "state": "SC",
     "zip": "29902",
@@ -106,7 +106,7 @@ ACTIVE_PROPERTY = {
     # glamping_resort. boutique_inn_bb activates BOUTIQUE_INN_PREMIUM,
     # auto-reclassifies STR comps, and adds the breakfast value driver.
     "property_type": "boutique_inn_bb",
-    "total_rooms": 14,
+    "total_rooms": 19,
     "target_occupancy_min": 0.70,
     "target_occupancy_max": 0.85,
     "max_discount_floor_pct": 0.15,
@@ -114,42 +114,59 @@ ACTIVE_PROPERTY = {
     "plan_tier": "professional",
 }
 
+# Bay Street Inn — 19 rooms across four tiers:
+# Waterfront Suite (4) > Water View Room (5) > Garden Room (6) > Classic Room (4)
 ROOM_TYPES = [
-    {"id": "private_cottage", "name": "Private Cottage", "icon": "🏡", "count": 1, "base": 489, "min": 350, "max": 695, "category": "premium"},
-    {"id": "waterfront_201",  "name": "Waterfront 201",  "icon": "🌊", "count": 1, "base": 419, "min": 295, "max": 695, "category": "waterfront"},
-    {"id": "waterfront_202",  "name": "Waterfront 202",  "icon": "🌊", "count": 1, "base": 419, "min": 295, "max": 695, "category": "waterfront"},
-    {"id": "waterfront_203",  "name": "Waterfront 203",  "icon": "🌊", "count": 1, "base": 419, "min": 295, "max": 695, "category": "waterfront"},
-    {"id": "waterfront_204",  "name": "Waterfront 204",  "icon": "🌊", "count": 1, "base": 429, "min": 295, "max": 695, "category": "waterfront"},
-    {"id": "waterview_301",   "name": "Water View 301",  "icon": "💧", "count": 1, "base": 339, "min": 265, "max": 595, "category": "waterview"},
-    {"id": "waterview_302",   "name": "Water View 302",  "icon": "💧", "count": 1, "base": 339, "min": 265, "max": 595, "category": "waterview"},
-    {"id": "waterview_303",   "name": "Water View 303",  "icon": "💧", "count": 1, "base": 339, "min": 265, "max": 595, "category": "waterview"},
-    {"id": "waterview_304",   "name": "Water View 304",  "icon": "💧", "count": 1, "base": 259, "min": 225, "max": 495, "category": "waterview"},
-    {"id": "waterview_305",   "name": "Water View 305",  "icon": "💧", "count": 1, "base": 259, "min": 225, "max": 495, "category": "waterview"},
-    {"id": "garden_101",      "name": "Garden Room 101", "icon": "🌿", "count": 1, "base": 279, "min": 225, "max": 495, "category": "garden"},
-    {"id": "garden_102",      "name": "Garden Room 102", "icon": "🌿", "count": 1, "base": 279, "min": 225, "max": 495, "category": "garden"},
-    {"id": "garden_103",      "name": "Garden Room 103", "icon": "🌿", "count": 1, "base": 279, "min": 225, "max": 495, "category": "garden"},
-    {"id": "garden_104",      "name": "Garden Room 104", "icon": "🌿", "count": 1, "base": 279, "min": 225, "max": 495, "category": "garden"},
+    {"id": "waterfront_201",  "name": "Waterfront Suite 201", "icon": "🌊", "count": 1, "base": 395, "min": 295, "max": 695, "category": "waterfront"},
+    {"id": "waterfront_202",  "name": "Waterfront Suite 202", "icon": "🌊", "count": 1, "base": 395, "min": 295, "max": 695, "category": "waterfront"},
+    {"id": "waterfront_203",  "name": "Waterfront Suite 203", "icon": "🌊", "count": 1, "base": 395, "min": 295, "max": 695, "category": "waterfront"},
+    {"id": "waterfront_204",  "name": "Waterfront Suite 204", "icon": "🌊", "count": 1, "base": 395, "min": 295, "max": 695, "category": "waterfront"},
+    {"id": "waterview_301",   "name": "Water View Room 301",  "icon": "💧", "count": 1, "base": 335, "min": 265, "max": 595, "category": "waterview"},
+    {"id": "waterview_302",   "name": "Water View Room 302",  "icon": "💧", "count": 1, "base": 335, "min": 265, "max": 595, "category": "waterview"},
+    {"id": "waterview_303",   "name": "Water View Room 303",  "icon": "💧", "count": 1, "base": 335, "min": 265, "max": 595, "category": "waterview"},
+    {"id": "waterview_304",   "name": "Water View Room 304",  "icon": "💧", "count": 1, "base": 335, "min": 265, "max": 595, "category": "waterview"},
+    {"id": "waterview_305",   "name": "Water View Room 305",  "icon": "💧", "count": 1, "base": 335, "min": 265, "max": 595, "category": "waterview"},
+    {"id": "garden_101",      "name": "Garden Room 101",      "icon": "🌿", "count": 1, "base": 275, "min": 225, "max": 495, "category": "garden"},
+    {"id": "garden_102",      "name": "Garden Room 102",      "icon": "🌿", "count": 1, "base": 275, "min": 225, "max": 495, "category": "garden"},
+    {"id": "garden_103",      "name": "Garden Room 103",      "icon": "🌿", "count": 1, "base": 275, "min": 225, "max": 495, "category": "garden"},
+    {"id": "garden_104",      "name": "Garden Room 104",      "icon": "🌿", "count": 1, "base": 275, "min": 225, "max": 495, "category": "garden"},
+    {"id": "garden_105",      "name": "Garden Room 105",      "icon": "🌿", "count": 1, "base": 275, "min": 225, "max": 495, "category": "garden"},
+    {"id": "garden_106",      "name": "Garden Room 106",      "icon": "🌿", "count": 1, "base": 275, "min": 225, "max": 495, "category": "garden"},
+    {"id": "classic_101",     "name": "Classic Room 101",     "icon": "🛏️", "count": 1, "base": 245, "min": 195, "max": 425, "category": "classic"},
+    {"id": "classic_102",     "name": "Classic Room 102",     "icon": "🛏️", "count": 1, "base": 245, "min": 195, "max": 425, "category": "classic"},
+    {"id": "classic_103",     "name": "Classic Room 103",     "icon": "🛏️", "count": 1, "base": 245, "min": 195, "max": 425, "category": "classic"},
+    {"id": "classic_104",     "name": "Classic Room 104",     "icon": "🛏️", "count": 1, "base": 245, "min": 195, "max": 425, "category": "classic"},
 ]
 
 # NOTE: All competitors verified as active lodging properties.
 # 601 Bay Street ("Bay Street Inn") removed 2026-05-19 — private residence, not a hotel.
 # Always verify Google Places results before adding to competitor set.
 COMPETITORS = [
-    {"id": "c1", "name": "607 Bay Inn",            "city": "Beaufort", "state": "SC", "avail_color": "yellow",
-     "property_type": "airbnb_str"},
-    {"id": "c2", "name": "Airbnb Near Bay (avg)",  "city": "Beaufort", "state": "SC", "avail_color": "green",
-     "property_type": "airbnb_str"},
-    {"id": "c3", "name": "Beaufort Inn",            "city": "Beaufort", "state": "SC", "avail_color": "red",
-     "property_type": "upscale_hotel"},
-    {"id": "c4", "name": "City Loft Hotel",         "city": "Beaufort", "state": "SC", "avail_color": "green",
-     "property_type": "upscale_hotel"},
-    {"id": "c5", "name": "Cuthbert House Inn",      "city": "Beaufort", "state": "SC", "avail_color": "green",
+    # Direct boutique comps — Anchorage 1770 is now a competitor, not the
+    # demo property. Bay Street Inn is the property under management.
+    {"id": "c1", "name": "Cuthbert House Inn",      "city": "Beaufort", "state": "SC", "avail_color": "green",
      "property_type": "boutique_inn"},
-    {"id": "c6", "name": "Rhett House Inn",         "city": "Beaufort", "state": "SC", "avail_color": "yellow",
+    {"id": "c2", "name": "Rhett House Inn",         "city": "Beaufort", "state": "SC", "avail_color": "yellow",
      "property_type": "boutique_inn"},
-    {"id": "c7", "name": "Montage Palmetto Bluff",  "city": "Bluffton", "state": "SC", "avail_color": "green",
+    {"id": "c3", "name": "Anchorage 1770 Inn",      "city": "Beaufort", "state": "SC", "avail_color": "green",
+     "property_type": "boutique_inn"},
+    {"id": "c4", "name": "Two Suns Inn",            "city": "Beaufort", "state": "SC", "avail_color": "green",
+     "property_type": "boutique_inn"},
+    # Upscale hotel references
+    {"id": "c5", "name": "Beaufort Inn",            "city": "Beaufort", "state": "SC", "avail_color": "red",
+     "property_type": "upscale_hotel"},
+    {"id": "c6", "name": "City Loft Hotel",         "city": "Beaufort", "state": "SC", "avail_color": "green",
+     "property_type": "upscale_hotel"},
+    # STR budget anchor (excluded from rate math)
+    {"id": "c7", "name": "607 Bay Inn",            "city": "Beaufort", "state": "SC", "avail_color": "yellow",
+     "property_type": "airbnb_str"},
+    {"id": "c8", "name": "Airbnb Near Bay (avg)",  "city": "Beaufort", "state": "SC", "avail_color": "green",
+     "property_type": "airbnb_str"},
+    # Luxury reference
+    {"id": "c9", "name": "Montage Palmetto Bluff",  "city": "Bluffton", "state": "SC", "avail_color": "green",
      "property_type": "luxury_resort"},
-    {"id": "c8", "name": "Hampton Inn Beaufort",    "city": "Beaufort", "state": "SC", "avail_color": "green",
+    # Budget anchor
+    {"id": "c10", "name": "Hampton Inn Beaufort",   "city": "Beaufort", "state": "SC", "avail_color": "green",
      "property_type": "budget_hotel"},
 ]
 
@@ -198,8 +215,8 @@ AMENITY_PREMIUM_OVER_STR_TOTAL = sum(AMENITY_PREMIUM_OVER_STR.values())  # $136
 
 GUEST_PACKAGES = [
     {"id": "romance",       "icon": "💑", "name": "Romance Package",
-     "components": "Room · Dinner for Two at Ribaut Social Club · Bottle of Wine",
-     "description": "An unforgettable evening: premium room, in-room dining at the legendary Ribaut Social Club, and a selected South Carolina wine awaiting on arrival.",
+     "components": "Room · Dinner for Two at The Parlor · Bottle of Wine",
+     "description": "An unforgettable evening: premium room, dinner for two at The Parlor at Bay Street Inn, and a selected South Carolina wine awaiting on arrival.",
      "upsell_price": 85, "take_rate": 0.20, "seasonal": None,
      "room_restriction": ["waterfront_201","waterfront_202","waterfront_203","waterfront_204","waterview_301","waterview_302","waterview_303"],
      "active": True,  "coming_soon": False},
@@ -256,7 +273,7 @@ GIFT_SHOP_CATEGORIES = [
          {"id":"lc_bbqsauce","name":"Lowcountry BBQ Sauce","price":11.00,
           "est_monthly_units":12,"active":True,"notes":""},
      ]},
-    {"id": "branded", "icon": "👕", "name": "Anchorage 1770 Branded",
+    {"id": "branded", "icon": "👕", "name": "Bay Street Inn Branded",
      "items": "Monogrammed Robes · Canvas Totes · Soy Candles · Coffee Mugs · Embroidered Hats",
      "item_count": 12, "est_monthly_rev": 800,
      "note": "High-margin, strong during holiday season", "margin": 0.70,
@@ -622,8 +639,8 @@ EVE_CONFIG = {
          "value_estimate": 38,
          "evidence": "TripAdvisor studies show $30-50 premium for personal service.",
          "applies_to": ["all"]},
-        {"id": "rsc_restaurant", "name": "Ribaut Social Club Access",
-         "description": "On-site acclaimed restaurant and rooftop bar",
+        {"id": "rsc_restaurant", "name": "The Parlor & The Rooftop Access",
+         "description": "On-site acclaimed restaurant (The Parlor) and rooftop bar (The Rooftop at Bay Street)",
          "value_estimate": 42,
          "evidence": "Destination restaurant adds ~$35-50 in perceived value.",
          "applies_to": ["all"]},
@@ -643,7 +660,7 @@ EVE_CONFIG = {
          "evidence": "Cultural authenticity is a leading boutique choice driver.",
          "applies_to": ["all"]},
         {"id": "privacy_exclusivity", "name": "Privacy and Exclusivity",
-         "description": "15 rooms vs 100+ at branded hotel",
+         "description": "19 rooms vs 100+ at branded hotel",
          "value_estimate": 22,
          "evidence": "Small inn guests pay premium for absence of crowds.",
          "applies_to": ["all"]},
@@ -652,7 +669,7 @@ EVE_CONFIG = {
 
 
 FB_CONFIG = {
-    "restaurant_name":         "Ribaut Social Club",
+    "restaurant_name":         "The Parlor at Bay Street Inn",
     "covers_per_night":        40,
     "avg_check":               65,
     "nights_open_per_week":    4,
@@ -662,39 +679,42 @@ FB_CONFIG = {
     "take_rate_est":           0.20,
 }
 
-# ── F&B yield management — multi-outlet config for Anchorage 1770 ──
+# ── F&B yield management — multi-outlet config for Bay Street Inn ──
 # Keyed by tenant_id. Other tenants default to {"enabled": False}.
 FNB_CONFIGS: dict = {
-    "anchorage-1770-demo": {
+    "bay-street-inn-demo": {
         "enabled": True,
         "outlets": [
             {
                 "id": "rsc_restaurant",
-                "name": "Ribaut Social Club",
+                "name": "The Parlor at Bay Street Inn",
                 "type": "restaurant",
                 "icon": "🍽️",
-                "seats": 48,
-                "services": ["dinner"],
+                "seats": 100,
+                "indoor_seats": 75,
+                "outdoor_seats": 25,
+                "services": ["breakfast", "dinner"],
                 "days_open": [1, 2, 3, 4, 5, 6, 0],
-                "hours": {"dinner": {"open": "17:30", "last_seating": "21:00"}},
+                "hours": {"breakfast": {"open": "07:00", "close": "10:00"},
+                          "dinner": {"open": "17:30", "last_seating": "22:00"}},
                 "avg_check_target":     72.00,
                 "avg_turn_time_min":    90,
                 "reservation_required": False,
                 "max_advance_days":     60,
-                "cuisine":              "Lowcountry American",
+                "cuisine":              "Elevated Southern coastal cuisine",
                 "square_id":            None,
                 "opentable_id":         None,
                 "resy_id":              None,
             },
             {
                 "id": "rooftop_bar",
-                "name": "Rooftop Bar",
+                "name": "The Rooftop at Bay Street Inn",
                 "type": "bar",
                 "icon": "🍸",
-                "capacity": 60,
+                "capacity": 55,
                 "services": ["evening"],
                 "days_open": [4, 5, 6, 0],
-                "hours": {"evening": {"open": "16:00", "close": "23:00"}},
+                "hours": {"evening": {"open": "16:00", "close": "00:00"}},
                 "avg_spend_per_guest":  38.00,
                 "min_spend_peak":       25.00,
                 "reservation_required": False,
@@ -721,8 +741,8 @@ def get_fnb_outlet(tenant_id: str, outlet_id: str) -> dict | None:
     return None
 
 # ── Section C — Room-type equivalency mapping ─────────────────────────────
-# For each competitor, the closest equivalent room they offer per Anchorage
-# room category. `rate_premium_vs_base` is applied on top of their blended
+# For each competitor, the closest equivalent room they offer per Bay
+# Street Inn room category. `rate_premium_vs_base` is applied on top of their blended
 # rate to estimate what they charge for that specific room class.
 # A `None` value means the competitor has no equivalent in that category.
 
@@ -737,7 +757,7 @@ COMPETITOR_ROOM_TYPES = {
         "garden":     {"comp_room_name": "Garden Room",
                        "notes": "Garden courtyard setting",
                        "rate_premium_vs_base": 0.0},
-        "cottage":    None,
+        "classic":    None,
     },
     "Rhett House Inn": {
         "waterfront": None,
@@ -747,9 +767,9 @@ COMPETITOR_ROOM_TYPES = {
         "garden":     {"comp_room_name": "Standard Room",
                        "notes": "Classic historic inn room",
                        "rate_premium_vs_base": 0.0},
-        "cottage":    {"comp_room_name": "Cottage Suite",
-                       "notes": "Detached cottage, full privacy",
-                       "rate_premium_vs_base": 0.30},
+        "classic":    {"comp_room_name": "Standard Room",
+                       "notes": "Entry-tier historic inn room",
+                       "rate_premium_vs_base": 0.0},
     },
     "607 Bay Inn": {
         "waterfront": {"comp_room_name": "Premier Bay View",
@@ -761,7 +781,7 @@ COMPETITOR_ROOM_TYPES = {
         "garden":     {"comp_room_name": "Standard Room",
                        "notes": "Downtown location",
                        "rate_premium_vs_base": 0.0},
-        "cottage":    None,
+        "classic":    None,
     },
     "Beaufort Inn": {
         "waterfront": None,
@@ -771,7 +791,7 @@ COMPETITOR_ROOM_TYPES = {
         "garden":     {"comp_room_name": "Standard King",
                        "notes": "Standard hotel room",
                        "rate_premium_vs_base": 0.0},
-        "cottage":    None,
+        "classic":    None,
     },
     "City Loft Hotel": {
         "waterfront": None,
@@ -779,7 +799,7 @@ COMPETITOR_ROOM_TYPES = {
         "garden":     {"comp_room_name": "Loft Room",
                        "notes": "Modern downtown loft style",
                        "rate_premium_vs_base": 0.0},
-        "cottage":    None,
+        "classic":    None,
     },
     "Airbnb Near Bay (avg)": {
         "waterfront": None,
@@ -789,36 +809,37 @@ COMPETITOR_ROOM_TYPES = {
         "garden":     {"comp_room_name": "Downtown Airbnb (avg)",
                        "notes": "Average of downtown-Beaufort Airbnb units",
                        "rate_premium_vs_base": 0.0},
-        "cottage":    {"comp_room_name": "Whole-house Airbnb (avg)",
-                       "notes": "Entire-place rentals comparable to our private cottage",
-                       "rate_premium_vs_base": 0.25},
+        "classic":    {"comp_room_name": "Whole-house Airbnb (avg)",
+                       "notes": "Entire-place rentals comparable to entry-tier rooms",
+                       "rate_premium_vs_base": 0.10},
     },
 }
 
-# Room type categories for Anchorage 1770 (UI labels + selector)
+# Room type categories for Bay Street Inn (UI labels + selector)
+# Hierarchy: Waterfront > Water View > Garden > Classic
 OUR_ROOM_CATEGORIES = [
     {"id": "waterfront",
      "label": "Waterfront Suites",
      "icon":  "🌊",
-     "description": "Rooms 201-204: direct Beaufort River views",
+     "description": "Rooms 201-204: direct Beaufort River views and porch access",
      "room_ids":  ["waterfront_201","waterfront_202","waterfront_203","waterfront_204"],
-     "base_rate": 419},
+     "base_rate": 395},
     {"id": "waterview",
-     "label": "Water View Suites",
+     "label": "Water View Rooms",
      "icon":  "💧",
      "description": "Rooms 301-305: partial river views",
      "room_ids":  ["waterview_301","waterview_302","waterview_303","waterview_304","waterview_305"],
-     "base_rate": 299},
+     "base_rate": 335},
     {"id": "garden",
-     "label": "Garden View Rooms",
+     "label": "Garden Rooms",
      "icon":  "🌿",
-     "description": "Rooms 101-104: garden courtyard setting",
-     "room_ids":  ["garden_101","garden_102","garden_103","garden_104"],
-     "base_rate": 279},
-    {"id": "cottage",
-     "label": "Private Cottage",
-     "icon":  "🏡",
-     "description": "Standalone cottage: premium privacy",
-     "room_ids":  ["private_cottage"],
-     "base_rate": 489},
+     "description": "Rooms 101-106: garden courtyard setting",
+     "room_ids":  ["garden_101","garden_102","garden_103","garden_104","garden_105","garden_106"],
+     "base_rate": 275},
+    {"id": "classic",
+     "label": "Classic Rooms",
+     "icon":  "🛏️",
+     "description": "Rooms 101-104: well-appointed entry-tier rooms",
+     "room_ids":  ["classic_101","classic_102","classic_103","classic_104"],
+     "base_rate": 245},
 ]

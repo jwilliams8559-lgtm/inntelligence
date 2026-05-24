@@ -94,7 +94,7 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
     const id = setInterval(loadBadge, 60_000)
     return () => clearInterval(id)
   }, [])
-  const isDemo = (import.meta.env.VITE_TENANT_SLUG ?? 'anchorage-1770-demo') === 'anchorage-1770-demo'
+  const isDemo = (import.meta.env.VITE_TENANT_SLUG ?? 'bay-street-inn-demo') === 'bay-street-inn-demo'
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-cream">
       {/* Demo Mode Banner — only when running the demo tenant */}
@@ -104,7 +104,7 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
           <span className="opacity-50">·</span>
           <span>INNtelligence — Rate Intelligence Center</span>
           <span className="opacity-50">·</span>
-          <span>Anchorage 1770 Inn, Beaufort SC</span>
+          <span>Bay Street Inn, Beaufort SC</span>
           <button
             onClick={() => setDemoOpen(true)}
             className="ml-3 bg-white/20 hover:bg-white/30 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-colors"
@@ -228,8 +228,8 @@ function SidebarMonthlySummary() {
       fetch('/api/gift-shop').then(r => r.json()).catch(() => []),
     ]).then(([rooms, fb, pkgs, shop]: any[]) => {
       const avgRate = rooms.length ? Math.round(rooms.reduce((s: number, r: any) => s + r.price, 0) / rooms.length) : 0
-      // Anchorage 1770 has 14 rooms per ACTIVE_PROPERTY
-      const totalRooms = 14
+      // Bay Street Inn has 19 rooms per ACTIVE_PROPERTY
+      const totalRooms = 19
       const roomRev = Math.round(avgRate * totalRooms * 0.75 * 30)
       const fbRev   = fb?.total ?? 0
       const pkgRev  = Array.isArray(pkgs) ? pkgs.filter((p: any) => p.active).reduce((s: number, p: any) => s + (p.est_monthly_rev || 0), 0) : 0

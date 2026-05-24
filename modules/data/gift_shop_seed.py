@@ -1,6 +1,6 @@
 """
 Gift Shop demo seed — initializes the in-memory store with the
-Anchorage 1770 starting catalog: Lowcountry food, branded merch,
+The Bay Street Mercantile starting catalog: Lowcountry food, branded merch,
 local artist consignments, the Comphy resell program, the Murano
 glass partnership with Gino Mazzuccato, and SC wines & spirits.
 """
@@ -32,8 +32,8 @@ def init_demo_gift_shop() -> dict:
         "branded": {
             "id": "branded",
             "icon": "👕",
-            "name": "Anchorage 1770 Branded",
-            "description": "Merchandise branded with the Anchorage 1770 name",
+            "name": "Bay Street Inn Branded",
+            "description": "Merchandise branded with the Bay Street Inn name",
             "arrangement": "owned",
             "fulfillment": "in_person",
             "margin": 0.70,

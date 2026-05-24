@@ -205,7 +205,7 @@ class FNBEngine:
             for k, v in buckets.items()
         ]
 
-        rooms_count = 14   # Anchorage 1770
+        rooms_count = 19   # Bay Street Inn
         return {
             "enabled":           True,
             "period_days":       period_days,
@@ -253,7 +253,7 @@ class FNBEngine:
             if fc.score >= 85:
                 recs.append({
                     "outlet":              "rsc_restaurant",
-                    "outlet_name":         "Ribaut Social Club",
+                    "outlet_name":         "The Parlor at Bay Street Inn",
                     "date":                d.isoformat(),
                     "date_label":          d.strftime("%a %b %-d"),
                     "days_away":           i,
@@ -279,7 +279,7 @@ class FNBEngine:
             elif fc.score <= 45 and dow in (1, 2):
                 recs.append({
                     "outlet":              "rsc_restaurant",
-                    "outlet_name":         "Ribaut Social Club",
+                    "outlet_name":         "The Parlor at Bay Street Inn",
                     "date":                d.isoformat(),
                     "date_label":          d.strftime("%a %b %-d"),
                     "days_away":           i,

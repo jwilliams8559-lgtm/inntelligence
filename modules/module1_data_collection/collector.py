@@ -78,7 +78,7 @@ class DataCollector:
 
     def _collect_hospitality(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """
-        Anchorage 1770 Inn — 1103 Bay Street, Beaufort SC.
+        Bay Street Inn — Bay Street, Beaufort SC.
         Generates a 90-day forward pricing calendar from the dynamic pricing engine
         and formats it into the pipeline-compatible schema expected by
         DataProcessor and FeatureEngineer.
@@ -93,7 +93,7 @@ class DataCollector:
         )
 
         logger.debug(
-            f"[{self.tenant.tenant_id}] Generating Anchorage 1770 Inn "
+            f"[{self.tenant.tenant_id}] Generating Bay Street Inn "
             "90-day pricing calendar"
         )
         engine = AnchoragePricingEngine()
@@ -120,7 +120,7 @@ class DataCollector:
 
         logger.info(
             f"[{self.tenant.tenant_id}] Collected {len(primary_df):,} records "
-            f"(14 rooms × 90 days) from Anchorage 1770 pricing engine"
+            f"(19 rooms × 90 days) from Bay Street Inn pricing engine"
         )
         return {
             "primary": primary_df,
@@ -128,6 +128,6 @@ class DataCollector:
                 "start":    start_date,
                 "end":      end_date,
                 "source":   "anchorage_1770_pricing_engine",
-                "property": "Anchorage 1770 Inn, 1103 Bay Street, Beaufort SC 29902",
+                "property": "Bay Street Inn, Bay Street, Beaufort SC 29902",
             },
         }

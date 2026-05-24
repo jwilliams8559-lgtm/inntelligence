@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 interface Account { email: string; password: string; label: string; sub: string; icon: string; accent: string }
 
 const DEMO_ACCOUNTS: Account[] = [
-  { email: 'demo@graciouscollection.com',       password: 'demo2026',  label: 'Anchorage 1770 Inn',         sub: 'Professional tier · Innkeeper view',  icon: '★', accent: 'gold' },
+  { email: 'demo@graciouscollection.com',       password: 'demo2026',  label: 'Bay Street Inn',         sub: 'Professional tier · Innkeeper view',  icon: '★', accent: 'gold' },
   { email: 'essentials@graciouscollection.com', password: 'demo2026',  label: 'Essentials Demo Inn',        sub: 'Essentials tier · Locked features',   icon: '●', accent: 'slate' },
   { email: 'portfolio@graciouscollection.com',  password: 'demo2026',  label: 'Portfolio Demo Properties',  sub: 'Portfolio tier · Multi-property',     icon: '◆', accent: 'navy' },
   { email: 'admin@graciouscollection.com',      password: 'admin2026', label: 'INNtelligence Admin',        sub: 'Management Console · Onboarding',     icon: '⚙', accent: 'gold' },

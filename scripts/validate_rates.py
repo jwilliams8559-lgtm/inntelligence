@@ -38,18 +38,19 @@ _VENV_PY = ROOT / "venv" / "bin" / "python3"
 if _VENV_PY.exists() and os.path.realpath(sys.executable) != os.path.realpath(str(_VENV_PY)):
     os.execv(str(_VENV_PY), [str(_VENV_PY), __file__, *sys.argv[1:]])
 
-TENANT_SLUG          = "anchorage-1770-demo"
+TENANT_SLUG          = "bay-street-inn-demo"
 WATER_FESTIVAL_START = datetime.date(2026, 7, 17)
 WATER_FESTIVAL_END   = datetime.date(2026, 7, 26)
 ADJ_BEFORE           = (datetime.date(2026, 7, 14), datetime.date(2026, 7, 16))
 ADJ_AFTER            = (datetime.date(2026, 7, 27), datetime.date(2026, 7, 30))
 
-# DB room-type names vary in spacing — accept any of these for each tier.
+# Bay Street Inn hierarchy: Waterfront > Water View > Garden > Classic.
+# DB room-type names vary in spacing — accept any alias for each tier.
 ROOM_ALIASES = {
     "waterfront": ("Waterfront Suite", "Waterfront"),
-    "waterview":  ("Waterview Suite", "Water View Suite", "Waterview", "Water View"),
-    "cottage":    ("Cottage Room", "Private Cottage", "Cottage"),
-    "garden":     ("Garden View Room", "Garden View", "Garden"),
+    "waterview":  ("Water View Room", "Waterview Suite", "Water View Suite", "Waterview", "Water View"),
+    "garden":     ("Garden Room", "Garden View Room", "Garden View", "Garden"),
+    "classic":    ("Classic Room", "Classic"),
 }
 
 ABSOLUTE_FLOOR   = 150.0
@@ -169,34 +170,34 @@ def _load_cuthbert_rates(env: dict[str, str], property_id: str,
 # ── Business rule checks ────────────────────────────────────────────────
 
 def check_hierarchy(by_date: dict, rt_ids: dict, dates_all: list[str]) -> None:
-    wf, wv, co, gv = (rt_ids[k] for k in ("waterfront", "waterview", "cottage", "garden"))
+    wf, wv, gd, cl = (rt_ids[k] for k in ("waterfront", "waterview", "garden", "classic"))
 
     fails = [d for d in dates_all if by_date[d][wf] <= by_date[d][wv]]
     if fails:
         d0 = fails[0]
-        _print_fail("R1  Waterfront > Waterview",
+        _print_fail("R1  Waterfront > Water View",
                     f"{len(fails)} date(s); e.g. {d0} "
                     f"WF=${by_date[d0][wf]:.0f} WV=${by_date[d0][wv]:.0f}")
     else:
-        _print_pass("R1  Waterfront > Waterview", f"all {len(dates_all)} dates")
+        _print_pass("R1  Waterfront > Water View", f"all {len(dates_all)} dates")
 
-    fails = [d for d in dates_all if by_date[d][wv] <= by_date[d][co]]
+    fails = [d for d in dates_all if by_date[d][wv] <= by_date[d][gd]]
     if fails:
         d0 = fails[0]
-        _print_fail("R2  Waterview  > Cottage",
+        _print_fail("R2  Water View > Garden",
                     f"{len(fails)} date(s); e.g. {d0} "
-                    f"WV=${by_date[d0][wv]:.0f} CO=${by_date[d0][co]:.0f}")
+                    f"WV=${by_date[d0][wv]:.0f} GD=${by_date[d0][gd]:.0f}")
     else:
-        _print_pass("R2  Waterview  > Cottage", f"all {len(dates_all)} dates")
+        _print_pass("R2  Water View > Garden", f"all {len(dates_all)} dates")
 
-    fails = [d for d in dates_all if by_date[d][co] < by_date[d][gv]]
+    fails = [d for d in dates_all if by_date[d][gd] < by_date[d][cl]]
     if fails:
         d0 = fails[0]
-        _print_fail("R3  Cottage    >= Garden",
+        _print_fail("R3  Garden     >= Classic",
                     f"{len(fails)} date(s); e.g. {d0} "
-                    f"CO=${by_date[d0][co]:.0f} GV=${by_date[d0][gv]:.0f}")
+                    f"GD=${by_date[d0][gd]:.0f} CL=${by_date[d0][cl]:.0f}")
     else:
-        _print_pass("R3  Cottage    >= Garden", f"all {len(dates_all)} dates")
+        _print_pass("R3  Garden     >= Classic", f"all {len(dates_all)} dates")
 
 
 def check_cuthbert_band(by_date: dict, rt_ids: dict,
@@ -514,12 +515,12 @@ def main() -> int:
     print()
     print(f"{B}Business Rules — Bands{X}")
     check_cuthbert_band(by_date, rt_ids, cuth)
-    _check_band("R5  Waterview is 72-88% of Waterfront",
+    _check_band("R5  Water View is 72-88% of Waterfront",
                 by_date, rt_ids, dates_all, "waterfront", "waterview", 0.72, 0.88)
-    _check_band("R6  Cottage   is 78-92% of Waterview",
-                by_date, rt_ids, dates_all, "waterview", "cottage", 0.78, 0.92)
-    _check_band("R7  Garden    is 85-97% of Cottage",
-                by_date, rt_ids, dates_all, "cottage", "garden", 0.85, 0.97)
+    _check_band("R6  Garden    is 78-92% of Water View",
+                by_date, rt_ids, dates_all, "waterview", "garden", 0.78, 0.92)
+    _check_band("R7  Classic   is 85-97% of Garden",
+                by_date, rt_ids, dates_all, "garden", "classic", 0.85, 0.97)
     print()
     print(f"{B}Business Rules — Bounds{X}")
     check_bounds(recs)

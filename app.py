@@ -1,5 +1,5 @@
 """
-app.py — Anchorage 1770 Inn Pricing Dashboard
+app.py — Bay Street Inn Pricing Dashboard
 Flask web application — http://localhost:5001
 
 Routes:
@@ -81,8 +81,8 @@ PACKAGES_CONFIG: Dict[str, Dict[str, Any]] = {
     "romance": {
         "name": "Romance Package",
         "emoji": "💑",
-        "tagline": "Room · Dinner for Two at Ribaut Social Club · Bottle of Wine",
-        "description": "An unforgettable evening: premium room, in-room dining at the legendary Ribaut Social Club, and a selected South Carolina wine awaiting on arrival.",
+        "tagline": "Room · Dinner for Two at The Parlor · Bottle of Wine",
+        "description": "An unforgettable evening: premium room, dinner for two at The Parlor at Bay Street Inn, and a selected South Carolina wine awaiting on arrival.",
         "premium": 85,
         "eligible_rooms": "waterfront/cottage/water_view",
         "eligible_rooms_count": 10,
@@ -168,7 +168,7 @@ GIFT_SHOP_CATEGORIES = [
         "note": "Best sellers: jams, pralines",
     },
     {
-        "name": "Anchorage 1770 Branded Items",
+        "name": "Bay Street Inn Branded Items",
         "emoji": "🛍️",
         "items": ["Monogrammed Robes", "Canvas Tote Bags", "Soy Candles", "Coffee Mugs", "Embroidered Hats", "Guest Journal"],
         "item_count": 12,
@@ -255,7 +255,7 @@ def _save_competitor_settings(data: Dict[str, Any]) -> None:
 #  Routes
 # ─────────────────────────────────────────────────────────────────────────────
 
-# v2 dashboard (The Gracious Collection — single-property Anchorage view)
+# v2 dashboard (The Gracious Collection — single-property Bay Street Inn view)
 # Lives at "/" and pulls from the new modules.hospitality.* engines.
 # The legacy demo (templates/index.html + /api/dashboard) is preserved at /legacy.
 
@@ -354,7 +354,7 @@ def _v2_calendar(check_in: date, days: int = 90) -> list:
     return cal
 
 
-_CANONICAL_TENANT_SLUG = os.environ.get("TGC_DEMO_TENANT_SLUG", "anchorage-1770-demo")
+_CANONICAL_TENANT_SLUG = os.environ.get("TGC_DEMO_TENANT_SLUG", "bay-street-inn-demo")
 _canonical_cache: dict[str, Any] = {"property_id": None, "room_types": None}
 
 
@@ -412,11 +412,9 @@ def _canonical_room_types() -> list[dict]:
 # both rt.name and rt.id.
 _DB_NAME_TO_ALIASES: dict[str, list[str]] = {
     "Waterfront Suite": ["Waterfront Suite", "Waterfront", "Waterfront Room"],
-    "Waterview Suite":  ["Water View Suite", "Waterview Suite", "Water View Room", "Water View", "Waterview"],
-    "Water View Suite": ["Water View Suite", "Waterview Suite", "Water View Room", "Water View", "Waterview"],
-    "Garden View Room": ["Garden View Room", "Garden Room", "Garden View", "Garden"],
-    "Cottage Room":     ["Cottage Room", "Private Cottage", "Cottage", "Premium Suite"],
-    "Private Cottage":  ["Cottage Room", "Private Cottage", "Cottage", "Premium Suite"],
+    "Water View Room":  ["Water View Room", "Water View Suite", "Waterview Suite", "Water View", "Waterview"],
+    "Garden Room":      ["Garden Room", "Garden View Room", "Garden View", "Garden"],
+    "Classic Room":     ["Classic Room", "Classic", "Cottage Room", "Private Cottage", "Cottage"],
 }
 
 
@@ -556,7 +554,7 @@ def _v2_competitor_7day(check_in: date) -> dict:
     snap7 = _v2_scraper.get_7day_snapshot(check_in)
     cal = _v2_calendar(check_in, 7)
     anch_rates = [c["waterfront_rate"] for c in cal]
-    snap7["competitors"]["Anchorage 1770 Inn (avg)"] = anch_rates
+    snap7["competitors"]["Bay Street Inn (avg)"] = anch_rates
     snap7["avail"] = {c["name"]: c["avail_color"] for c in V2_COMPETITORS}
     snap7["property_avg"] = anch_rates
     return snap7
@@ -892,10 +890,11 @@ def v2_api_competitors_by_room_type():
     from engine.rate_engine import canonical_recommendations_bulk
     _CAT_TO_DB_NAME = {
         "waterfront": "Waterfront Suite",
-        "waterview":  "Waterview Suite",
-        "garden":     "Garden View Room",
-        "cottage":    "Cottage Room",
-        "premium":    "Cottage Room",
+        "waterview":  "Water View Room",
+        "garden":     "Garden Room",
+        "classic":    "Classic Room",
+        "cottage":    "Classic Room",
+        "premium":    "Classic Room",
     }
     db_room_name = _CAT_TO_DB_NAME.get(room_cat)
     canonical_pid = _canonical_property_id()
@@ -1472,7 +1471,7 @@ def v2_api_performance_report():
 
 def _fnb_tenant_id() -> str:
     user = _auth_current_user() or {}
-    return user.get("tenant_id", "anchorage-1770-demo")
+    return user.get("tenant_id", "bay-street-inn-demo")
 
 
 def _current_tenant_id() -> str:
@@ -2552,7 +2551,7 @@ def export_csv():
     resp = make_response(buf.getvalue())
     resp.headers["Content-Type"] = "text/csv"
     resp.headers["Content-Disposition"] = (
-        f'attachment; filename="anchorage_1770_pricing_{date.today().isoformat()}.csv"'
+        f'attachment; filename="bay_street_inn_pricing_{date.today().isoformat()}.csv"'
     )
     return resp
 
@@ -2687,7 +2686,7 @@ def _format_optimizations(raw: Dict[str, Any]) -> Dict[str, Any]:
 @app.route("/api/discover-competitors")
 def api_discover_competitors():
     """
-    GET /api/discover-competitors?slug=anchorage-1770-demo&radius=25&address=...
+    GET /api/discover-competitors?slug=bay-street-inn-demo&radius=25&address=...
 
     Runs live Google Places competitor discovery and returns grouped results.
     Upserts to competitor_properties and seeds rates for new discoveries.
@@ -2706,7 +2705,7 @@ def api_discover_competitors():
     except ImportError as exc:
         return jsonify({"error": f"Engine import failed: {exc}"}), 500
 
-    slug         = request.args.get("slug",    "anchorage-1770-demo")
+    slug         = request.args.get("slug",    "bay-street-inn-demo")
     radius       = float(request.args.get("radius",  "25"))
     address_arg  = request.args.get("address", "")
 
@@ -2914,8 +2913,8 @@ def api_management_portfolio():
                           timeout=10).json() or []
         autopilot_enabled_count = len(ac)
 
-        # Plan tier — placeholder; Anchorage = Founding Member, others = Unknown
-        is_anchorage = "Anchorage" in (p.get("name") or "")
+        # Plan tier — placeholder; Bay Street Inn = Founding Member, others = Unknown
+        is_anchorage = "Bay Street" in (p.get("name") or "")
         plan_tier = "Founding Member" if is_anchorage else "Unassigned"
         mrr       = 0  # all Founding Members are free for the demo
 
@@ -3126,10 +3125,10 @@ def api_management_founding_members():
     today = date.today()
     props = requests.get(f"{sb}/rest/v1/properties", headers=h,
                           params={"select": "id,name,city,state,created_at"}, timeout=10).json() or []
-    # Treat Anchorage as the founding member 1 with a synthetic start date
+    # Treat Bay Street Inn as the founding member 1 with a synthetic start date
     members: list[dict] = []
     for p in props:
-        if "Anchorage" in (p.get("name") or ""):
+        if "Bay Street" in (p.get("name") or ""):
             try:
                 created = datetime.fromisoformat(p["created_at"].replace("Z", "+00:00"))
                 months_elapsed = max(1, ((today.year - created.year) * 12
@@ -3743,5 +3742,5 @@ def webhook_cloudbeds():
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    logger.info("Starting Anchorage 1770 Pricing Dashboard on http://localhost:5001")
+    logger.info("Starting Bay Street Inn Pricing Dashboard on http://localhost:5001")
     app.run(debug=False, host="0.0.0.0", port=5001, threaded=True)

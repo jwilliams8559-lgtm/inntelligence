@@ -82,7 +82,7 @@ def _demo_tenant_id_csv(sb_url: str, sb_key: str) -> str:
     """Resolve the demo tenant id once per call."""
     import os
     import requests
-    slug = os.environ.get("TGC_DEMO_TENANT_SLUG", "anchorage-1770-demo")
+    slug = os.environ.get("TGC_DEMO_TENANT_SLUG", "bay-street-inn-demo")
     try:
         rows = requests.get(
             f"{sb_url}/rest/v1/tenants",

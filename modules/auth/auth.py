@@ -16,9 +16,9 @@ from flask import jsonify, request
 # Demo accounts — in production these come from Supabase Auth
 DEMO_ACCOUNTS = {
     "demo@graciouscollection.com": {
-        "tenant_id":     "anchorage-1770-demo",
+        "tenant_id":     "bay-street-inn-demo",
         "plan_tier":     "professional",
-        "property_name": "Anchorage 1770 Inn",
+        "property_name": "Bay Street Inn",
         "role":          "inn_owner",
         "password_hash": "demo2026",
     },

@@ -35,7 +35,7 @@ for line in (ROOT / ".env").read_text().splitlines():
         k, v = line.split("=", 1)
         os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
-TENANT_SLUG = "anchorage-1770-demo"
+TENANT_SLUG = "bay-street-inn-demo"
 SB_URL = os.environ["SUPABASE_URL"]
 SB_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 H      = {"apikey": SB_KEY, "Authorization": f"Bearer {SB_KEY}",
@@ -43,9 +43,9 @@ H      = {"apikey": SB_KEY, "Authorization": f"Bearer {SB_KEY}",
 
 ROOM_TIERS = {
     "Waterfront Suite": "waterfront",
-    "Waterview Suite":  "waterview",
-    "Cottage Room":     "cottage",
-    "Garden View Room": "garden",
+    "Water View Room":  "waterview",
+    "Garden Room":      "garden",
+    "Classic Room":     "classic",
 }
 
 
@@ -137,19 +137,17 @@ def main() -> int:
             continue
 
         # Mid-band placement guarantees ratios stay inside the validator's
-        # bands even after $5 rounding. The previous approach used
-        # enforce_hierarchy_top_down which clamped to band edges and then
-        # rounding could push the lower tier just outside.
-        wf = _round5(cuth_rate * 1.03)         # R4 mid: 103%
-        wv = _round5(wf * 0.80)                # R5 mid: 80%
-        co = _round5(wv * 0.85)                # R6 mid: 85%
-        gv = _round5(co * 0.91)                # R7 mid: 91%
+        # bands even after $5 rounding. Hierarchy: WF > WV > Garden > Classic.
+        wf      = _round5(cuth_rate * 1.03)    # R4 mid: 103% of Cuthbert
+        wv      = _round5(wf * 0.80)           # R5 mid: 80% of Waterfront
+        garden  = _round5(wv * 0.85)           # R6 mid: 85% of Water View
+        classic = _round5(garden * 0.91)       # R7 mid: 91% of Garden
 
         target_rates = {
             "Waterfront Suite": wf,
-            "Waterview Suite":  wv,
-            "Cottage Room":     co,
-            "Garden View Room": gv,
+            "Water View Room":  wv,
+            "Garden Room":      garden,
+            "Classic Room":     classic,
         }
         for room_name, target in target_rates.items():
             rec = rooms_on_day[name_to_id[room_name]]

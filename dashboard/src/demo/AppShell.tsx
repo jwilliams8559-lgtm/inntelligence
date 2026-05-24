@@ -22,7 +22,7 @@ import Packages from '../screens/Packages'
 import ManagementConsole from '../screens/ManagementConsole'
 import Settings from '../screens/Settings'
 
-const SLUG = import.meta.env.VITE_TENANT_SLUG || 'anchorage-1770-demo'
+const SLUG = import.meta.env.VITE_TENANT_SLUG || 'bay-street-inn-demo'
 const APP_ROLE: AppRole = (import.meta.env.VITE_APP_ROLE as AppRole) || 'shg_admin'
 
 /** Same render tree as App.tsx → AppInner, but exported so DemoMode
@@ -71,7 +71,7 @@ function Authenticated() {
   if (loading || !tenant || !property) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#F8F6F0' }}>
-        <div style={{ color: '#1A3A5C', fontFamily: 'Inter, sans-serif' }}>Loading Anchorage 1770…</div>
+        <div style={{ color: '#1A3A5C', fontFamily: 'Inter, sans-serif' }}>Loading Bay Street Inn…</div>
       </div>
     )
   }
