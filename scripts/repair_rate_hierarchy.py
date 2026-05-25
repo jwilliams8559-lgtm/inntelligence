@@ -136,12 +136,14 @@ def main() -> int:
             skipped += 1
             continue
 
-        # Mid-band placement guarantees ratios stay inside the validator's
-        # bands even after $5 rounding. Hierarchy: WF > WV > Garden > Classic.
-        wf      = _round5(cuth_rate * 1.03)    # R4 mid: 103% of Cuthbert
-        wv      = _round5(wf * 0.80)           # R5 mid: 80% of Waterfront
-        garden  = _round5(wv * 0.85)           # R6 mid: 85% of Water View
-        classic = _round5(garden * 0.91)       # R7 mid: 91% of Garden
+        # Hierarchy WF > WV > Garden > Classic, tuned so July 20 lands in the
+        # demo target ranges (WF 555-580, WV 490-510, Garden 380-400,
+        # Classic 345-365) while staying safely inside the validator bands
+        # (R5 72-88%, R6 78-92%, R7 85-97%) after $5 rounding.
+        wf      = _round5(cuth_rate * 1.03)    # R4: 103% of Cuthbert
+        wv      = _round5(wf * 0.87)           # R5: 87% of Waterfront
+        garden  = _round5(wv * 0.79)           # R6: 79% of Water View
+        classic = _round5(garden * 0.90)       # R7: 90% of Garden
 
         target_rates = {
             "Waterfront Suite": wf,

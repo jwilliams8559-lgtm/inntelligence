@@ -354,6 +354,17 @@ def _v2_calendar(check_in: date, days: int = 90) -> list:
     return cal
 
 
+# The seven primary comparison properties surfaced first in competitor views.
+# Matched by name substring so config/DB naming variants still hit.
+_PRIMARY_COMP_NAMES = ("anchorage 1770", "cuthbert", "rhett", "beaufort inn",
+                       "city loft", "607 bay", "airbnb near bay")
+
+
+def _is_primary_comp(name: str) -> bool:
+    n = (name or "").lower()
+    return any(p in n for p in _PRIMARY_COMP_NAMES)
+
+
 _CANONICAL_TENANT_SLUG = os.environ.get("TGC_DEMO_TENANT_SLUG", "bay-street-inn-demo")
 _canonical_cache: dict[str, Any] = {"property_id": None, "room_types": None}
 
@@ -923,6 +934,7 @@ def v2_api_competitors_by_room_type():
         entry = {
             "name":             name,
             "property_type":    ptype,
+            "primary_comp":     _is_primary_comp(name),
             "tier":             comp.get("tier", "Direct Boutique Competitor"),
             "distance":         comp.get("distance_miles"),
             "tripadvisor":      comp.get("tripadvisor_rating"),
@@ -943,6 +955,10 @@ def v2_api_competitors_by_room_type():
         else:
             entry["rates"] = [None] * days
         competitors_out.append(entry)
+
+    # Primary comps first (stable), so the 7 key references surface ahead of
+    # the broader discovered set in the API response.
+    competitors_out.sort(key=lambda c: not c.get("primary_comp"))
 
     # Per-date position vs TOP BOUTIQUE COMP (not the peer average).
     # The innkeeper-meaningful question is "where am I vs Cuthbert?",
@@ -1684,9 +1700,8 @@ def v2_api_fnb_config():
 @require_feature("fb_yield_module")
 def v2_api_fnb_summary():
     from modules.hospitality.fnb_engine import FNBEngine
-    tid = _fnb_tenant_id()
-    days = int(request.args.get("days", 30))
-    return jsonify(FNBEngine().compute_summary(tid, days))
+    # Flat monthly summary per the documented API contract.
+    return jsonify(FNBEngine().summary_flat(_fnb_tenant_id()))
 
 
 @app.route("/api/fnb/daily")
@@ -1694,12 +1709,15 @@ def v2_api_fnb_summary():
 def v2_api_fnb_daily():
     from modules.hospitality.fnb_engine import FNBEngine
     tid    = _fnb_tenant_id()
-    days   = int(request.args.get("days", 30))
     outlet = request.args.get("outlet")
-    data   = FNBEngine().generate_demo_data(tid, date.today(), days)
-    if outlet and outlet in data.get("outlets", {}):
-        return jsonify({"outlet": outlet, "data": data["outlets"][outlet]})
-    return jsonify(data)
+    eng    = FNBEngine()
+    # With an outlet specified, return the flat day-of-week array (the
+    # documented contract the dashboard + integrations consume).
+    if outlet:
+        return jsonify(eng.dow_daily(tid, outlet))
+    # No outlet → both outlets' DOW arrays.
+    return jsonify({"restaurant": eng.dow_daily(tid, "restaurant"),
+                    "rooftop_bar": eng.dow_daily(tid, "rooftop_bar")})
 
 
 @app.route("/api/fnb/recommendations")

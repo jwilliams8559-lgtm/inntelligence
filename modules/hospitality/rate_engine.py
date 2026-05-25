@@ -13,6 +13,85 @@ from typing import Optional
 
 
 @dataclass
+class CanonicalRate:
+    """Result of the canonical (DB-backed) rate lookup. The single source of
+    truth that the dashboard, validator, and narration all agree with."""
+    rate:         float
+    demand_score: int
+    comp_avg:     float
+    room:         str
+    date:         str
+
+
+_CANON_CACHE: dict = {"property_id": None, "rt_by_name": None}
+
+
+def _canonical_rate(tenant_slug: str, room_name: str, target_date) -> CanonicalRate:
+    """Read the canonical recommended_rate for (tenant, room, date) from the
+    rate_recommendations table. comp_avg is the mean of that date's boutique
+    competitor rates. Raises RuntimeError if the DB is unreachable."""
+    import os
+    import requests
+
+    sb_url = os.environ.get("SUPABASE_URL")
+    sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not (sb_url and sb_key):
+        raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY not set")
+    h = {"apikey": sb_key, "Authorization": f"Bearer {sb_key}"}
+    date_iso = target_date.isoformat() if hasattr(target_date, "isoformat") else str(target_date)
+
+    # Resolve + cache property_id and room-type-name → id map for the tenant.
+    if not _CANON_CACHE["property_id"]:
+        t = requests.get(f"{sb_url}/rest/v1/tenants",
+                         params={"slug": f"eq.{tenant_slug}", "select": "id"},
+                         headers=h, timeout=15).json()
+        if not t:
+            raise RuntimeError(f"tenant {tenant_slug!r} not found")
+        p = requests.get(f"{sb_url}/rest/v1/properties",
+                         params={"tenant_id": f"eq.{t[0]['id']}", "select": "id", "limit": 1},
+                         headers=h, timeout=15).json()
+        _CANON_CACHE["property_id"] = p[0]["id"]
+        rooms = requests.get(f"{sb_url}/rest/v1/room_types",
+                             params={"property_id": f"eq.{p[0]['id']}", "select": "id,name"},
+                             headers=h, timeout=15).json()
+        _CANON_CACHE["rt_by_name"] = {r["name"]: r["id"] for r in rooms}
+
+    pid = _CANON_CACHE["property_id"]
+    rt_id = _CANON_CACHE["rt_by_name"].get(room_name)
+    if not rt_id:
+        raise RuntimeError(f"room type {room_name!r} not found for tenant")
+
+    rec = requests.get(f"{sb_url}/rest/v1/rate_recommendations",
+                       params={"property_id": f"eq.{pid}", "room_type_id": f"eq.{rt_id}",
+                               "target_date": f"eq.{date_iso}",
+                               "select": "recommended_rate,demand_score", "limit": 1},
+                       headers=h, timeout=15).json()
+    if not rec:
+        raise RuntimeError(f"no recommendation for {room_name} on {date_iso}")
+    rate = float(rec[0]["recommended_rate"])
+    demand = int(rec[0].get("demand_score") or 0)
+
+    # comp_avg — mean of boutique-inn competitor rates for that date.
+    comps = requests.get(f"{sb_url}/rest/v1/competitor_properties",
+                         params={"property_id": f"eq.{pid}",
+                                 "property_category": "eq.boutique_inn",
+                                 "select": "id"}, headers=h, timeout=15).json()
+    comp_avg = 0.0
+    if comps:
+        ids = ",".join(c["id"] for c in comps)
+        crs = requests.get(f"{sb_url}/rest/v1/competitor_rates",
+                           params={"competitor_id": f"in.({ids})",
+                                   "rate_date": f"eq.{date_iso}",
+                                   "is_stale": "eq.false",
+                                   "select": "rate_amount"}, headers=h, timeout=15).json()
+        rates = [float(r["rate_amount"]) for r in crs if r.get("rate_amount") is not None]
+        comp_avg = sum(rates) / len(rates) if rates else 0.0
+
+    return CanonicalRate(rate=rate, demand_score=demand, comp_avg=comp_avg,
+                         room=room_name, date=date_iso)
+
+
+@dataclass
 class RateRecommendation:
     room_id: str
     room_name: str
@@ -128,17 +207,33 @@ class RateEngine:
     def round_to_5(rate: float) -> float:
         return round(rate / 5) * 5
 
-    def recommend(self, room: dict, demand_score: int, demand_label: str,
-                  demand_drivers: list, confidence: int,
+    def recommend(self, room, demand_score=None, demand_label=None,
+                  demand_drivers: list = None, confidence: int = None,
                   comp_rates: list = None, target_date: date = None,
-                  comp_entries: list = None) -> RateRecommendation:
-        """
+                  comp_entries: list = None):
+        """Two call styles:
+
+        1. Canonical lookup (SINGLE SOURCE OF TRUTH) — what the dashboard shows:
+               recommend(tenant_slug: str, room_name: str, target_date: date)
+           Returns a CanonicalRate(.rate, .demand_score, .comp_avg, .room, .date)
+           read straight from the rate_recommendations table. Use this for any
+           "what is the rate for room X on date Y" question.
+
+        2. Live S-curve computation (internal generation path), when `room` is a
+           room dict:
+               recommend(room: dict, demand_score, demand_label, demand_drivers,
+                         confidence, comp_rates=, target_date=, comp_entries=)
+
         comp_rates    legacy flat list of rates — every entry weighted equally
         comp_entries  preferred: list of {"rate", "property_type"} dicts so the
                       math honors PROPERTY_TYPES weights (boutique 1.0, hotel
                       0.4, luxury 0.1, budget 0.05, STR 0.0) and applies the
                       BOUTIQUE_INN_PREMIUM (1.45x) over the STR baseline.
         """
+        # Call style 1 — canonical DB lookup by (tenant_slug, room_name, date).
+        if isinstance(room, str):
+            return _canonical_rate(room, demand_score, demand_label)
+
         from config.settings import (
             PROPERTY_TYPES, BOUTIQUE_INN_PREMIUM, AMENITY_PREMIUM_OVER_STR_TOTAL,
         )

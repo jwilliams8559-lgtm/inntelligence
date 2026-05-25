@@ -47,8 +47,128 @@ ROOFTOP_DOW = {
     3: (28, 38.0), 4: (44, 52.0), 5: (51, 58.0), 6: (32, 41.0),
 }
 
+# Spec-shaped day-of-week arrays returned by /api/fnb/daily?outlet= for the demo.
+RESTAURANT_DOW_SPEC = [
+    {"day": "Monday",    "covers": 38, "avg_check": 52, "revenue": 1976, "occ_pct": 38},
+    {"day": "Tuesday",   "covers": 44, "avg_check": 54, "revenue": 2376, "occ_pct": 44},
+    {"day": "Wednesday", "covers": 51, "avg_check": 56, "revenue": 2856, "occ_pct": 51},
+    {"day": "Thursday",  "covers": 68, "avg_check": 61, "revenue": 4148, "occ_pct": 68},
+    {"day": "Friday",    "covers": 87, "avg_check": 74, "revenue": 6438, "occ_pct": 87},
+    {"day": "Saturday",  "covers": 96, "avg_check": 82, "revenue": 7872, "occ_pct": 96},
+    {"day": "Sunday",    "covers": 71, "avg_check": 65, "revenue": 4615, "occ_pct": 71},
+]
+ROOFTOP_DOW_SPEC = [
+    {"day": "Thursday",  "guests": 28, "avg_spend": 38, "revenue": 1064, "occ_pct": 51},
+    {"day": "Friday",    "guests": 44, "avg_spend": 52, "revenue": 2288, "occ_pct": 80},
+    {"day": "Saturday",  "guests": 51, "avg_spend": 58, "revenue": 2958, "occ_pct": 93},
+    {"day": "Sunday",    "guests": 32, "avg_spend": 41, "revenue": 1312, "occ_pct": 58},
+]
+SUMMARY_SPEC = {
+    "monthly_revenue":     126000,
+    "restaurant_monthly":  98000,
+    "bar_monthly":         28000,
+    "revpash":             24.50,
+    "avg_check":           62.40,
+    "total_monthly_covers": 2800,
+}
+RECOMMENDATIONS_SPEC = [
+    {
+        "priority": "HIGH",
+        "date": "Tuesday June 2",
+        "title": "Midweek Yield Gap — The Parlor at 44%",
+        "action": ("Launch $38 prix fixe dinner for Tuesday-Wednesday. Partner with "
+                   "local wine shop for paired selections. Promote to hotel guests "
+                   "and Beaufort locals via email."),
+        "revenue_lift": 920,
+        "lift_label": "+$920/week",
+    },
+    {
+        "priority": "HIGH",
+        "date": "Ongoing Thu-Sun",
+        "title": "Rooftop Minimum Spend — Peak Nights",
+        "action": ("Apply $25 minimum spend Thursday-Saturday on The Rooftop. "
+                   "Estimated impact: $18 more per guest on 44 Friday guests."),
+        "revenue_lift": 2376,
+        "lift_label": "+$2,376/month",
+    },
+    {
+        "priority": "MEDIUM",
+        "date": "July 17-26",
+        "title": "Water Festival F&B Strategy",
+        "action": ("Prix fixe dinner $85 per person Friday-Saturday. Rooftop "
+                   "reservation required, $30 minimum. Add porch seating all 10 days "
+                   "for dinner service weather permitting."),
+        "revenue_lift": 8400,
+        "lift_label": "+$8,400 over festival",
+    },
+    {
+        "priority": "MEDIUM",
+        "date": "Ongoing",
+        "title": "Porch Breakfast for Two Package",
+        "action": ("Add $45 Porch Breakfast for Two as an upsell at check-in. Served "
+                   "on the front porches overlooking Bay Street. Target couples and "
+                   "anniversary guests."),
+        "revenue_lift": 1260,
+        "lift_label": "+$1,260/month",
+    },
+]
+
+# Map the spec's outlet aliases to internal outlet ids.
+_OUTLET_ALIAS = {"restaurant": "rsc_restaurant", "rsc_restaurant": "rsc_restaurant",
+                 "rooftop_bar": "rooftop_bar", "bar": "rooftop_bar", "rooftop": "rooftop_bar"}
+
 
 class FNBEngine:
+
+    # ── Spec-shaped API responses (single source for the dashboard + curl) ──
+
+    def dow_daily(self, tenant_id: str, outlet: str) -> list[dict[str, Any]]:
+        """Day-of-week array for an outlet, matching the documented API
+        contract. Demo tenant returns the curated spec arrays."""
+        oid = _OUTLET_ALIAS.get(outlet, outlet)
+        if tenant_id == DEMO_FNB_TENANT:
+            return ROOFTOP_DOW_SPEC if oid == "rooftop_bar" else RESTAURANT_DOW_SPEC
+        # Non-demo: aggregate the generated per-date data into a DOW array.
+        data = self.generate_demo_data(tenant_id, date.today(), 30)
+        rows = data.get("outlets", {}).get(oid, [])
+        order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        out = []
+        for day in order:
+            drows = [r for r in rows if r.get("day_of_week") == day]
+            if not drows:
+                continue
+            n = len(drows)
+            if oid == "rooftop_bar":
+                out.append({"day": day,
+                            "guests": round(sum(r["guests"] for r in drows) / n),
+                            "avg_spend": round(sum(r["avg_spend"] for r in drows) / n),
+                            "revenue": round(sum(r["revenue"] for r in drows) / n),
+                            "occ_pct": round(sum(r["capacity_pct"] for r in drows) / n)})
+            else:
+                out.append({"day": day,
+                            "covers": round(sum(r["covers"] for r in drows) / n),
+                            "avg_check": round(sum(r["avg_check"] for r in drows) / n),
+                            "revenue": round(sum(r["revenue"] for r in drows) / n),
+                            "occ_pct": round(sum(r["covers_capacity_pct"] for r in drows) / n)})
+        return out
+
+    def summary_flat(self, tenant_id: str) -> dict[str, Any]:
+        """Flat monthly summary matching the documented API contract."""
+        if tenant_id == DEMO_FNB_TENANT:
+            return dict(SUMMARY_SPEC)
+        s = self.compute_summary(tenant_id, 30)
+        if not s.get("enabled"):
+            return {"enabled": False}
+        r, b = s["restaurant"], s["bar"]
+        return {
+            "monthly_revenue":      round(r["total_revenue"] + b["total_revenue"]),
+            "restaurant_monthly":   round(r["total_revenue"]),
+            "bar_monthly":          round(b["total_revenue"]),
+            "revpash":              r["avg_revpash"],
+            "avg_check":            r["avg_check"],
+            "total_monthly_covers": r["total_covers"],
+        }
+
 
     # ── Demo data generation ────────────────────────────────────────
 
@@ -263,53 +383,8 @@ class FNBEngine:
             return []
 
         if tenant_id == DEMO_FNB_TENANT:
-            # Four curated, concrete recommendation cards with dollar lift.
-            return [
-                {
-                    "outlet": "rsc_restaurant", "outlet_name": "The Parlor at Bay Street Inn",
-                    "type": "premium_service", "priority": "high",
-                    "title": "Water Festival — Run Prix Fixe on Peak Saturdays",
-                    "action": ("Saturday covers run 96 at a $82 average. On Water Festival "
-                               "nights, switch to an $85 prix fixe and require reservations. "
-                               "Plus a $25 minimum spend on The Rooftop."),
-                    "est_revenue_lift": 1248,
-                    "lift_detail": "+$13 avg check × 96 covers = +$1,248 / peak night",
-                    "recommended_avg_check": 85.00,
-                },
-                {
-                    "outlet": "rsc_restaurant", "outlet_name": "The Parlor at Bay Street Inn",
-                    "type": "fill_strategy", "priority": "medium",
-                    "title": "Tuesday / Wednesday — Close the Yield Gap",
-                    "action": ("Tue (44 covers, 44%) and Wed (51, 51%) sit below target. "
-                               "Add a $38 prix fixe lunch for locals and a 4–6pm happy hour "
-                               "on house wine to lift mid-week covers."),
-                    "est_revenue_lift": 912,
-                    "lift_detail": "+$24 avg lunch × ~19 incremental covers × 2 nights = +$912 / week",
-                    "recommended_avg_check": 38.00,
-                },
-                {
-                    "outlet": "rooftop_bar", "outlet_name": "The Rooftop at Bay Street Inn",
-                    "type": "premium_service", "priority": "medium",
-                    "title": "The Rooftop — Weekend Minimum Spend",
-                    "action": ("Fri/Sat run 44 and 51 guests at 80% and 93% capacity. "
-                               "Apply a $25 minimum spend on weekend evenings to lift "
-                               "per-guest revenue without turning anyone away."),
-                    "est_revenue_lift": 760,
-                    "lift_detail": "+$8 per guest × ~95 weekend guests = +$760 / weekend",
-                    "recommended_avg_check": 58.00,
-                },
-                {
-                    "outlet": "rsc_restaurant", "outlet_name": "The Parlor at Bay Street Inn",
-                    "type": "package", "priority": "high",
-                    "title": "Dinner + Stay Package — Fill Rooms AND The Parlor",
-                    "action": ("Bundle a Waterfront Suite with dinner for two at The Parlor "
-                               "at a 10% combined discount. Captures room revenue and a "
-                               "guaranteed cover on the same booking."),
-                    "est_revenue_lift": 2800,
-                    "lift_detail": "~20 bundles/month × +$140 incremental F&B = +$2,800 / month",
-                    "recommended_avg_check": 72.00,
-                },
-            ]
+            # Four curated cards matching the documented API contract.
+            return [dict(c) for c in RECOMMENDATIONS_SPEC]
 
         from modules.hospitality.demand_engine import DemandEngine
         engine = DemandEngine()
