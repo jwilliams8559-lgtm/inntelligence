@@ -270,6 +270,30 @@
     </div>
   </div>
 
+  <!-- 3b. Food & Beverage -->
+  <div class="panel">
+    <div class="panel-header">🍽️ FOOD &amp; BEVERAGE — RIBAUT SOCIAL CLUB + ROOFTOP BAR <span class="badge-gold" id="badge-fnb">—</span></div>
+    <div class="panel-body p-3">
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <div class="opt-section-title">Projected Monthly Revenue</div>
+          <div class="shop-grid" id="fnb-kpis" style="grid-template-columns:repeat(2,1fr)"><div class="loading-msg">Loading F&amp;B…</div></div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="opt-section-title">Busiest Days — Ribaut Social Club</div>
+          <table class="comp-compress-table" id="fnb-dow-table">
+            <thead><tr><th>Day</th><th>Covers</th><th>Avg Check</th><th>Revenue</th></tr></thead>
+            <tbody><tr><td colspan="4" class="loading-msg">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="opt-section-title">Grow F&amp;B Revenue</div>
+          <div id="fnb-recs"><div class="loading-msg">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 4. Revenue Forecast -->
   <div class="panel">
     <div class="panel-header">90-DAY REVENUE FORECAST — PROJECTED DAILY REVENUE (14 ROOMS × 75% OCC)</div>
@@ -355,6 +379,48 @@ async function loadAll() {
   if (pkgs.status === 'fulfilled')     renderPackages(pkgs.value);
   if (settings.status === 'fulfilled') renderSettings(settings.value);
   renderGiftShop();
+  loadFnB();
+}
+
+async function loadFnB() {
+  let d;
+  try { d = await fetchJSON('/api/fnb/summary'); }
+  catch (e) { document.getElementById('fnb-kpis').innerHTML = '<div class="loading-msg">F&B data unavailable.</div>'; return; }
+  const s = d.summary || {};
+  const usd = n => '$' + Math.round(n||0).toLocaleString('en-US');
+  document.getElementById('badge-fnb').textContent = usd(s.monthly_revenue) + '/mo';
+
+  // KPI tiles
+  const tiles = [
+    ['Ribaut Social Club', usd(s.restaurant_monthly) + '/mo'],
+    ['Rooftop Bar',        usd(s.bar_monthly) + '/mo'],
+    ['Total F&B',          usd(s.monthly_revenue) + '/mo'],
+    ['RevPASH',            '$' + (s.revpash ?? 0)],
+    ['Avg Check',          '$' + (s.avg_check ?? 0)],
+    ['Monthly Covers',     (s.total_monthly_covers||0).toLocaleString('en-US')],
+  ];
+  document.getElementById('fnb-kpis').innerHTML = tiles.map(([k,v]) => `
+    <div class="shop-card" style="text-align:center;padding:10px">
+      <div class="shop-name" style="margin:0">${k}</div>
+      <div class="room-rate" style="font-size:1.1rem;color:var(--navy);margin:3px 0">${v}</div>
+    </div>`).join('');
+
+  // Busiest days (Ribaut Social Club) — sorted by revenue desc
+  const rows = [...(d.restaurant_dow||[])].sort((a,b)=>b.revenue-a.revenue);
+  document.querySelector('#fnb-dow-table tbody').innerHTML = rows.map((r,i) => `
+    <tr${i===0?' style="font-weight:700;background:var(--hold-bg)"':''}>
+      <td>${r.day}</td><td>${r.covers}</td><td>$${r.avg_check}</td>
+      <td>$${(r.revenue||0).toLocaleString('en-US')}</td></tr>`).join('');
+
+  // Recommendations
+  document.getElementById('fnb-recs').innerHTML = (d.recommendations||[]).map(rec => {
+    const hi = (rec.priority||'').toUpperCase() === 'HIGH';
+    return `<div class="opt-card ${hi?'midweek':'package'}">
+      <span class="revenue-tag">${rec.lift_label||''}</span>
+      <div class="opt-title">${rec.title}</div>
+      <div class="opt-meta">${rec.date||''}</div>
+      <div class="opt-action">${rec.action||''}</div></div>`;
+  }).join('') || '<p class="text-muted small mt-1">No F&B recommendations.</p>';
 }
 
 async function fetchJSON(url) {
@@ -599,10 +665,10 @@ async function togglePkg(id, el) {
 // ── Gift Shop ──────────────────────────────────────────────────────────────
 function renderGiftShop() {
   const cats = [
-    { emoji:'🫙', name:'Lowcountry Food & Pantry', items:'Sweetgrass Jams · Hot Sauces · Stone-Ground Grits · Pralines · Local Honey', count:24, rev:1200, note:'Best sellers: jams and pralines' },
-    { emoji:'🛍️', name:'Anchorage 1770 Branded', items:'Monogrammed Robes · Canvas Totes · Soy Candles · Coffee Mugs · Embroidered Hats', count:12, rev:800, note:'High-margin, strong during holiday season' },
-    { emoji:'🎨', name:'Local Artisan Goods', items:'Sweetgrass Baskets · Lowcountry Prints · Sea Glass Jewelry · Handmade Pottery', count:18, rev:650, note:'Curated from Beaufort artists — consignment model' },
-    { emoji:'🍷', name:'Wines & Spirits', items:'SC Muscadine Wine · Firefly Sweet Tea Vodka · Striped Pig Rum · Local Craft Ales', count:8, rev:950, note:'Requires SC liquor license compliance' },
+    { emoji:'🛏️', name:'Comphy Bedding', items:'Signature Sateen Sheet Sets · Duvet Covers · Pillowcases · Spa Robes', count:14, rev:1450, note:'Reseller — the linens guests sleep on, sold at retail' },
+    { emoji:'🪟', name:'Murano Glass by Gino Mazzuccato', items:'Hand-blown Vases · Stemware · Sculptural Pieces · Ornaments', count:20, rev:1800, note:'Consignment / dropship from Italy — no inventory carry' },
+    { emoji:'🎨', name:'Local Beaufort Artists', items:'Lowcountry Watercolors · Sweetgrass Baskets · Sea Glass Jewelry · Pottery', count:18, rev:650, note:'Consignment — curated from Beaufort artists' },
+    { emoji:'🫙', name:'Lowcountry Pantry', items:'Sweetgrass Jams · Hot Sauces · Stone-Ground Grits · Pralines · Local Honey', count:24, rev:1200, note:'Local food products — best sellers: jams and pralines' },
   ];
   document.getElementById('shop-grid').innerHTML = cats.map(c => `
     <div class="shop-card">

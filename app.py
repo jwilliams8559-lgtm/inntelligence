@@ -287,6 +287,24 @@ def market_intelligence():
     return jsonify(data)
 
 
+@app.route("/api/fnb/summary")
+def fnb_summary():
+    """F&B revenue summary for the Ribaut Social Club restaurant + Rooftop Bar.
+    Built from the existing fnb_engine demo dataset. RECOMMENDATIONS_SPEC is
+    imported directly because generate_recommendations() pulls a config helper
+    not present in this build."""
+    from modules.hospitality.fnb_engine import (
+        FNBEngine, RECOMMENDATIONS_SPEC, DEMO_FNB_TENANT,
+    )
+    eng = FNBEngine()
+    return jsonify({
+        "summary":         eng.summary_flat(DEMO_FNB_TENANT),
+        "restaurant_dow":  eng.dow_daily(DEMO_FNB_TENANT, "restaurant"),
+        "rooftop_dow":     eng.dow_daily(DEMO_FNB_TENANT, "rooftop_bar"),
+        "recommendations": [dict(c) for c in RECOMMENDATIONS_SPEC],
+    })
+
+
 @app.route("/api/packages")
 def packages():
     status = _load_packages_status()
