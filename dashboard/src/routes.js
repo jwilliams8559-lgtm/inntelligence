@@ -10,6 +10,8 @@ export const SCREENS = [
   { path: '/historical',          name: 'Historical',          icon: '📈' },
   { path: '/reputation',          name: 'Reputation',          icon: '⭐' },
   { path: '/weather',             name: 'Weather',             icon: '☀️' },
-  { path: '/gap-night',           name: 'Gap Night',           icon: '🛏️' },
+  { path: '/gap-night',           name: 'Revenue Intelligence', icon: '🧠' },
   { path: '/events',              name: 'Events',              icon: '🎉' },
+  { path: '/private-events',      name: 'Private Events',      icon: '💒' },
+  { path: '/weddings',            name: 'Weddings',            icon: '💍' },
 ]

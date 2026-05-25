@@ -106,6 +106,12 @@ RENTABLE_ROOM_IDS = list(ROOM_INVENTORY.keys())  # 14 rooms
 
 # Max discount floor: never go below 85% of rack_low
 TIER_FLOOR_PCT = 0.85
+# Absolute rate ceiling: no combination of seasonal/event/weekend multipliers
+# may push the recommended rate above rack_high × this factor.
+RATE_CEILING_PCT = 1.40
+# Documented year-over-year rate growth (matches historical_engine), used to
+# estimate the comparable rate for the same date one year prior.
+YOY_GROWTH = 1.08
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Competitor Set
@@ -292,6 +298,7 @@ class AnchoragePricingEngine:
         self.occ_high         = cfg.get("occ_target_high", self.OCC_TARGET_HIGH)
         self.weekend_premium  = cfg.get("weekend_premium", 0.15)
         self.floor_pct        = cfg.get("discount_floor_pct", TIER_FLOOR_PCT)
+        self.ceiling_pct      = cfg.get("rate_ceiling_pct", RATE_CEILING_PCT)
         self.export_prefix    = cfg.get("export_prefix", "anchorage_1770")
 
     # ------------------------------------------------------------------ #
@@ -518,8 +525,12 @@ class AnchoragePricingEngine:
             reasoning.append("Weekend +15% (Fri/Sat)")
 
         # ── Compute rate ───────────────────────────────────────────────────
+        rack_ceiling = room.rack_high * self.ceiling_pct
         raw_rate = seasonal_base * effective_demand * weekend_mult
         rate     = max(raw_rate, rack_floor)          # enforce floor
+        if rate > rack_ceiling:                       # enforce absolute ceiling
+            rate = rack_ceiling
+            reasoning.append(f"Capped at rack ceiling (rack_high ×{self.ceiling_pct:.2f})")
         rate     = round(rate / 5) * 5                # round to nearest $5
 
         # ── Metrics ───────────────────────────────────────────────────────
@@ -534,6 +545,22 @@ class AnchoragePricingEngine:
         comp_avg    = round(_num / _den, 2) if _den else sum(comp_rates.values()) / len(comp_rates)
         vs_comp_pct = round((rate - comp_avg) / comp_avg * 100, 1)
 
+        # ── Confidence: how certain the recommendation is ──────────────────
+        # Near-term dates and active events give strong demand signal → High.
+        if has_event or days_out <= 14:
+            confidence = "High"
+            conf_reason = ("Active event demand signal" if has_event
+                           else f"Near-term ({days_out}d) — booking pace is reliable")
+        elif days_out <= 45:
+            confidence = "Medium"
+            conf_reason = f"{days_out}d out — moderate visibility into demand"
+        else:
+            confidence = "Low"
+            conf_reason = f"{days_out}d out — limited forward signal, monitor occupancy"
+
+        # ── YoY: same calendar date one year prior (rack baseline × growth) ─
+        last_year_rate = round(rate / YOY_GROWTH / 5) * 5
+
         return {
             "room_id":            room_id,
             "room_name":          room.name,
@@ -542,10 +569,12 @@ class AnchoragePricingEngine:
             "day_of_week":        check_in_date.strftime("%A"),
             "days_out":           days_out,
             "rate":               rate,
+            "last_year_rate":     last_year_rate,
             "rack_low":           room.rack_low,
             "rack_high":          room.rack_high,
             "rack_mid":           rack_mid,
             "rack_floor":         round(rack_floor, 2),
+            "rack_ceiling":       round(rack_ceiling, 2),
             "seasonal_index":     seasonal_mult,
             "event_multiplier":   event_mult,
             "active_events":      active_events,
@@ -556,6 +585,8 @@ class AnchoragePricingEngine:
             "competitor_avg":     round(comp_avg, 2),
             "rate_vs_rack_pct":   vs_rack_pct,
             "rate_vs_comp_pct":   vs_comp_pct,
+            "confidence":         confidence,
+            "confidence_reason":  conf_reason,
             "reasoning":          " | ".join(reasoning),
         }
 
@@ -610,8 +641,11 @@ class AnchoragePricingEngine:
                     "tier":             r["tier"],
                     "rack_low":         r["rack_low"],
                     "rack_high":        r["rack_high"],
+                    "rack_mid":         r["rack_mid"],
                     "recommended_rate": r["rate"],
+                    "last_year_rate":   r["last_year_rate"],
                     "rate_vs_rack_pct": r["rate_vs_rack_pct"],
+                    "confidence":       r["confidence"],
                     "occupancy_assumed":f"{occ:.0%}",
                     "is_weekend":       r["is_weekend"],
                     "active_events":    "; ".join(active_events),

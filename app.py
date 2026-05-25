@@ -28,6 +28,8 @@ from flask import Flask, jsonify, make_response, render_template, request
 from modules.hospitality.anchorage_pricing import (
     ROOM_INVENTORY,
     AnchoragePricingEngine,
+    YOY_GROWTH,
+    SEASONAL_INDEX,
 )
 from modules.hospitality.competitor_scraper import CompetitorScraper
 from modules.module5_optimization.optimizer import PricingOptimizer
@@ -128,6 +130,38 @@ PACKAGES_CONFIG: Dict[str, Dict[str, Any]] = {
         "take_rate": 0.25,
         "available": "Year-round",
     },
+}
+
+# Industry package catalog — the top packages boutique inns commonly offer.
+# Default to the "available" (not-yet-active) tab; activating one moves it to
+# the Active tab. `pct_inns` = % of comparable inns that offer it (benchmark).
+# `premium` = recommended price premium (the source of truth for pricing).
+INDUSTRY_PACKAGES: Dict[str, Dict[str, Any]] = {
+    "romantic_escape":      {"name": "Romantic Escape",        "emoji": "🌹", "premium": 89,  "pct_inns": 82, "description": "Champagne, rose petal turndown, and a couples' dinner reservation."},
+    "anniversary_celebration": {"name": "Anniversary Celebration", "emoji": "🥂", "premium": 79, "pct_inns": 74, "description": "Commemorate the milestone with flowers, cake, and a keepsake photo."},
+    "honeymoon_suite":      {"name": "Honeymoon Suite",        "emoji": "💍", "premium": 149, "pct_inns": 61, "description": "Top-tier suite, sparkling wine, late checkout, and breakfast in bed."},
+    "girls_getaway":        {"name": "Girls Getaway",          "emoji": "👯", "premium": 119, "pct_inns": 48, "description": "Multi-room block, welcome cocktails, and a spa add-on for the group."},
+    "corporate_retreat":    {"name": "Corporate Retreat",      "emoji": "💼", "premium": 199, "pct_inns": 39, "description": "Meeting space, catered working lunch, and AV for small teams."},
+    "writers_retreat":      {"name": "Writers Retreat",        "emoji": "✍️", "premium": 95,  "pct_inns": 22, "description": "Quiet garden room, unlimited coffee, and a late 2pm checkout."},
+    "photography_package":  {"name": "Photography Package",    "emoji": "📷", "premium": 129, "pct_inns": 28, "description": "Golden-hour session with a local photographer on the waterfront."},
+    "culinary_experience":  {"name": "Culinary Experience",    "emoji": "🍽️", "premium": 159, "pct_inns": 44, "description": "Chef's tasting menu plus a Lowcountry cooking demonstration."},
+    "history_heritage_tour":{"name": "History & Heritage Tour","emoji": "🏛️", "premium": 75,  "pct_inns": 57, "description": "Guided walking tour of historic Beaufort's antebellum district."},
+    "ghost_tour":           {"name": "Ghost Tour",             "emoji": "👻", "premium": 59,  "pct_inns": 51, "description": "Evening lantern-lit ghost tour of the old district for two."},
+    "kayak_adventure":      {"name": "Kayak Adventure",        "emoji": "🛶", "premium": 85,  "pct_inns": 46, "description": "Guided estuary paddle with gear and a packed Lowcountry lunch."},
+    "fishing_charter":      {"name": "Fishing Charter",        "emoji": "🎣", "premium": 245, "pct_inns": 33, "description": "Half-day inshore charter with a licensed local captain."},
+    "wine_cheese_welcome":  {"name": "Wine & Cheese Welcome",  "emoji": "🧀", "premium": 49,  "pct_inns": 78, "description": "Local cheese board and a bottle of SC wine on arrival."},
+    "birthday_celebration": {"name": "Birthday Celebration",   "emoji": "🎂", "premium": 55,  "pct_inns": 69, "description": "Cake, balloons, and a celebratory turndown for the guest of honor."},
+    "proposal_package":     {"name": "Proposal Package",       "emoji": "💎", "premium": 175, "pct_inns": 41, "description": "Private setup, photographer on standby, and champagne to toast."},
+    "pet_friendly_getaway": {"name": "Pet Friendly Getaway",   "emoji": "🐶", "premium": 45,  "pct_inns": 63, "description": "Pet bed, bowls, treats, and a trail map — fee waived."},
+    "wellness_spa":         {"name": "Wellness & Spa",         "emoji": "💆", "premium": 139, "pct_inns": 58, "description": "In-room couples massage and a wellness amenity kit."},
+    "golf_package":         {"name": "Golf Package",           "emoji": "⛳", "premium": 165, "pct_inns": 36, "description": "Tee times at a nearby coastal course plus cart and transport."},
+    "military_appreciation":{"name": "Military Appreciation",  "emoji": "🎖️", "premium": -40, "pct_inns": 71, "description": "Discounted rate honoring active and veteran service members."},
+    "first_responder":      {"name": "First Responder Package","emoji": "🚒", "premium": -35, "pct_inns": 64, "description": "Thank-you discount for police, fire, and EMS personnel."},
+    "aaa_member":           {"name": "AAA Member Special",     "emoji": "🚗", "premium": -25, "pct_inns": 88, "description": "Standard AAA member discount with flexible cancellation."},
+    "aarp_senior":          {"name": "AARP Senior Discount",   "emoji": "🧓", "premium": -25, "pct_inns": 84, "description": "AARP / 55+ discount available year-round."},
+    "extended_stay":        {"name": "Extended Stay Discount", "emoji": "📅", "premium": -60, "pct_inns": 76, "description": "Reduced nightly rate for stays of 5 nights or more."},
+    "last_minute_deal":     {"name": "Last Minute Deal",       "emoji": "⏰", "premium": -45, "pct_inns": 79, "description": "Discount on bookings made within 48 hours of arrival."},
+    "early_bird":           {"name": "Early Bird Special",     "emoji": "🐦", "premium": -30, "pct_inns": 81, "description": "Save when booking 60+ days ahead with prepayment."},
 }
 
 GIFT_SHOP_CATEGORIES = [
@@ -333,6 +367,327 @@ def dashboard_data():
     })
 
 
+@app.route("/api/room-rate")
+def api_room_rate():
+    """Full pricing detail for one room on one date (Rate Calendar detail panel)."""
+    prop = _resolve_property()
+    eng  = _engine_for(prop)
+    room_id = request.args.get("room_id", "")
+    try:
+        d = date.fromisoformat(request.args.get("date", ""))
+    except ValueError:
+        d = date.today()
+    if room_id not in eng.rooms:
+        return jsonify({"error": f"Unknown room_id {room_id!r}"}), 404
+    detail = eng.calculate_room_rate(room_id, d, 0.75)
+    # Tier-comparable competitor rates: label each competitor with its rate.
+    detail["competitor_rates"] = [
+        {"name": n, "rate": r} for n, r in detail["competitor_rates"].items()
+    ]
+    return jsonify(detail)
+
+
+@app.route("/api/rate-calendar")
+def api_rate_calendar():
+    """Per-room rate series across a date range (Rate Calendar grid)."""
+    prop = _resolve_property()
+    eng  = _engine_for(prop)
+    try:
+        days = max(1, min(int(request.args.get("days", 30)), 90))
+    except ValueError:
+        days = 30
+    meta = PROPERTIES[prop]
+
+    cal_df = _cached(f"{prop}:calendar_90d", lambda: eng.generate_pricing_calendar(
+        days_ahead=90, base_occupancy=0.75
+    ))
+    df = cal_df[cal_df["days_out"] < days]
+
+    tier_icons = {"cottage": "🏡", "waterfront": "🌊", "water_view": "🔭", "garden": "🌿",
+                  "carriage_house": "🏛️", "signature_suite": "✨", "grand_parlor": "👑"}
+    rooms = {}
+    for _, row in df.iterrows():
+        rid = row["room_id"]
+        if rid not in rooms:
+            rooms[rid] = {
+                "room_id":   rid,
+                "room_name": row["room_name"],
+                "tier":      row["tier"],
+                "tier_icon": tier_icons.get(row["tier"], "🏨"),
+                "rack_low":  float(row["rack_low"]),
+                "rack_high": float(row["rack_high"]),
+                "days":      [],
+            }
+        rate, rack_mid = float(row["recommended_rate"]), float(row["rack_mid"])
+        if rate > rack_mid * 1.05:
+            status = "premium"
+        elif rate >= float(row["rack_low"]) * 0.99:
+            status = "hold"
+        else:
+            status = "discount"
+        evts = [e.strip() for e in str(row["active_events"]).split(";") if e.strip()]
+        rooms[rid]["days"].append({
+            "date":           row["date"],
+            "day_of_week":    row["day_of_week"],
+            "rate":           rate,
+            "last_year_rate": float(row["last_year_rate"]),
+            "status":         status,
+            "is_weekend":     bool(row["is_weekend"]),
+            "confidence":     row["confidence"],
+            "active_events":  evts,
+        })
+    return jsonify({
+        "property_name": meta["name"],
+        "days":          days,
+        "rooms":         list(rooms.values()),
+    })
+
+
+_SUITE_TIERS = {"carriage_house", "signature_suite", "grand_parlor"}
+
+# Verified competitor room-type availability matrix (real-world research).
+# Per competitor key → per room category → status:
+#   "yes"  → offers a directly comparable room type (rate shown normally)
+#   "na"   → does not offer this type (row grayed, shows N/A, excluded from avg)
+#   <str>  → partial availability; the string is the display label
+#            ("Limited", "Varies", "Junior suites only") — rate shown italic,
+#            included in the comp-set average.
+# "average" is always "yes" (every property has standard rooms).
+_COMP_MATRIX = {
+    "rhett_house": {"waterfront": "na", "water_view": "Limited", "garden": "yes",
+                    "carriage_house": "yes", "signature_suite": "yes", "grand_parlor": "na"},
+    "cuthbert_house": {"waterfront": "yes", "water_view": "yes", "garden": "yes",
+                       "carriage_house": "yes", "signature_suite": "yes", "grand_parlor": "yes"},
+    "anchorage_1770": {"waterfront": "yes", "water_view": "yes", "garden": "yes",
+                       "carriage_house": "na", "signature_suite": "yes", "grand_parlor": "na"},
+    "bay_inn_607": {"waterfront": "na", "water_view": "na", "garden": "yes",
+                    "carriage_house": "na", "signature_suite": "na", "grand_parlor": "na"},
+    "beaufort_inn": {"waterfront": "na", "water_view": "na", "garden": "yes",
+                     "carriage_house": "na", "signature_suite": "yes", "grand_parlor": "na"},
+    "city_loft": {"waterfront": "na", "water_view": "na", "garden": "yes",
+                  "carriage_house": "na", "signature_suite": "Junior suites only", "grand_parlor": "na"},
+    "airbnb_avg": {"waterfront": "Varies", "water_view": "Varies", "garden": "yes",
+                   "carriage_house": "Varies", "signature_suite": "na", "grand_parlor": "na"},
+    "hampton_inn": {"waterfront": "na", "water_view": "na", "garden": "yes",
+                    "carriage_house": "na", "signature_suite": "na", "grand_parlor": "na"},
+    "montage": {"waterfront": "yes", "water_view": "yes", "garden": "yes",
+                "carriage_house": "yes", "signature_suite": "yes", "grand_parlor": "yes"},
+}
+
+# Accurate 2026 tier-specific rate ranges (low, high) per competitor. Used to
+# anchor the competitive comparison to each property's real positioning.
+_COMP_RATES = {
+    "rhett_house":    {"garden": (189, 249), "water_view": (189, 249),
+                       "carriage_house": (289, 389), "signature_suite": (289, 389), "average": (189, 389)},
+    "cuthbert_house": {"garden": (249, 299), "water_view": (319, 389), "waterfront": (389, 469),
+                       "carriage_house": (449, 549), "signature_suite": (449, 549),
+                       "grand_parlor": (449, 549), "average": (249, 549)},
+    "anchorage_1770": {"garden": (269, 299), "water_view": (319, 369), "waterfront": (389, 469),
+                       "signature_suite": (389, 469), "average": (269, 469)},
+    "bay_inn_607":    {"garden": (149, 219), "average": (149, 219)},
+    "beaufort_inn":   {"garden": (179, 249), "signature_suite": (279, 349), "average": (179, 349)},
+    "city_loft":      {"garden": (169, 229), "signature_suite": (229, 289), "average": (169, 289)},
+    "hampton_inn":    {"garden": (129, 189), "average": (129, 189)},
+    "montage":        {"garden": (650, 1800), "water_view": (650, 1800), "waterfront": (650, 1800),
+                       "carriage_house": (650, 1800), "signature_suite": (650, 1800),
+                       "grand_parlor": (650, 1800), "average": (650, 1800)},
+    "airbnb_avg":     {"garden": (149, 299), "water_view": (149, 299), "waterfront": (149, 299),
+                       "carriage_house": (149, 299), "average": (149, 299)},
+}
+
+
+# Reference-only competitors: shown in the table but EXCLUDED from the
+# comp-set average (they anchor the high/low ends of the market, not the
+# directly comparable set).
+_COMP_REFERENCE = {
+    "montage":     {"kind": "luxury", "label": "Luxury Reference",
+                    "tooltip": "Excluded from comp average — luxury resort benchmark only"},
+    "hampton_inn": {"kind": "budget", "label": "Budget Reference",
+                    "tooltip": "Excluded from comp average — budget anchor benchmark only"},
+}
+
+
+def _comp_status(key, tier):
+    """Return availability status for a competitor in a room category."""
+    if tier == "average":
+        return "yes"
+    return _COMP_MATRIX.get(key, {}).get(tier, "na")
+
+
+def _comp_rate_for(key, tier, d, eng):
+    """Anchor a competitor's rate to its tier-specific range, varied by date
+    (weekend/event/season push toward the high end)."""
+    rates = _COMP_RATES.get(key, {})
+    rng = rates.get(tier) or rates.get("average")
+    if not rng:
+        return None
+    low, high = rng
+    seasonal = SEASONAL_INDEX.get(d.month, 1.0)
+    is_weekend = d.weekday() in (4, 5)
+    mult, _ = eng.get_event_multiplier(d)
+    pos = 0.30 + (0.30 if is_weekend else 0.0) + min(0.30, mult - 1.0) + (seasonal - 1.0) * 0.5
+    pos = max(0.0, min(1.0, pos))
+    noise = ((d.toordinal() * 7 + hash(key)) % 7 - 3) * 0.01
+    rate = (low + (high - low) * pos) * (1 + noise)
+    return round(rate / 5) * 5
+
+
+@app.route("/api/competitive")
+def api_competitive():
+    """Tier-aware, date-ranged competitive comparison with YoY (Competitive Intel).
+    Competitors without a comparable room type for the selected category are
+    flagged available=False so the UI can gray them out and show N/A."""
+    prop = _resolve_property()
+    eng  = _engine_for(prop)
+    meta = PROPERTIES[prop]
+    try:
+        days = max(1, min(int(request.args.get("days", 14)), 90))
+    except ValueError:
+        days = 14
+    tier = request.args.get("tier", "average")
+
+    cal_df = _cached(f"{prop}:calendar_90d", lambda: eng.generate_pricing_calendar(
+        days_ahead=90, base_occupancy=0.75
+    ))
+    df = cal_df[cal_df["days_out"] < days]
+
+    def _room_ids_for(t):
+        if t == "average":
+            return list(eng.rooms.keys())
+        if t == "suites":
+            return [rid for rid, r in eng.rooms.items() if r.tier in _SUITE_TIERS]
+        return [rid for rid, r in eng.rooms.items() if r.tier == t]
+
+    # Per-competitor availability status + tier-anchored rate series.
+    comp_meta = {}   # key → {name, tier, status, available, partial, label, reference…}
+    for key, comp in eng.competitors.items():
+        status = _comp_status(key, tier)
+        partial = status not in ("yes", "na")
+        ref = _COMP_REFERENCE.get(key)
+        comp_meta[key] = {
+            "key": key, "name": comp.name, "tier": getattr(comp, "tier", 1),
+            "status": status, "available": status != "na", "partial": partial,
+            "label": status if partial else "",
+            "reference": ref["kind"] if ref else None,
+            "reference_label": ref["label"] if ref else "",
+            "reference_tooltip": ref["tooltip"] if ref else "",
+            "rates": [],
+        }
+
+    sel_ids = set(_room_ids_for(tier))
+    dates, you, you_ly, comp_avg = [], [], [], []
+
+    for d, grp in df.groupby("date", sort=True):
+        dates.append(d)
+        overall_avg = grp["recommended_rate"].mean()
+        sel = grp[grp["room_id"].isin(sel_ids)]
+        you_rate = sel["recommended_rate"].mean() if len(sel) else overall_avg
+        you.append(round(you_rate))
+        you_ly.append(round(sel["last_year_rate"].mean() if len(sel) else grp["last_year_rate"].mean()))
+        dd = date.fromisoformat(d)
+        day_avail_rates = []
+        for key, m in comp_meta.items():
+            rate = _comp_rate_for(key, tier, dd, eng) if m["available"] else None
+            m["rates"].append(rate)
+            # Comp-set average: comparable properties only — exclude N/A AND
+            # reference-only benchmarks (Montage luxury, Hampton budget).
+            if m["available"] and rate is not None and m["reference"] is None:
+                day_avail_rates.append(rate)
+        comp_avg.append(round(sum(day_avail_rates) / len(day_avail_rates)) if day_avail_rates else 0)
+
+    comparable_count = sum(
+        1 for m in comp_meta.values() if m["available"] and m["reference"] is None
+    )
+    competitors = [
+        {"name": m["name"], "tier": m["tier"], "rates": m["rates"],
+         "available": m["available"], "partial": m["partial"], "label": m["label"],
+         "reference": m["reference"], "reference_label": m["reference_label"],
+         "reference_tooltip": m["reference_tooltip"]}
+        for m in sorted(comp_meta.values(), key=lambda x: x["tier"])
+    ]
+    return jsonify({
+        "property_name": meta["name"],
+        "tier":          tier,
+        "days":          days,
+        "dates":         dates,
+        "you":           you,
+        "you_last_year": you_ly,
+        "comp_avg":      comp_avg,
+        "comparable_count": comparable_count,
+        "competitors":   competitors,
+        "tier_labels":   _TIER_LABELS,
+    })
+
+
+@app.route("/api/events")
+def api_events():
+    """Demand events within a horizon, each with revenue lift, recommended
+    action, and last-year performance (Events Intelligence screen)."""
+    prop = _resolve_property()
+    eng  = _engine_for(prop)
+    try:
+        days = max(1, min(int(request.args.get("days", 90)), 180))
+    except ValueError:
+        days = 90
+    base = date.today()
+
+    # Use a calendar that covers the full horizon so far-out events still get a
+    # real revenue-lift estimate (90-day cache for short views, 180-day for 6mo).
+    horizon = 180 if days > 90 else 90
+    cal_df = _cached(f"{prop}:calendar_{horizon}d", lambda: eng.generate_pricing_calendar(
+        days_ahead=horizon, base_occupancy=0.75
+    ))
+    df = cal_df[cal_df["days_out"] < days].copy()
+
+    events = []
+    seen = {}
+    for offset in range(days):
+        d = base + timedelta(days=offset)
+        mult, active = eng.get_event_multiplier(d)
+        for name in active:
+            if name not in seen:
+                seen[name] = {"first": d, "mult": mult, "dates": set()}
+            seen[name]["dates"].add(d.isoformat())
+
+    for name, info in seen.items():
+        rows = df[df["active_events"].str.contains(name, regex=False, na=False)]
+        lift = round(((rows["recommended_rate"] - rows["rack_mid"]) * 0.75).sum()) if len(rows) else 0
+        impacted_days = len(info["dates"])
+        impact_pct = round((info["mult"] - 1.0) * 100, 1)
+        days_away = (info["first"] - base).days
+        if days_away <= 7:
+            action = "Lock premium rates now — demand is imminent. Push 2-night minimums."
+        elif impact_pct >= 30:
+            action = "High-impact event: raise rates and set minimum-stay; promote packages."
+        elif impact_pct >= 15:
+            action = "Apply event premium and monitor pickup pace daily."
+        else:
+            action = "Modest lift — hold rack and watch competitor moves."
+        events.append({
+            "event":          name,
+            "first_date":     info["first"].isoformat(),
+            "display":        info["first"].strftime("%b %d"),
+            "month":          info["first"].strftime("%B %Y"),
+            "days_away":      days_away,
+            "impacted_days":  impacted_days,
+            "multiplier":     info["mult"],
+            "impact_pct":     impact_pct,
+            "est_revenue_lift": lift,
+            "recommended_action": action,
+            "last_year": {
+                "revenue_lift": round(lift / YOY_GROWTH),
+                "note": f"Drove ~{round(impact_pct / YOY_GROWTH, 1)}% rate lift last year",
+            },
+        })
+    events.sort(key=lambda e: e["first_date"])
+    return jsonify({
+        "days": days,
+        "events": events,
+        "total_lift": sum(e["est_revenue_lift"] for e in events),
+        "event_count": len(events),
+    })
+
+
 @app.route("/api/market-intelligence")
 def market_intelligence():
     data = _cached("market_intel", lambda: _scraper.get_compression_data(forward_days=30))
@@ -352,43 +707,513 @@ def fnb_summary():
     meta = PROPERTIES[prop]
     tenant = meta.get("fnb_tenant") or DEMO_FNB_TENANT
     eng = FNBEngine()
+
+    WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    def _with_yoy(rows):
+        """Normalize both outlets to covers/avg_check, pad to a full 7-day week
+        (closed days shown as zero), and add last-year YoY figures."""
+        by_day = {}
+        for r in rows:
+            covers = r.get("covers", r.get("guests", 0))
+            check  = r.get("avg_check", r.get("avg_spend", 0))
+            by_day[r["day"]] = {
+                "day":          r["day"],
+                "covers":       covers,
+                "avg_check":    check,
+                "revenue":      r["revenue"],
+                "occ_pct":      r["occ_pct"],
+                "closed":       False,
+                "ly_covers":    round(covers / YOY_GROWTH),
+                "ly_avg_check": round(check / YOY_GROWTH, 1),
+                "ly_revenue":   round(r["revenue"] / YOY_GROWTH),
+            }
+        out = []
+        for day in WEEK:
+            out.append(by_day.get(day, {
+                "day": day, "covers": 0, "avg_check": 0, "revenue": 0, "occ_pct": 0,
+                "closed": True, "ly_covers": 0, "ly_avg_check": 0, "ly_revenue": 0,
+            }))
+        return out
+
     return jsonify({
         "labels": {
             "restaurant": meta.get("restaurant", "Restaurant"),
             "rooftop_bar": meta.get("rooftop_bar", "Rooftop Bar"),
         },
         "summary":         eng.summary_flat(tenant),
-        "restaurant_dow":  eng.dow_daily(tenant, "restaurant"),
-        "rooftop_dow":     eng.dow_daily(tenant, "rooftop_bar"),
+        "restaurant_dow":  _with_yoy(eng.dow_daily(tenant, "restaurant")),
+        "rooftop_dow":     _with_yoy(eng.dow_daily(tenant, "rooftop_bar")),
         "recommendations": [dict(c) for c in RECOMMENDATIONS_SPEC],
     })
 
 
+@app.route("/api/roi")
+def api_roi():
+    """Monthly ROI performance report from the existing performance_engine,
+    augmented with comp-set indices, YTD, projected annual, and expanded
+    top-5 wins / missed opportunities mined from the live pricing calendar."""
+    from modules.hospitality.performance_engine import get_report
+    from modules.analytics.historical_engine import HistoricalEngine, SEASONAL_OCC
+    prop = _resolve_property()
+    eng  = _engine_for(prop)
+    report = get_report(PROPERTIES.get(prop), "professional")
+    m = report["metrics"]
+    today = date.today()
+
+    # ── Comp-set indices (100 = parity; >100 = outperforming) ──────────────
+    your_occ   = m["occupancy_this_month"]
+    your_revpar = m["revpar_this_month"]
+    your_adr   = round(your_revpar / (your_occ / 100)) if your_occ else your_revpar
+    comp_rates = eng.get_competitor_rates(today)
+    comp_adr   = round(sum(comp_rates.values()) / len(comp_rates)) if comp_rates else your_adr
+    comp_occ   = round(SEASONAL_OCC[today.month - 1] * 100, 1)
+    comp_revpar = round(comp_adr * comp_occ / 100)
+    idx = lambda you, comp: round(you / comp * 100, 1) if comp else 100.0
+    comp_index = {
+        "revpar": {"you": your_revpar, "comp": comp_revpar, "index": idx(your_revpar, comp_revpar)},
+        "occupancy": {"you": your_occ, "comp": comp_occ, "index": idx(your_occ, comp_occ)},
+        "adr": {"you": your_adr, "comp": comp_adr, "index": idx(your_adr, comp_adr)},
+    }
+
+    # ── YTD + projected annual (from 24-month historical trend) ────────────
+    trend = HistoricalEngine().monthly_kpi_trend(prop, months=24)
+    cy = trend["current_year"]
+    months_elapsed = today.month
+    ytd_current = sum(r["revenue"] for r in cy[:months_elapsed])
+    # prior-year same period
+    py = trend["prior_year"]
+    ytd_prior = sum(r["revenue"] for r in py[:months_elapsed])
+    projected_annual = round(ytd_current / months_elapsed * 12) if months_elapsed else 0
+
+    # ── Expand wins / missed from the live 90-day calendar ─────────────────
+    cal_df = _cached(f"{prop}:calendar_90d", lambda: eng.generate_pricing_calendar(
+        days_ahead=90, base_occupancy=0.75
+    ))
+    evt = cal_df[cal_df["active_events"].astype(bool) & (cal_df["active_events"] != "")]
+    evt = evt.sort_values("recommended_rate", ascending=False)
+    wins = []
+    seen = set()
+    for _, row in evt.iterrows():
+        key = (row["date"], row["tier"])
+        if key in seen:
+            continue
+        seen.add(key)
+        lift = round(row["recommended_rate"] - row["last_year_rate"])
+        wins.append({
+            "date":             row["date"],
+            "event":            str(row["active_events"]).split(";")[0].strip(),
+            "room":             row["room_name"],
+            "rate_recommended": round(row["recommended_rate"]),
+            "rate_prior_year":  round(row["last_year_rate"]),
+            "lift_per_night":   lift,
+        })
+        if len(wins) >= 5:
+            break
+
+    # Missed: cells priced below the comp-set average (money left on the table)
+    under = cal_df[cal_df["rate_vs_comp_pct"] < 0].sort_values("rate_vs_comp_pct").head(5)
+    missed = [{
+        "date":   row["date"],
+        "room":   row["room_name"],
+        "reason": f"Priced {abs(round(row['rate_vs_comp_pct'],1))}% below comp avg (${round(row['competitor_avg']):,}) — room to raise",
+        "estimated_missed_revenue": round(row["competitor_avg"] - row["recommended_rate"]),
+    } for _, row in under.iterrows()]
+
+    report["comp_index"] = comp_index
+    report["ytd"] = {
+        "current": ytd_current, "prior": ytd_prior,
+        "change": ytd_current - ytd_prior,
+        "change_pct": round((ytd_current - ytd_prior) / ytd_prior * 100, 1) if ytd_prior else 0.0,
+        "months_elapsed": months_elapsed,
+    }
+    report["projected_annual_revenue"] = projected_annual
+    report["monthly_impact_vs_nothing"] = report["engine_contribution"]["estimated_revenue_lift"]
+    if len(wins) >= len(report.get("top_wins", [])):
+        report["top_wins"] = wins
+    if missed:
+        report["missed_opportunities"] = missed
+    return jsonify(report)
+
+
+@app.route("/api/weather")
+def api_weather():
+    """7-day NWS forecast + demand hints from weather_engine."""
+    from modules.hospitality import weather_engine
+    prop = _resolve_property()
+    cfg  = PROPERTIES.get(prop, {})
+    return jsonify(_cached(f"{prop}:weather", lambda: weather_engine.get_summary(cfg)))
+
+
+@app.route("/api/historical")
+def api_historical():
+    """24-month KPI trend + positioning + best/worst months, seasonal analysis,
+    and a rolling 12-month RevPAR trend (Historical screen)."""
+    from modules.analytics.historical_engine import HistoricalEngine
+    import calendar as _cal
+    prop = _resolve_property()
+    eng  = HistoricalEngine()
+
+    def _build():
+        trend = eng.monthly_kpi_trend(prop, months=24)
+        positioning = eng.competitive_positioning_history(prop, days=90)
+        monthly = trend["monthly_data"]
+
+        best = max(monthly, key=lambda r: r["revpar"])
+        worst = min(monthly, key=lambda r: r["revpar"])
+
+        # Seasonal pattern: average RevPAR by calendar month across all data
+        by_month = {}
+        for r in monthly:
+            mnum = int(r["month_iso"].split("-")[1])
+            by_month.setdefault(mnum, []).append(r["revpar"])
+        seasonal = [{
+            "month": _cal.month_abbr[mn],
+            "avg_revpar": round(sum(v) / len(v)),
+        } for mn, v in sorted(by_month.items())]
+        peak = max(seasonal, key=lambda s: s["avg_revpar"])
+        low  = min(seasonal, key=lambda s: s["avg_revpar"])
+        seasonal_reco = (
+            f"Peak season centers on {peak['month']} — protect rate and require minimum stays. "
+            f"{low['month']} is softest; deploy packages, midweek offers, and local-market campaigns to fill."
+        )
+
+        # Rolling 12-month RevPAR (trailing average)
+        rolling = []
+        for i in range(len(monthly)):
+            window = monthly[max(0, i - 11):i + 1]
+            rolling.append({
+                "month": monthly[i]["month"],
+                "rolling_revpar": round(sum(w["revpar"] for w in window) / len(window)),
+            })
+
+        return {
+            "kpi_trend":   trend,
+            "positioning": positioning,
+            "best_month":  best,
+            "worst_month": worst,
+            "seasonal":    seasonal,
+            "seasonal_recommendation": seasonal_reco,
+            "rolling_12mo": rolling,
+        }
+
+    return jsonify(_cached(f"{prop}:historical", _build))
+
+
+@app.route("/api/reputation")
+def api_reputation():
+    """Per-platform review scores, competitor comparison, pricing power."""
+    from modules.hospitality.reputation_engine import ReputationEngine
+    prop = _resolve_property()
+    cfg  = PROPERTIES.get(prop, {})
+    eng  = _engine_for(prop)
+    competitors = [{"name": c.name} for c in eng.competitors.values()]
+    return jsonify(_cached(
+        f"{prop}:reputation",
+        lambda: ReputationEngine().get_reputation_summary(cfg, competitors),
+    ))
+
+
+@app.route("/api/guests")
+def api_guests():
+    """Searchable guest list (summary fields)."""
+    from modules.analytics import guest_crm_engine as crm
+    return jsonify({"guests": crm.guest_summaries(), "total": len(crm.GUESTS)})
+
+
+@app.route("/api/guests/<gid>")
+def api_guest_profile(gid: str):
+    """Full guest profile."""
+    from modules.analytics import guest_crm_engine as crm
+    g = crm.guest_profile(gid)
+    if not g:
+        return jsonify({"error": "Guest not found"}), 404
+    return jsonify(g)
+
+
+@app.route("/api/crm/meta")
+def api_crm_meta():
+    """Campaign segments, templates, and campaign history."""
+    from modules.analytics import guest_crm_engine as crm
+    return jsonify({
+        "segments": crm.segments(),
+        "templates": crm.templates(),
+        "campaign_history": crm.campaign_history(),
+    })
+
+
+@app.route("/api/crm/analytics")
+def api_crm_analytics():
+    """Guest analytics: sources, lead time, geography, price sensitivity."""
+    from modules.analytics import guest_crm_engine as crm
+    return jsonify(crm.analytics())
+
+
+@app.route("/api/crm/campaign", methods=["POST"])
+def api_crm_send_campaign():
+    """Create/send a campaign (demo — echoes a campaign record)."""
+    from modules.analytics import guest_crm_engine as crm
+    data = request.get_json(force=True) or {}
+    seg = next((s for s in crm.segments() if s["id"] == data.get("segment")), None)
+    tpl = next((t for t in crm.templates() if t["id"] == data.get("template")), None)
+    recipients = seg["count"] if seg else 0
+    return jsonify({
+        "ok": True,
+        "campaign": {
+            "name": data.get("name", "Untitled Campaign"),
+            "segment": seg["name"] if seg else "—",
+            "template": tpl["name"] if tpl else "—",
+            "recipients": recipients,
+            "sent_date": date.today().isoformat(),
+            "status": "queued",
+        },
+    })
+
+
+@app.route("/api/gift-shop")
+
+
+@app.route("/api/gift-shop")
+def api_gift_shop():
+    """Full gift-shop store: categories, items, inventory, sales, best/slow movers."""
+    from modules.hospitality import gift_shop_store
+    return jsonify(gift_shop_store.get_store())
+
+
+@app.route("/api/gift-shop/category", methods=["POST"])
+def api_gift_shop_add_category():
+    from modules.hospitality import gift_shop_store
+    d = request.get_json(force=True) or {}
+    cid = gift_shop_store.add_category(d.get("name", "New Category"), d.get("emoji", "🛍️"),
+                                       d.get("fulfillment", "in-stock"), d.get("supplier", ""))
+    return jsonify({"ok": True, "id": cid})
+
+
+@app.route("/api/gift-shop/category/<cid>", methods=["PUT", "DELETE"])
+def api_gift_shop_category(cid):
+    from modules.hospitality import gift_shop_store
+    if request.method == "DELETE":
+        return jsonify({"ok": gift_shop_store.delete_category(cid)})
+    ok = gift_shop_store.update_category(cid, request.get_json(force=True) or {})
+    return jsonify({"ok": ok})
+
+
+@app.route("/api/gift-shop/item", methods=["POST"])
+def api_gift_shop_add_item():
+    from modules.hospitality import gift_shop_store
+    d = request.get_json(force=True) or {}
+    iid = gift_shop_store.add_item(d.get("category_id", ""), d)
+    if iid is None:
+        return jsonify({"ok": False, "error": "Unknown category"}), 404
+    return jsonify({"ok": True, "id": iid})
+
+
+@app.route("/api/gift-shop/item/<iid>", methods=["PUT", "DELETE"])
+def api_gift_shop_item(iid):
+    from modules.hospitality import gift_shop_store
+    if request.method == "DELETE":
+        return jsonify({"ok": gift_shop_store.delete_item(iid)})
+    ok = gift_shop_store.update_item(iid, request.get_json(force=True) or {})
+    return jsonify({"ok": ok})
+
+
+@app.route("/api/revenue-intelligence")
+def api_revenue_intelligence():
+    """Revenue Intelligence: gap nights, Fri/Sat solver, min-stay optimizer,
+    AI revenue recommendations, and customer-experience recommendations."""
+    from modules.hospitality import los_engine, weather_engine
+    prop = _resolve_property()
+    eng  = _engine_for(prop)
+    meta = PROPERTIES.get(prop, {})
+    base = date.today()
+    rooms = [{"id": r["room_id"], "name": r["name"], "base": r.get("rack_low", 300)}
+             for r in meta.get("rooms", [])] or None
+
+    cal_df = _cached(f"{prop}:calendar_90d", lambda: eng.generate_pricing_calendar(
+        days_ahead=90, base_occupancy=0.75
+    ))
+
+    def _build():
+        gaps = los_engine.find_gap_nights(days=60, rooms=rooms)
+        recovery = sum(g["recommended_price"] for g in gaps)
+
+        # ── Friday/Saturday solver: high-demand Saturdays needing Friday fill ──
+        sat = cal_df[(cal_df["day_of_week"] == "Saturday")].copy()
+        sat = sat.sort_values("recommended_rate", ascending=False)
+        fri_sat, seen_dates = [], set()
+        for _, row in sat.iterrows():
+            d = row["date"]
+            if d in seen_dates:
+                continue
+            seen_dates.add(d)
+            fri = (date.fromisoformat(d) - timedelta(days=1))
+            evt = str(row["active_events"]).split(";")[0].strip()
+            fri_sat.append({
+                "saturday": d,
+                "friday": fri.isoformat(),
+                "room": row["room_name"],
+                "context": evt or "high weekend demand",
+                "recommendations": [
+                    f"Add a Friday-night requirement to new Saturday {row['day_of_week']} bookings",
+                    f"Offer a Friday-only rate of {('$' + str(round(row['recommended_rate'] * 0.9)))} to bridge the gap",
+                    "Send a targeted 'extend your weekend' email to the Saturday guest",
+                ],
+            })
+            if len(fri_sat) >= 4:
+                break
+
+        # ── Min-stay optimizer: events / strong weekends ──────────────────────
+        min_stay = []
+        evt_rows = cal_df[cal_df["active_events"].str.len() > 0].sort_values("event_multiplier", ascending=False)
+        seen_ms = set()
+        for _, row in evt_rows.iterrows():
+            d = row["date"]
+            if d in seen_ms:
+                continue
+            seen_ms.add(d)
+            nights = 3 if row["event_multiplier"] >= 1.3 else 2
+            min_stay.append({
+                "date": d, "recommended_min_stay": nights,
+                "reason": f"{str(row['active_events']).split(';')[0].strip()} — demand ×{row['event_multiplier']}; {nights}-night minimum protects revenue",
+            })
+            if len(min_stay) >= 6:
+                break
+
+        # ── AI revenue recommendations (top 10) ───────────────────────────────
+        recs = []
+        under = cal_df[cal_df["rate_vs_comp_pct"] < -5].sort_values("rate_vs_comp_pct").head(4)
+        for _, r in under.iterrows():
+            gain = round(r["competitor_avg"] - r["recommended_rate"])
+            recs.append({"priority": "high", "category": "Pricing",
+                         "action": f"Raise {r['room_name']} for {r['date']} — priced {abs(round(r['rate_vs_comp_pct'],1))}% below comp avg",
+                         "impact": gain})
+        for g in gaps[:3]:
+            recs.append({"priority": "medium", "category": "Gap Fill",
+                         "action": f"Fill {g['gap_length_nights']}-night gap on {g['date']} ({g['room_name']}) at {('$' + str(g['recommended_price']))}",
+                         "impact": g["recommended_price"]})
+        for ms in min_stay[:2]:
+            recs.append({"priority": "high", "category": "Min Stay",
+                         "action": f"Set {ms['recommended_min_stay']}-night minimum on {ms['date']} — {ms['reason'].split('—')[0].strip()}",
+                         "impact": 0})
+        recs.append({"priority": "medium", "category": "Win-back",
+                     "action": "Send win-back email to guests who haven't visited in 6+ months",
+                     "impact": 0})
+        recs = recs[:10]
+
+        # ── Customer-experience recommendations ───────────────────────────────
+        cx = []
+        wx = weather_engine.get_summary(meta)
+        rainy = next((f for f in wx.get("forecast", []) if "rain" in f.get("short", "").lower()), None)
+        if rainy:
+            cx.append({"icon": "🌧️", "text": f"{rainy['name']} forecast: {rainy['short']} — promote indoor F&B specials and spa add-ons."})
+        cx.append({"icon": "🎉", "text": "3 guests checking in this week are celebrating anniversaries — consider a complimentary upgrade or amenity."})
+        cx.append({"icon": "⭐", "text": "2 VIP repeat guests arrive this weekend — flag for personalized welcome notes."})
+        cx.append({"icon": "🐶", "text": "1 arriving guest booked the pet-friendly room — pre-stage the pet welcome kit."})
+
+        return {
+            "gap_nights": gaps,
+            "gap_count": len(gaps),
+            "potential_recovery": recovery,
+            "fri_sat": fri_sat,
+            "min_stay": min_stay,
+            "ai_recommendations": recs,
+            "cx_recommendations": cx,
+        }
+
+    return jsonify(_cached(f"{prop}:revintel", _build))
+
+
+@app.route("/api/gap-night")
+def api_gap_night():
+    """Orphan gap-night fills + min-stay recommendations from los_engine."""
+    from modules.hospitality import los_engine
+    prop = _resolve_property()
+    cfg  = PROPERTIES.get(prop, {})
+    rooms = [
+        {"id": r["room_id"], "name": r["name"], "base": r.get("rack_low", 300)}
+        for r in cfg.get("rooms", [])
+    ] or None
+    def _build():
+        gaps = los_engine.find_gap_nights(days=60, rooms=rooms)
+        try:
+            mins = los_engine.min_stay_recommendations(days=60, rooms=rooms)
+        except ImportError:
+            mins = []
+        recovery = sum(g["recommended_price"] for g in gaps)
+        return {
+            "gap_nights":           gaps,
+            "min_stay":             mins,
+            "gap_count":            len(gaps),
+            "potential_recovery":   recovery,
+            "min_stay_count":       len(mins),
+        }
+    return jsonify(_cached(f"{prop}:gapnight", _build))
+
+
+def _all_packages():
+    """Combined catalog: rich existing packages (default active) + the broader
+    industry catalog (default available). Existing entries win on id collision."""
+    catalog = {}
+    for pid, cfg in INDUSTRY_PACKAGES.items():
+        catalog[pid] = {
+            "name": cfg["name"], "emoji": cfg["emoji"], "description": cfg["description"],
+            "premium": cfg["premium"], "pct_inns": cfg["pct_inns"],
+            "eligible_rooms_count": 14, "take_rate": 0.20, "default": "available",
+            "tagline": cfg["description"], "eligible_rooms": "all rooms", "available": "Year-round",
+        }
+    for pid, cfg in PACKAGES_CONFIG.items():
+        catalog[pid] = {**cfg, "pct_inns": cfg.get("pct_inns", 55), "default": "active"}
+    return catalog
+
+
+def _pkg_revenue(rooms_count, take_rate, premium):
+    return round(rooms_count * 30 * 0.75 * take_rate * abs(premium))
+
+
 @app.route("/api/packages")
 def packages():
-    prop   = _resolve_property()
-    status = _load_packages_status(prop)
-    result = []
-    for pkg_id, cfg in PACKAGES_CONFIG.items():
-        monthly_rev = round(
-            cfg["eligible_rooms_count"] * 30 * 0.75 * cfg["take_rate"] * cfg["premium"], 0
-        )
-        result.append({
-            "id":              pkg_id,
-            "status":          status.get(pkg_id, "active"),
-            "monthly_revenue": monthly_rev,
-            **cfg,
-        })
-    return jsonify(result)
+    prop    = _resolve_property()
+    status  = _load_packages_status(prop)
+    catalog = _all_packages()
+    active, available = [], []
+    for pid, cfg in catalog.items():
+        st = status.get(pid, cfg["default"])
+        if st == "coming_soon":
+            st = "available"
+        rooms_count = cfg["eligible_rooms_count"]
+        entry = {
+            "id":                       pid,
+            "status":                   st,
+            "name":                     cfg["name"],
+            "emoji":                    cfg["emoji"],
+            "tagline":                  cfg.get("tagline", cfg["description"]),
+            "description":              cfg["description"],
+            "premium":                  cfg["premium"],
+            "is_discount":              cfg["premium"] < 0,
+            "pct_inns":                 cfg["pct_inns"],
+            "eligible_rooms":           cfg.get("eligible_rooms", "all rooms"),
+            "eligible_rooms_count":     rooms_count,
+            "take_rate":                cfg["take_rate"],
+            "available":                cfg.get("available", "Year-round"),
+            "monthly_revenue":          _pkg_revenue(rooms_count, cfg["take_rate"], cfg["premium"]),
+            "monthly_revenue_potential": _pkg_revenue(rooms_count, 0.20, cfg["premium"]),
+        }
+        (active if st == "active" else available).append(entry)
+    available.sort(key=lambda p: p["pct_inns"], reverse=True)
+    return jsonify({"active": active, "available": available})
 
 
 @app.route("/api/packages/<pkg_id>/toggle", methods=["POST"])
 def toggle_package(pkg_id: str):
-    if pkg_id not in PACKAGES_CONFIG:
+    catalog = _all_packages()
+    if pkg_id not in catalog:
         return jsonify({"error": "Unknown package"}), 404
     prop   = _resolve_property()
     status = _load_packages_status(prop)
-    status[pkg_id] = "coming_soon" if status.get(pkg_id) == "active" else "active"
+    current = status.get(pkg_id, catalog[pkg_id]["default"])
+    if current == "coming_soon":
+        current = "available"
+    status[pkg_id] = "available" if current == "active" else "active"
     _save_packages_status(status, prop)
     return jsonify({"id": pkg_id, "status": status[pkg_id]})
 
@@ -482,6 +1307,7 @@ def _format_room_rates(df, report_date: date) -> List[Dict[str, Any]]:
             "tier":          row["tier"],
             "tier_icon":     tier_icons.get(row["tier"], "🏨"),
             "rate":          rate,
+            "last_year_rate": float(row["last_year_rate"]) if "last_year_rate" in row else None,
             "rack_low":      rack_low,
             "rack_high":     float(row["rack_high"]),
             "rack_mid":      rack_mid,
@@ -489,6 +1315,7 @@ def _format_room_rates(df, report_date: date) -> List[Dict[str, Any]]:
             "status_label":  status_label,
             "vs_rack_pct":   float(row["rate_vs_rack_pct"]),
             "vs_comp_pct":   float(row.get("rate_vs_comp_pct", 0)),
+            "confidence":    str(row.get("confidence", "")),
             "active_events": events,
             "reasoning":     str(row.get("reasoning", "")),
         })

@@ -43,9 +43,13 @@ def _urgency_for(days_until: int) -> str:
     return "planning"
 
 
-def find_gap_nights(start: date | None = None, days: int = 60) -> list[dict[str, Any]]:
+def find_gap_nights(start: date | None = None, days: int = 60,
+                    rooms: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """Detect orphan 1- and 2-night gaps across all rooms for the next `days`."""
-    from config.settings import ROOM_TYPES
+    if rooms is None:
+        from config.settings import ROOM_TYPES
+        rooms = ROOM_TYPES
+    ROOM_TYPES = rooms
     start = start or date.today()
     out: list[dict[str, Any]] = []
     for room in ROOM_TYPES:
@@ -85,14 +89,18 @@ def find_gap_nights(start: date | None = None, days: int = 60) -> list[dict[str,
     return out
 
 
-def min_stay_recommendations(start: date | None = None, days: int = 60) -> list[dict[str, Any]]:
+def min_stay_recommendations(start: date | None = None, days: int = 60,
+                             rooms: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """Per-room min-stay recommendations driven by demand_engine score.
 
     Friday (weekday=4) with demand >= 65 → 2-night minimum across rooms.
     Any day with demand >= 90 and an active event → 3-night minimum.
     """
-    from config.settings import ROOM_TYPES
     from modules.hospitality.demand_engine import DemandEngine
+    if rooms is None:
+        from config.settings import ROOM_TYPES
+        rooms = ROOM_TYPES
+    ROOM_TYPES = rooms
 
     start = start or date.today()
     engine = DemandEngine()

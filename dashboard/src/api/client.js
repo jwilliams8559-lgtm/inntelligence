@@ -40,19 +40,76 @@ export async function getGapNights(date = _today()) {
 export function getPackages() {
   return _get('/api/packages')
 }
+export function togglePackage(id) {
+  return fetch(`/api/packages/${encodeURIComponent(id)}/toggle`, { method: 'POST' })
+    .then((r) => { if (!r.ok) throw new Error(`toggle failed: HTTP ${r.status}`); return r.json() })
+}
 export function getMarketIntel() {
   return _get('/api/market-intelligence')
 }
 export function getFnB() {
   return _get('/api/fnb/summary')
 }
-
-// ── Endpoints not yet available on the backend ───────────────────────────────
-// Stubbed so the contract exists in one place; wired when those screens are
-// built. They reject clearly rather than silently returning fake data.
-const _notReady = (name) => () =>
-  Promise.reject(new Error(`${name}: Flask endpoint not yet available`))
-export const getWeather = _notReady('getWeather')
-export const getHistorical = _notReady('getHistorical')
-export const getReputation = _notReady('getReputation')
-export const getROI = _notReady('getROI')
+export function getROI() {
+  return _get('/api/roi')
+}
+export function getWeather() {
+  return _get('/api/weather')
+}
+export function getHistorical() {
+  return _get('/api/historical')
+}
+export function getReputation() {
+  return _get('/api/reputation')
+}
+export function getGapNight() {
+  return _get('/api/gap-night')
+}
+export function getRevenueIntelligence() {
+  return _get('/api/revenue-intelligence')
+}
+export function getGuests() {
+  return _get('/api/guests')
+}
+export function getGuestProfile(id) {
+  return _get(`/api/guests/${encodeURIComponent(id)}`)
+}
+export function getCrmMeta() {
+  return _get('/api/crm/meta')
+}
+export function getCrmAnalytics() {
+  return _get('/api/crm/analytics')
+}
+export function sendCampaign(payload) {
+  return fetch('/api/crm/campaign', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+}
+export function getGiftShop() {
+  return _get('/api/gift-shop')
+}
+function _send(url, method, body) {
+  return fetch(url, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+}
+export const addGiftCategory  = (b) => _send('/api/gift-shop/category', 'POST', b)
+export const updateGiftCategory = (id, b) => _send(`/api/gift-shop/category/${encodeURIComponent(id)}`, 'PUT', b)
+export const deleteGiftCategory = (id) => _send(`/api/gift-shop/category/${encodeURIComponent(id)}`, 'DELETE')
+export const addGiftItem    = (b) => _send('/api/gift-shop/item', 'POST', b)
+export const updateGiftItem = (id, b) => _send(`/api/gift-shop/item/${encodeURIComponent(id)}`, 'PUT', b)
+export const deleteGiftItem = (id) => _send(`/api/gift-shop/item/${encodeURIComponent(id)}`, 'DELETE')
+export function getRoomRate(roomId, date = _today()) {
+  return _get(`/api/room-rate?room_id=${encodeURIComponent(roomId)}&date=${date}`)
+}
+export function getRateCalendar(days = 30) {
+  return _get(`/api/rate-calendar?days=${days}`)
+}
+export function getCompetitive(tier = 'average', days = 14) {
+  return _get(`/api/competitive?tier=${encodeURIComponent(tier)}&days=${days}`)
+}
+export function getEventsDetail(days = 90) {
+  return _get(`/api/events?days=${days}`)
+}

@@ -342,7 +342,9 @@ class CompetitorScraper:
             current_all = self._engine.get_competitor_rates(check_in)
 
             for comp_name, current_rate in current_all.items():
-                if "Airbnb" in comp_name:
+                # Exclude Airbnb (noisy) and the luxury/budget reference anchors
+                # (Montage, Hampton) — they are benchmarks, not direct competitors.
+                if any(x in comp_name for x in ("Airbnb", "Montage", "Hampton")):
                     continue
                 hist = snap_14d.get("rates", {}).get(comp_name, {}).get(date_str, {})
                 hist_rate = hist.get("rate", 0) if hist else 0
