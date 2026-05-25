@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #F8F6F0;             /* warm off-white — boutique inn feel */
+  color: #1A3A5C;
+}
+h1, h2, h3, .font-serif, .font-display {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+.serif-num { font-family: 'Playfair Display', Georgia, serif; }
+
+/* Soft warm border color for inn-themed surfaces */
+.border-warm { border-color: #E8E4DC; }
+.bg-warm     { background-color: #F8F6F0; }
+.bg-warm-soft { background-color: #FDF8F0; }
+
+.scrollbar-thin::-webkit-scrollbar { height: 6px; width: 6px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: #f1f1f1; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+
+.animate-fade-in { animation: fade-in 0.18s ease-out; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+@keyframes inn-cursor-ring {
+  0%   { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
