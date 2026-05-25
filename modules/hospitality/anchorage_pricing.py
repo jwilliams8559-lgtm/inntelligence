@@ -194,7 +194,7 @@ ANNUAL_EVENTS: List[LocalEvent] = [
                "Independence Day waterfront fireworks and festivities"),
     LocalEvent("Black Boses Freedom Festival",         7,  4,  6, 1.25, 1,
                "Cultural freedom festival, July 4 weekend"),
-    LocalEvent("Annual Beaufort Water Festival",       7, 18, 27, 1.30, 3,
+    LocalEvent("Annual Beaufort Water Festival",       7, 18, 27, 1.12, 3,
                "10-day flagship festival — largest annual event in Beaufort"),
 
     # ── October ─────────────────────────────────────────────────────────────

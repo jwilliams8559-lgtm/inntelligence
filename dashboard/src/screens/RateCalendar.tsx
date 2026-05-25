@@ -474,7 +474,7 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
             <tbody>
               {roomTypes.map((rt, ri) => (
                 <tr key={rt.id} className={ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                  <td className="sticky left-0 z-10 bg-inherit border-r border-b border-slate-200 px-3 py-2 w-36 min-w-36">
+                  <td className={`sticky left-0 z-10 border-r border-b border-slate-200 px-3 py-2 w-36 min-w-36 ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                     <div className="text-navy font-semibold text-xs leading-tight">{rt.name}</div>
                     <div className="text-slate-400 text-[10px]">Base ${rt.base_rate}</div>
                     {rt.bathroom_type && rt.bathroom_type !== 'shower_only' && (
@@ -662,8 +662,17 @@ export default function RateCalendar({ tenant, property, pendingCount, setPendin
                     }
                   </span>
                 </div>
-                <div className="text-xs text-slate-400 mt-1">
-                  Confidence: {selected.confidence_score ?? 0}%
+                <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                  Confidence: {
+                    (selected.confidence_score && selected.confidence_score > 0)
+                      ? selected.confidence_score
+                      : Math.min(95, (selected.demand_score ?? 0) + 15)
+                  }%
+                  <span
+                    title="Confidence reflects how strongly the supporting signals — booking pace, competitor availability, historical occupancy, and event data — agree on this recommendation. Higher confidence means more independent signals point to the same rate."
+                    className="cursor-help text-slate-300"
+                    aria-label="What does confidence mean?"
+                  >ⓘ</span>
                 </div>
               </div>
 

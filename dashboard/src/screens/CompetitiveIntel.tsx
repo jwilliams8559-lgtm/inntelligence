@@ -194,6 +194,9 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
     const v = localStorage.getItem('tgc.compIntel.topN')
     return v === 'all' || !v ? 'all' : Number(v)
   })
+  // Primary comps surface by default; the rest hide behind a toggle so the
+  // direct boutique peers aren't buried under 27+ discovered properties.
+  const [showAllComps, setShowAllComps] = useState(false)
   useEffect(() => { localStorage.setItem('tgc.compIntel.radius', String(radiusMi)) }, [radiusMi])
   useEffect(() => { localStorage.setItem('tgc.compIntel.tier',   String(tierFilter)) }, [tierFilter])
   useEffect(() => { localStorage.setItem('tgc.compIntel.topN',   String(topN)) }, [topN])
@@ -266,8 +269,23 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
   }, [property.id])
 
   // Apply filters: radius → tier → top N (preserving original tier-asc order)
+  // The seven primary comparison properties — direct boutique peers plus the
+  // hotel/STR references the recommendation logic leans on. Matched by name
+  // substring so DB naming variants ("607 Bay Inn Downtown Beaufort") still hit.
+  const PRIMARY_COMP_NAMES = [
+    'anchorage 1770', 'cuthbert', 'rhett', 'beaufort inn',
+    'city loft', '607 bay', 'airbnb near bay',
+  ]
+  const isPrimaryComp = (c: CompetitorProp) => {
+    const n = (c.competitor_name || c.name || '').toLowerCase()
+    return PRIMARY_COMP_NAMES.some(p => n.includes(p))
+  }
+  const primaryCount = competitors.filter(isPrimaryComp).length
+
   const filteredCompetitors = (() => {
     let list = competitors
+    // Default view: primary comps only. Toggle reveals the full discovered set.
+    if (!showAllComps) list = list.filter(isPrimaryComp)
     if (radiusMi !== 'all') {
       list = list.filter(c => c.distance_miles == null || c.distance_miles <= radiusMi)
     }
@@ -585,8 +603,15 @@ export default function CompetitiveIntel({ tenant, property }: Props) {
           </select>
         </div>
 
-        <span className="ml-auto text-slate-400">
-          Showing {filteredCompetitors.length} of {competitors.length}
+        <button
+          onClick={() => setShowAllComps(v => !v)}
+          className="ml-auto text-xs font-medium px-2.5 py-1 rounded border border-navy/30 text-navy hover:bg-navy/5 transition">
+          {showAllComps
+            ? `Show primary comps only (${primaryCount})`
+            : `Show all competitors (${competitors.length})`}
+        </button>
+        <span className="text-slate-400">
+          Showing {filteredCompetitors.length} of {showAllComps ? competitors.length : primaryCount}
         </span>
       </div>
 

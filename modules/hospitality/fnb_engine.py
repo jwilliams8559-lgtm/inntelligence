@@ -34,6 +34,20 @@ def _is_water_festival(d: date) -> bool:
     return date(d.year, 7, 17) <= d <= date(d.year, 7, 26)
 
 
+# Demo tenant gets exact, deterministic day-of-week numbers so the F&B Yield
+# screen always shows the curated figures (weekday() key: Mon=0 .. Sun=6).
+DEMO_FNB_TENANT = "bay-street-inn-demo"
+# The Parlor at Bay Street Inn — (covers, avg_check); revenue = covers * check.
+PARLOR_DOW = {
+    0: (38, 52.0), 1: (44, 54.0), 2: (51, 56.0), 3: (68, 61.0),
+    4: (87, 74.0), 5: (96, 82.0), 6: (71, 65.0),
+}
+# The Rooftop at Bay Street Inn — open Thu–Sun; (guests, avg_spend).
+ROOFTOP_DOW = {
+    3: (28, 38.0), 4: (44, 52.0), 5: (51, 58.0), 6: (32, 41.0),
+}
+
+
 class FNBEngine:
 
     # ── Demo data generation ────────────────────────────────────────
@@ -59,21 +73,26 @@ class FNBEngine:
 
             if rsc:
                 seats = rsc["seats"]
-                base_occ = (
-                    0.95 if is_wf else
-                    0.88 if is_weekend else
-                    0.72 if dow == 3 else
-                    0.52 if dow in (1, 2) else
-                    0.65
-                )
-                covers = max(0, min(seats, int(seats * base_occ * rng.uniform(0.9, 1.05))))
-
-                if is_wf:
-                    service, avg_check = "prix_fixe", 88.00
-                elif is_weekend:
-                    service, avg_check = "a_la_carte", 78.00 + rng.uniform(-8, 12)
+                if tenant_id == DEMO_FNB_TENANT:
+                    # Exact curated day-of-week figures for the demo property.
+                    covers, avg_check = PARLOR_DOW[dow]
+                    service = "prix_fixe" if is_wf else "a_la_carte"
                 else:
-                    service, avg_check = "a_la_carte", 62.00 + rng.uniform(-6, 8)
+                    base_occ = (
+                        0.95 if is_wf else
+                        0.88 if is_weekend else
+                        0.72 if dow == 3 else
+                        0.52 if dow in (1, 2) else
+                        0.65
+                    )
+                    covers = max(0, min(seats, int(seats * base_occ * rng.uniform(0.9, 1.05))))
+
+                    if is_wf:
+                        service, avg_check = "prix_fixe", 88.00
+                    elif is_weekend:
+                        service, avg_check = "a_la_carte", 78.00 + rng.uniform(-8, 12)
+                    else:
+                        service, avg_check = "a_la_carte", 62.00 + rng.uniform(-6, 8)
 
                 revenue    = round(covers * avg_check, 2)
                 hours_open = 3.5
@@ -102,20 +121,24 @@ class FNBEngine:
 
             if bar and dow in (3, 4, 5, 6):
                 capacity = bar["capacity"]
-                base_occ = (
-                    0.92 if is_wf else
-                    0.85 if dow == 5 else
-                    0.78 if dow == 4 else
-                    0.62 if dow == 3 else
-                    0.70
-                )
-                weather_factor = rng.uniform(0.75, 1.0)
-                guests = max(0, min(capacity, int(capacity * base_occ * weather_factor)))
-
-                if is_wf or is_weekend:
-                    avg_spend = bar["min_spend_peak"] * rng.uniform(1.3, 1.8)
+                if tenant_id == DEMO_FNB_TENANT:
+                    guests, avg_spend = ROOFTOP_DOW[dow]
+                    weather_factor = 1.0
                 else:
-                    avg_spend = bar["avg_spend_per_guest"] * rng.uniform(0.85, 1.1)
+                    base_occ = (
+                        0.92 if is_wf else
+                        0.85 if dow == 5 else
+                        0.78 if dow == 4 else
+                        0.62 if dow == 3 else
+                        0.70
+                    )
+                    weather_factor = rng.uniform(0.75, 1.0)
+                    guests = max(0, min(capacity, int(capacity * base_occ * weather_factor)))
+
+                    if is_wf or is_weekend:
+                        avg_spend = bar["min_spend_peak"] * rng.uniform(1.3, 1.8)
+                    else:
+                        avg_spend = bar["avg_spend_per_guest"] * rng.uniform(0.85, 1.1)
 
                 revenue    = round(guests * avg_spend, 2)
                 hours_open = 6.5
@@ -238,6 +261,55 @@ class FNBEngine:
         config = get_fnb_config(tenant_id)
         if not config.get("enabled"):
             return []
+
+        if tenant_id == DEMO_FNB_TENANT:
+            # Four curated, concrete recommendation cards with dollar lift.
+            return [
+                {
+                    "outlet": "rsc_restaurant", "outlet_name": "The Parlor at Bay Street Inn",
+                    "type": "premium_service", "priority": "high",
+                    "title": "Water Festival — Run Prix Fixe on Peak Saturdays",
+                    "action": ("Saturday covers run 96 at a $82 average. On Water Festival "
+                               "nights, switch to an $85 prix fixe and require reservations. "
+                               "Plus a $25 minimum spend on The Rooftop."),
+                    "est_revenue_lift": 1248,
+                    "lift_detail": "+$13 avg check × 96 covers = +$1,248 / peak night",
+                    "recommended_avg_check": 85.00,
+                },
+                {
+                    "outlet": "rsc_restaurant", "outlet_name": "The Parlor at Bay Street Inn",
+                    "type": "fill_strategy", "priority": "medium",
+                    "title": "Tuesday / Wednesday — Close the Yield Gap",
+                    "action": ("Tue (44 covers, 44%) and Wed (51, 51%) sit below target. "
+                               "Add a $38 prix fixe lunch for locals and a 4–6pm happy hour "
+                               "on house wine to lift mid-week covers."),
+                    "est_revenue_lift": 912,
+                    "lift_detail": "+$24 avg lunch × ~19 incremental covers × 2 nights = +$912 / week",
+                    "recommended_avg_check": 38.00,
+                },
+                {
+                    "outlet": "rooftop_bar", "outlet_name": "The Rooftop at Bay Street Inn",
+                    "type": "premium_service", "priority": "medium",
+                    "title": "The Rooftop — Weekend Minimum Spend",
+                    "action": ("Fri/Sat run 44 and 51 guests at 80% and 93% capacity. "
+                               "Apply a $25 minimum spend on weekend evenings to lift "
+                               "per-guest revenue without turning anyone away."),
+                    "est_revenue_lift": 760,
+                    "lift_detail": "+$8 per guest × ~95 weekend guests = +$760 / weekend",
+                    "recommended_avg_check": 58.00,
+                },
+                {
+                    "outlet": "rsc_restaurant", "outlet_name": "The Parlor at Bay Street Inn",
+                    "type": "package", "priority": "high",
+                    "title": "Dinner + Stay Package — Fill Rooms AND The Parlor",
+                    "action": ("Bundle a Waterfront Suite with dinner for two at The Parlor "
+                               "at a 10% combined discount. Captures room revenue and a "
+                               "guaranteed cover on the same booking."),
+                    "est_revenue_lift": 2800,
+                    "lift_detail": "~20 bundles/month × +$140 incremental F&B = +$2,800 / month",
+                    "recommended_avg_check": 72.00,
+                },
+            ]
 
         from modules.hospitality.demand_engine import DemandEngine
         engine = DemandEngine()

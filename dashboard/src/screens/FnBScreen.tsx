@@ -45,10 +45,10 @@ interface DailyBar {
   weather_flag: boolean
 }
 interface Recommendation {
-  outlet: string; outlet_name: string; date: string; date_label: string
-  days_away: number; demand_score: number; demand_label: string
+  outlet: string; outlet_name: string; date?: string; date_label?: string
+  days_away?: number; demand_score?: number; demand_label?: string
   type: string; priority: 'high'|'medium'; title: string; action: string
-  est_revenue_lift: number; bar_action?: string
+  est_revenue_lift: number; bar_action?: string; lift_detail?: string
 }
 
 type TabKey = 'combined' | 'restaurant' | 'bar'
@@ -341,6 +341,7 @@ function Recommendations({ recs, title = 'F&B Yield Recommendations' }: { recs: 
             <span className="text-[10px] text-slate-500">{r.date_label}</span>
           </div>
           <div className="text-[11px] text-slate-700 mt-1.5 leading-snug">{r.action}</div>
+          {r.lift_detail && <div className="text-[10px] text-sage-dark mt-1">{r.lift_detail}</div>}
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-xs font-bold text-sage-dark">+${r.est_revenue_lift.toLocaleString()} est lift</span>
             <button onClick={() => window.dispatchEvent(new CustomEvent('tgc:navigate', { detail: 'calendar' }))}
@@ -355,24 +356,27 @@ function Recommendations({ recs, title = 'F&B Yield Recommendations' }: { recs: 
 
 function PrivateEventCalculator({ defaultOutlet = 'rooftop_bar' }: { defaultOutlet?: string }) {
   const [outletId, setOutletId]       = useState(defaultOutlet)
-  const [guestCount, setGuestCount]   = useState(40)
+  const [guestCount, setGuestCount]   = useState(50)
   const [eventDate, setEventDate]     = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10))
   const [hours, setHours]             = useState(4)
   const [result, setResult]           = useState<any>(null)
   const [busy, setBusy]               = useState(false)
 
-  async function calculate() {
+  async function calculate(g = guestCount) {
     setBusy(true)
     const r = await fetch('/api/fnb/private-event', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ outlet_id: outletId, guest_count: guestCount, hours, event_date: eventDate }),
+      body: JSON.stringify({ outlet_id: outletId, guest_count: g, hours, event_date: eventDate }),
     })
     setResult(await r.json())
     setBusy(false)
   }
 
+  // Show a sample 50-guest calculation immediately on mount.
+  useEffect(() => { calculate(50) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <details className="bg-white rounded-xl border border-slate-100 p-4 text-sm">
+    <details open className="bg-white rounded-xl border border-slate-100 p-4 text-sm">
       <summary className="cursor-pointer font-bold text-navy">Private Event / Buyout Calculator</summary>
       <div className="mt-3 space-y-2 text-xs">
         <label className="block">
