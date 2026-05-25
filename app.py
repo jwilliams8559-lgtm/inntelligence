@@ -173,6 +173,33 @@ _engine    = AnchoragePricingEngine()
 _scraper   = CompetitorScraper()
 _optimizer = PricingOptimizer()
 
+# ── Multi-property support ────────────────────────────────────────────────────
+# Anchorage keeps the original singleton (built from the untouched globals).
+# Other properties get their own engine built from config.settings.PROPERTIES.
+from config.settings import PROPERTIES, DEFAULT_PROPERTY  # noqa: E402
+
+# Start empty and let _engine_for build each correctly: a property flagged
+# use_engine_defaults reuses the Anchorage globals singleton; everyone else gets
+# an engine built from its own config. (Seeding by DEFAULT_PROPERTY would be
+# wrong now that the default is Bay Street, which is NOT the globals engine.)
+_engines: Dict[str, AnchoragePricingEngine] = {}
+
+
+def _engine_for(property_id: str) -> AnchoragePricingEngine:
+    if property_id not in _engines:
+        cfg = PROPERTIES.get(property_id)
+        if not cfg or cfg.get("use_engine_defaults"):
+            _engines[property_id] = _engine
+        else:
+            _engines[property_id] = AnchoragePricingEngine(property_config=cfg)
+    return _engines[property_id]
+
+
+def _resolve_property() -> str:
+    pid = request.args.get("property", DEFAULT_PROPERTY)
+    return pid if pid in PROPERTIES else DEFAULT_PROPERTY
+
+
 _cache: Dict[str, Any] = {}
 _CACHE_TTL = 300
 
@@ -197,16 +224,24 @@ def _invalidate(prefix: str) -> None:
 #  Config helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _load_packages_status() -> Dict[str, str]:
+def _packages_status_path(property_id: str = DEFAULT_PROPERTY) -> str:
+    """Per-property status file so package toggles are isolated between
+    properties. Anchorage keeps the original path (unchanged behavior)."""
+    if property_id == DEFAULT_PROPERTY:
+        return _PACKAGES_STATUS_PATH
+    return os.path.join(_BASE_DIR, "config", f"packages_status_{property_id}.json")
+
+
+def _load_packages_status(property_id: str = DEFAULT_PROPERTY) -> Dict[str, str]:
     try:
-        with open(_PACKAGES_STATUS_PATH) as f:
+        with open(_packages_status_path(property_id)) as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {k: "active" for k in PACKAGES_CONFIG}
 
 
-def _save_packages_status(status: Dict[str, str]) -> None:
-    with open(_PACKAGES_STATUS_PATH, "w") as f:
+def _save_packages_status(status: Dict[str, str], property_id: str = DEFAULT_PROPERTY) -> None:
+    with open(_packages_status_path(property_id), "w") as f:
         json.dump(status, f, indent=2)
 
 
@@ -234,6 +269,10 @@ def index():
 
 @app.route("/api/dashboard")
 def dashboard_data():
+    prop = _resolve_property()
+    eng  = _engine_for(prop)
+    meta = PROPERTIES[prop]
+
     date_str = request.args.get("date", "")
     try:
         report_date = date.fromisoformat(date_str) if date_str else date.today()
@@ -243,26 +282,36 @@ def dashboard_data():
     occ      = 0.75
     date_key = report_date.isoformat()
 
-    day_df = _cached(f"rates_{date_key}", lambda: _engine.generate_daily_report(
+    day_df = _cached(f"{prop}:rates_{date_key}", lambda: eng.generate_daily_report(
         target_date=report_date, occupancy_rate=occ
     ))
     day_rates = _format_room_rates(day_df, report_date)
 
-    cal_df = _cached("calendar_90d", lambda: _engine.generate_pricing_calendar(
+    cal_df = _cached(f"{prop}:calendar_90d", lambda: eng.generate_pricing_calendar(
         days_ahead=90, base_occupancy=occ
     ))
 
-    comp_7day = _cached(f"comp_{date_key}", lambda: _build_competitor_comparison(
-        days=7, start_date=report_date
+    comp_7day = _cached(f"{prop}:comp_{date_key}", lambda: _build_competitor_comparison(
+        days=7, start_date=report_date, engine=eng
     ))
 
-    events = _upcoming_events(days=60, start_date=report_date)
+    events = _upcoming_events(days=60, start_date=report_date, engine=eng)
 
-    forecast = _cached("forecast_90d", lambda: _build_revenue_forecast(cal_df))
+    forecast = _cached(f"{prop}:forecast_90d", lambda: _build_revenue_forecast(cal_df))
 
-    optimizations = _cached("optimizations", lambda: _optimizer.analyze(cal_df, occ))
+    optimizations = _cached(f"{prop}:optimizations", lambda: _optimizer.analyze(cal_df, occ))
 
     return jsonify({
+        "property": {
+            "id":           meta["id"],
+            "name":         meta["name"],
+            "city":         meta["city"],
+            "show_address": meta.get("show_address", True),
+            "address":      meta.get("address", ""),
+            "restaurant":   meta.get("restaurant", ""),
+            "rooftop_bar":  meta.get("rooftop_bar", ""),
+            "room_count":   meta.get("room_count", len(day_rates)),
+        },
         "today_rates":           day_rates,
         "competitor_comparison": comp_7day,
         "upcoming_events":       events,
@@ -289,25 +338,33 @@ def market_intelligence():
 
 @app.route("/api/fnb/summary")
 def fnb_summary():
-    """F&B revenue summary for the Ribaut Social Club restaurant + Rooftop Bar.
-    Built from the existing fnb_engine demo dataset. RECOMMENDATIONS_SPEC is
-    imported directly because generate_recommendations() pulls a config helper
-    not present in this build."""
+    """F&B revenue summary. The selected property supplies the display labels
+    (restaurant + bar names); the underlying demo dataset is shared.
+    RECOMMENDATIONS_SPEC is imported directly because generate_recommendations()
+    pulls a config helper not present in this build."""
     from modules.hospitality.fnb_engine import (
         FNBEngine, RECOMMENDATIONS_SPEC, DEMO_FNB_TENANT,
     )
+    prop = _resolve_property()
+    meta = PROPERTIES[prop]
+    tenant = meta.get("fnb_tenant") or DEMO_FNB_TENANT
     eng = FNBEngine()
     return jsonify({
-        "summary":         eng.summary_flat(DEMO_FNB_TENANT),
-        "restaurant_dow":  eng.dow_daily(DEMO_FNB_TENANT, "restaurant"),
-        "rooftop_dow":     eng.dow_daily(DEMO_FNB_TENANT, "rooftop_bar"),
+        "labels": {
+            "restaurant": meta.get("restaurant", "Restaurant"),
+            "rooftop_bar": meta.get("rooftop_bar", "Rooftop Bar"),
+        },
+        "summary":         eng.summary_flat(tenant),
+        "restaurant_dow":  eng.dow_daily(tenant, "restaurant"),
+        "rooftop_dow":     eng.dow_daily(tenant, "rooftop_bar"),
         "recommendations": [dict(c) for c in RECOMMENDATIONS_SPEC],
     })
 
 
 @app.route("/api/packages")
 def packages():
-    status = _load_packages_status()
+    prop   = _resolve_property()
+    status = _load_packages_status(prop)
     result = []
     for pkg_id, cfg in PACKAGES_CONFIG.items():
         monthly_rev = round(
@@ -326,9 +383,10 @@ def packages():
 def toggle_package(pkg_id: str):
     if pkg_id not in PACKAGES_CONFIG:
         return jsonify({"error": "Unknown package"}), 404
-    status = _load_packages_status()
+    prop   = _resolve_property()
+    status = _load_packages_status(prop)
     status[pkg_id] = "coming_soon" if status.get(pkg_id) == "active" else "active"
-    _save_packages_status(status)
+    _save_packages_status(status, prop)
     return jsonify({"id": pkg_id, "status": status[pkg_id]})
 
 
@@ -379,14 +437,17 @@ def remove_competitor(key: str):
 
 @app.route("/export")
 def export_csv():
-    cal_df = _engine.generate_pricing_calendar(days_ahead=90, base_occupancy=0.75)
+    prop   = _resolve_property()
+    eng    = _engine_for(prop)
+    prefix = PROPERTIES[prop].get("export_prefix", "anchorage_1770")
+    cal_df = eng.generate_pricing_calendar(days_ahead=90, base_occupancy=0.75)
     buf    = io.StringIO()
     cal_df.to_csv(buf, index=False)
     buf.seek(0)
     resp = make_response(buf.getvalue())
     resp.headers["Content-Type"] = "text/csv"
     resp.headers["Content-Disposition"] = (
-        f'attachment; filename="anchorage_1770_pricing_{date.today().isoformat()}.csv"'
+        f'attachment; filename="{prefix}_pricing_{date.today().isoformat()}.csv"'
     )
     return resp
 
@@ -396,7 +457,8 @@ def export_csv():
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _format_room_rates(df, report_date: date) -> List[Dict[str, Any]]:
-    tier_icons = {"cottage": "🏡", "waterfront": "🌊", "water_view": "🔭", "garden": "🌿"}
+    tier_icons = {"cottage": "🏡", "waterfront": "🌊", "water_view": "🔭", "garden": "🌿",
+                  "carriage_house": "🏛️", "signature_suite": "✨", "grand_parlor": "👑"}
     rooms = []
     for _, row in df.iterrows():
         rate, rack_mid, rack_low = float(row["rate"]), float(row["rack_mid"]), float(row["rack_low"])
@@ -430,46 +492,86 @@ def _format_room_rates(df, report_date: date) -> List[Dict[str, Any]]:
     return rooms
 
 
-def _build_competitor_comparison(days: int = 7, start_date: Optional[date] = None) -> Dict[str, Any]:
+_TIER_LABELS = {1: "Your Direct Competitors", 2: "Market Reference", 3: "Market Anchors"}
+
+
+def _synth_availability(comp, rate: float) -> Dict[str, Any]:
+    """Deterministic availability for a competitor the scraper doesn't cover
+    (e.g. Anchorage 1770, Hampton, Montage). Uses the competitor's own rate
+    relative to its rack midpoint as a demand proxy — same seasonal/event/
+    weekend signal already baked into get_competitor_rates()."""
+    mid = (comp.base_low + comp.base_high) / 2.0 or 1.0
+    ratio = rate / mid
+    est_occ = max(0.45, min(0.99, 0.55 + (ratio - 1.0) * 1.4))
+    if   est_occ >= 0.90: status, ind = "sold_out", "🔴"
+    elif est_occ >= 0.75: status, ind = "limited",  "🟡"
+    else:                 status, ind = "available", "🟢"
+    return {"indicator": ind, "est_occ": round(est_occ, 2), "status": status}
+
+
+def _build_competitor_comparison(days: int = 7, start_date: Optional[date] = None,
+                                 engine: Optional[AnchoragePricingEngine] = None) -> Dict[str, Any]:
+    eng          = engine or _engine
     base         = start_date or date.today()
     dates: List[str]              = []
-    anchorage_avg: List[float]    = []
+    property_avg: List[float]     = []
     competitors: Dict[str, List]  = {}
     availability: Dict[str, List] = {}
+
+    # name → Competitor object, for tier metadata + availability synthesis
+    comp_by_name = {c.name: c for c in eng.competitors.values()}
 
     for offset in range(days):
         check_in = base + timedelta(days=offset)
         dates.append(check_in.strftime("%a %b %-d"))
 
-        room_rates = [_engine.calculate_room_rate(rid, check_in, 0.75)["rate"] for rid in ROOM_INVENTORY]
-        anchorage_avg.append(round(sum(room_rates) / len(room_rates), 2))
+        room_rates = [eng.calculate_room_rate(rid, check_in, 0.75)["rate"] for rid in eng.rooms]
+        property_avg.append(round(sum(room_rates) / len(room_rates), 2))
 
-        comp_rates = _engine.get_competitor_rates(check_in)
+        comp_rates = eng.get_competitor_rates(check_in)
+        avail_snap = _scraper.get_availability_snapshot(check_in)
         for name, rate in comp_rates.items():
             competitors.setdefault(name, []).append(rate)
+            if name in avail_snap:
+                info = avail_snap[name]
+                availability.setdefault(name, []).append({
+                    "indicator": info["indicator"],
+                    "est_occ":   info["est_occupancy"],
+                    "status":    info["availability_status"],
+                })
+            else:
+                # Synthesize for competitors the scraper doesn't track.
+                availability.setdefault(name, []).append(
+                    _synth_availability(comp_by_name[name], rate)
+                )
 
-        avail_snap = _scraper.get_availability_snapshot(check_in)
-        for name, info in avail_snap.items():
-            availability.setdefault(name, []).append({
-                "indicator":   info["indicator"],
-                "est_occ":     info["est_occupancy"],
-                "status":      info["availability_status"],
-            })
+    # Group competitor names by tier (tier 1 first) for the tiered panel.
+    tier_groups: Dict[int, List[str]] = {1: [], 2: [], 3: []}
+    for name in competitors:
+        t = getattr(comp_by_name.get(name), "tier", 1)
+        tier_groups.setdefault(t, []).append(name)
+    comp_tiers = [
+        {"tier": t, "label": _TIER_LABELS.get(t, f"Tier {t}"), "names": tier_groups[t]}
+        for t in sorted(tier_groups) if tier_groups[t]
+    ]
 
     return {
         "dates":         dates,
-        "anchorage_avg": anchorage_avg,
+        "property_avg":  property_avg,
         "competitors":   competitors,
         "availability":  availability,
+        "comp_tiers":    comp_tiers,
     }
 
 
-def _upcoming_events(days: int = 60, start_date: Optional[date] = None) -> List[Dict[str, Any]]:
+def _upcoming_events(days: int = 60, start_date: Optional[date] = None,
+                     engine: Optional[AnchoragePricingEngine] = None) -> List[Dict[str, Any]]:
+    eng  = engine or _engine
     base = start_date or date.today()
     seen: Dict[str, Dict] = {}
     for offset in range(days):
         check_date = base + timedelta(days=offset)
-        mult, active = _engine.get_event_multiplier(check_date)
+        mult, active = eng.get_event_multiplier(check_date)
         for evt_name in active:
             if evt_name not in seen:
                 seen[evt_name] = {

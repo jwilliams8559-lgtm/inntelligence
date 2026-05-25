@@ -116,7 +116,9 @@ class Competitor:
     name:      str
     base_low:  float   # low-season weekday typical rate
     base_high: float   # peak-season weekend typical rate
-    url_hint:  str     # integration point for live scraping
+    url_hint:  str = ""   # integration point for live scraping
+    tier:      int = 1    # 1 direct comp · 2 market reference · 3 market anchor
+    weight:    float = 1.0  # influence on the weighted comp average
 
 
 COMPETITORS: Dict[str, Competitor] = {
@@ -252,6 +254,46 @@ class AnchoragePricingEngine:
     OCC_TARGET_LOW  = 0.70
     OCC_TARGET_HIGH = 0.85
 
+    def __init__(self, property_config: Optional[Dict[str, Any]] = None) -> None:
+        """Single-property by default. Passing property_config makes the engine
+        price a different property without touching the module globals.
+
+        When property_config is None, every attribute falls back to the
+        original Anchorage 1770 globals/constants, so existing behavior is
+        byte-for-byte unchanged. Beaufort event + seasonal logic is shared
+        (global) across all properties by design.
+        """
+        cfg = property_config or {}
+
+        rooms = cfg.get("rooms")
+        if rooms is None:
+            self.rooms = ROOM_INVENTORY
+        elif isinstance(rooms, dict):
+            self.rooms = rooms
+        else:  # list of plain dicts (e.g. from config.settings.PROPERTIES)
+            self.rooms = {r["room_id"]: Room(**r) for r in rooms}
+
+        comps = cfg.get("competitors")
+        if comps is None:
+            self.competitors = COMPETITORS
+        elif isinstance(comps, dict):
+            self.competitors = comps
+        else:  # list of plain dicts (e.g. from config.settings.PROPERTIES)
+            self.competitors = {
+                c["key"]: Competitor(
+                    c["name"], c["base_low"], c["base_high"],
+                    c.get("url_hint", ""), c.get("tier", 1), c.get("weight", 1.0),
+                )
+                for c in comps
+            }
+        self.property_name    = cfg.get("name", self.PROPERTY_NAME)
+        self.property_address = cfg.get("address", self.PROPERTY_ADDRESS)
+        self.occ_low          = cfg.get("occ_target_low", self.OCC_TARGET_LOW)
+        self.occ_high         = cfg.get("occ_target_high", self.OCC_TARGET_HIGH)
+        self.weekend_premium  = cfg.get("weekend_premium", 0.15)
+        self.floor_pct        = cfg.get("discount_floor_pct", TIER_FLOOR_PCT)
+        self.export_prefix    = cfg.get("export_prefix", "anchorage_1770")
+
     # ------------------------------------------------------------------ #
     #  1. Event multiplier                                                 #
     # ------------------------------------------------------------------ #
@@ -342,7 +384,7 @@ class AnchoragePricingEngine:
         overall       = seasonal * max(weekend_bump, comp_event)
 
         rates: Dict[str, float] = {}
-        for key, comp in COMPETITORS.items():
+        for key, comp in self.competitors.items():
             base = (comp.base_low + comp.base_high) / 2.0 * overall
             # Deterministic ±3% market noise keyed to (date × competitor)
             noise_seed  = (check_in_date.toordinal() * 7 + hash(key)) % 100
@@ -378,15 +420,15 @@ class AnchoragePricingEngine:
                           at 90+ days the early event premium is capped at +10%
           Absolute floor → max(15% discount below rack_low, applied last)
         """
-        if room_id not in ROOM_INVENTORY:
+        if room_id not in self.rooms:
             raise KeyError(f"Unknown room_id: {room_id!r}")
 
-        room    = ROOM_INVENTORY[room_id]
+        room    = self.rooms[room_id]
         today   = date.today()
         days_out = max(0, (check_in_date - today).days)
 
         rack_mid   = (room.rack_low + room.rack_high) / 2.0
-        rack_floor = room.rack_low * TIER_FLOOR_PCT
+        rack_floor = room.rack_low * self.floor_pct
 
         seasonal_mult  = SEASONAL_INDEX.get(check_in_date.month, 1.0)
         seasonal_base  = rack_mid * seasonal_mult
@@ -412,7 +454,7 @@ class AnchoragePricingEngine:
             reasoning.append(f"{days_out}d out → rack rate, monitoring occ")
 
         elif days_out >= 14:
-            if occupancy_rate < self.OCC_TARGET_LOW:
+            if occupancy_rate < self.occ_low:
                 lead_factor = 0.95
                 reasoning.append(
                     f"{days_out}d out, occ {occupancy_rate:.0%} < 70% → −5%"
@@ -424,7 +466,7 @@ class AnchoragePricingEngine:
                 )
 
         elif days_out >= 7:
-            if occupancy_rate < self.OCC_TARGET_LOW:
+            if occupancy_rate < self.occ_low:
                 lead_factor = 0.90
                 reasoning.append(
                     f"{days_out}d out, occ {occupancy_rate:.0%} < 70% → −10%"
@@ -471,7 +513,7 @@ class AnchoragePricingEngine:
 
         # ── Weekend premium ────────────────────────────────────────────────
         is_weekend = check_in_date.weekday() in (4, 5)
-        weekend_mult = 1.15 if is_weekend else 1.0
+        weekend_mult = (1.0 + self.weekend_premium) if is_weekend else 1.0
         if is_weekend:
             reasoning.append("Weekend +15% (Fri/Sat)")
 
@@ -484,7 +526,12 @@ class AnchoragePricingEngine:
         vs_rack_pct = round((rate - rack_mid) / rack_mid * 100, 1)
 
         comp_rates  = self.get_competitor_rates(check_in_date)
-        comp_avg    = sum(comp_rates.values()) / len(comp_rates)
+        # Tier-weighted comp average (defaults to a simple mean when every
+        # competitor has weight 1.0, so Anchorage's numbers are unchanged).
+        _weights = {c.name: getattr(c, "weight", 1.0) for c in self.competitors.values()}
+        _num = sum(comp_rates[n] * _weights.get(n, 1.0) for n in comp_rates)
+        _den = sum(_weights.get(n, 1.0) for n in comp_rates)
+        comp_avg    = round(_num / _den, 2) if _den else sum(comp_rates.values()) / len(comp_rates)
         vs_comp_pct = round((rate - comp_avg) / comp_avg * 100, 1)
 
         return {
@@ -536,7 +583,7 @@ class AnchoragePricingEngine:
         """
         logger.info(
             f"Generating {days_ahead}-day pricing calendar for "
-            f"{len(ROOM_INVENTORY)} rooms"
+            f"{len(self.rooms)} rooms"
         )
         today  = date.today()
         rows: List[Dict[str, Any]] = []
@@ -552,7 +599,7 @@ class AnchoragePricingEngine:
             comp_rates = self.get_competitor_rates(check_in)
             comp_avg   = round(sum(comp_rates.values()) / len(comp_rates), 2)
 
-            for room_id in ROOM_INVENTORY:
+            for room_id in self.rooms:
                 r = self.calculate_room_rate(room_id, check_in, occ)
                 rows.append({
                     "date":             check_in.isoformat(),
@@ -575,7 +622,7 @@ class AnchoragePricingEngine:
                 })
 
         df = pd.DataFrame(rows)
-        path = self._export_csv(df, f"anchorage_1770_calendar_{days_ahead}d")
+        path = self._export_csv(df, f"{self.export_prefix}_calendar_{days_ahead}d")
         logger.info(f"Pricing calendar exported → {path}  ({len(df):,} rows)")
         return df
 
@@ -597,7 +644,7 @@ class AnchoragePricingEngine:
 
         rows = [
             self.calculate_room_rate(room_id, report_date, occupancy_rate)
-            for room_id in ROOM_INVENTORY
+            for room_id in self.rooms
         ]
         df = pd.DataFrame(rows)
 
@@ -606,7 +653,7 @@ class AnchoragePricingEngine:
         df = pd.concat([df.drop(columns=["competitor_rates"]), comp_df], axis=1)
 
         path = self._export_csv(
-            df, f"anchorage_1770_daily_report_{report_date.strftime('%Y%m%d')}"
+            df, f"{self.export_prefix}_daily_report_{report_date.strftime('%Y%m%d')}"
         )
         logger.info(f"Daily report exported → {path}")
         return df

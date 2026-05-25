@@ -445,7 +445,7 @@ class CompetitorScraper:
             "recommendation":   recommendation,
             "chart": {
                 "labels":        chart_labels,
-                "anchorage_avg": anch_avgs,
+                "property_avg":  anch_avgs,
                 "comp_avg":      comp_avgs,
             },
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),

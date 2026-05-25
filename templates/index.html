@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Anchorage 1770 Inn — Pricing Dashboard</title>
+  <title>The Bay Street Inn — Pricing Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
@@ -192,8 +192,8 @@
 <header class="site-header">
   <div class="header-inner">
     <div>
-      <div class="property-title">Anchorage 1770 Inn</div>
-      <div class="property-addr">1103 Bay Street · Beaufort, SC 29902</div>
+      <div class="property-title" id="property-title">The Bay Street Inn</div>
+      <div class="property-addr" id="property-addr">Beaufort, SC</div>
     </div>
     <div class="date-selector">
       <label>📅 Check-in Date</label>
@@ -202,7 +202,7 @@
     </div>
     <div class="header-actions">
       <button class="btn-outline-gold" onclick="refreshAll()">⟳ Refresh</button>
-      <a class="btn-gold" href="/export">↓ Export CSV</a>
+      <a class="btn-gold" id="export-link" href="/export">↓ Export CSV</a>
     </div>
   </div>
   <div class="kpi-strip">
@@ -272,7 +272,7 @@
 
   <!-- 3b. Food & Beverage -->
   <div class="panel">
-    <div class="panel-header">🍽️ FOOD &amp; BEVERAGE — RIBAUT SOCIAL CLUB + ROOFTOP BAR <span class="badge-gold" id="badge-fnb">—</span></div>
+    <div class="panel-header"><span id="fnb-title">🍽️ FOOD &amp; BEVERAGE — RIBAUT SOCIAL CLUB + ROOFTOP BAR</span> <span class="badge-gold" id="badge-fnb">—</span></div>
     <div class="panel-body p-3">
       <div class="row g-3">
         <div class="col-12 col-md-4">
@@ -349,16 +349,18 @@
   </div>
 
 </main>
-<footer class="site-footer"><span id="generated-at"></span> · Anchorage 1770 Inn Pricing Dashboard · Auto-refreshes every 5 min</footer>
+<footer class="site-footer"><span id="generated-at"></span> · The Bay Street Inn Pricing Dashboard · Auto-refreshes every 5 min</footer>
 
 <!-- ── JavaScript ─────────────────────────────────────────────────────── -->
 <script>
 'use strict';
 // ── State ──────────────────────────────────────────────────────────────────
 let selectedDate = todayISO();
+let selectedProperty = 'bay_street_inn_demo';  // dashboard always manages Bay Street
 let _charts = {};
 
 function todayISO() { return new Date().toISOString().split('T')[0]; }
+function propQS(extra) { return `?property=${selectedProperty}${extra ? '&' + extra : ''}`; }
 
 // ── Init ───────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -369,9 +371,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
 async function loadAll() {
   const [dash, market, pkgs, settings] = await Promise.allSettled([
-    fetchJSON(`/api/dashboard?date=${selectedDate}`),
+    fetchJSON(`/api/dashboard${propQS('date=' + selectedDate)}`),
     fetchJSON('/api/market-intelligence'),
-    fetchJSON('/api/packages'),
+    fetchJSON(`/api/packages${propQS()}`),
     fetchJSON('/api/settings/competitors'),
   ]);
   if (dash.status === 'fulfilled')     renderDashboard(dash.value);
@@ -380,20 +382,25 @@ async function loadAll() {
   if (settings.status === 'fulfilled') renderSettings(settings.value);
   renderGiftShop();
   loadFnB();
+  // Export link follows the selected property.
+  document.getElementById('export-link').href = `/export${propQS()}`;
 }
 
 async function loadFnB() {
   let d;
-  try { d = await fetchJSON('/api/fnb/summary'); }
+  try { d = await fetchJSON(`/api/fnb/summary${propQS()}`); }
   catch (e) { document.getElementById('fnb-kpis').innerHTML = '<div class="loading-msg">F&B data unavailable.</div>'; return; }
   const s = d.summary || {};
+  const lbl = d.labels || { restaurant: 'Restaurant', rooftop_bar: 'Rooftop Bar' };
   const usd = n => '$' + Math.round(n||0).toLocaleString('en-US');
   document.getElementById('badge-fnb').textContent = usd(s.monthly_revenue) + '/mo';
+  document.getElementById('fnb-title').textContent =
+    `🍽️ FOOD & BEVERAGE — ${lbl.restaurant.toUpperCase()} + ${lbl.rooftop_bar.toUpperCase()}`;
 
   // KPI tiles
   const tiles = [
-    ['Ribaut Social Club', usd(s.restaurant_monthly) + '/mo'],
-    ['Rooftop Bar',        usd(s.bar_monthly) + '/mo'],
+    [lbl.restaurant,       usd(s.restaurant_monthly) + '/mo'],
+    [lbl.rooftop_bar,      usd(s.bar_monthly) + '/mo'],
     ['Total F&B',          usd(s.monthly_revenue) + '/mo'],
     ['RevPASH',            '$' + (s.revpash ?? 0)],
     ['Avg Check',          '$' + (s.avg_check ?? 0)],
@@ -405,7 +412,7 @@ async function loadFnB() {
       <div class="room-rate" style="font-size:1.1rem;color:var(--navy);margin:3px 0">${v}</div>
     </div>`).join('');
 
-  // Busiest days (Ribaut Social Club) — sorted by revenue desc
+  // Busiest days — sorted by revenue desc
   const rows = [...(d.restaurant_dow||[])].sort((a,b)=>b.revenue-a.revenue);
   document.querySelector('#fnb-dow-table tbody').innerHTML = rows.map((r,i) => `
     <tr${i===0?' style="font-weight:700;background:var(--hold-bg)"':''}>
@@ -432,7 +439,7 @@ async function fetchJSON(url) {
 // ── Date picker ────────────────────────────────────────────────────────────
 function onDateChange() {
   selectedDate = document.getElementById('date-picker').value || todayISO();
-  fetchJSON(`/api/dashboard?date=${selectedDate}`).then(renderDashboard).catch(console.error);
+  fetchJSON(`/api/dashboard${propQS('date=' + selectedDate)}`).then(renderDashboard).catch(console.error);
 }
 function resetToday() {
   selectedDate = todayISO();
@@ -443,6 +450,7 @@ function refreshAll() { loadAll(); }
 
 // ── Dashboard render ───────────────────────────────────────────────────────
 function renderDashboard(d) {
+  if (d.property) renderProperty(d.property);
   renderKPIs(d.summary, d.report_date);
   renderHeader(d.report_date);
   renderRoomGrid(d.today_rates);
@@ -454,18 +462,29 @@ function renderDashboard(d) {
   document.getElementById('generated-at').textContent = 'Generated ' + d.generated_at;
 }
 
+let _roomCount = 19;
+function renderProperty(p) {
+  _roomCount = p.room_count || _roomCount;
+  document.getElementById('property-title').textContent = p.name;
+  // Never show a street address when the property opts out (city only).
+  document.getElementById('property-addr').textContent = p.show_address ? p.address : p.city;
+  // Room-count-dependent KPI labels.
+  const avgSub = document.querySelector('#kpi-avg').parentElement.querySelector('.kpi-sub');
+  if (avgSub) avgSub.textContent = `all ${_roomCount} rooms`;
+}
+
 function renderHeader(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   const label = d.toLocaleDateString('en-US', {weekday:'long',month:'long',day:'numeric',year:'numeric'});
   document.getElementById('badge-date').textContent = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
   document.getElementById('kpi-date-sub').textContent = dateStr === todayISO() ? 'today' : dateStr;
-  document.title = `Anchorage 1770 — ${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+  document.title = `The Bay Street Inn — ${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
 }
 
 function renderKPIs(s, dateStr) {
   document.getElementById('kpi-avg').textContent      = '$' + s.avg_rate.toFixed(0);
   document.getElementById('kpi-revpar').textContent   = '$' + s.revpar.toFixed(0);
-  document.getElementById('kpi-premium').textContent  = s.rooms_premium + ' / 14';
+  document.getElementById('kpi-premium').textContent  = s.rooms_premium + ' / ' + _roomCount;
   document.getElementById('kpi-events').textContent   = s.active_events > 0 ? s.active_events : 'None';
 }
 
@@ -488,21 +507,37 @@ function renderRoomGrid(rooms) {
 
 // ── Competitor Table ───────────────────────────────────────────────────────
 function renderCompTable(data) {
-  const { dates, anchorage_avg, competitors, availability } = data;
+  const { dates, property_avg, competitors, availability, comp_tiers } = data;
+  const span = dates.length + 2;
   let h = `<thead><tr><th>Property</th><th>Avail</th>`;
   dates.forEach(d => { h += `<th>${d}</th>`; });
   h += `</tr></thead><tbody>`;
-  h += `<tr class="our-row"><td>Anchorage 1770 (avg)</td><td>🏠</td>`;
-  anchorage_avg.forEach(r => { h += `<td>$${r.toFixed(0)}</td>`; });
+  // Managed property (Bay Street) row.
+  h += `<tr class="our-row"><td>The Bay Street Inn (avg)</td><td>🏠</td>`;
+  property_avg.forEach(r => { h += `<td>$${r.toFixed(0)}</td>`; });
   h += `</tr>`;
-  Object.entries(competitors).forEach(([name, rates]) => {
+
+  const compRow = (name) => {
+    const rates = competitors[name] || [];
     const todayAvail = (availability[name] || [])[0] || {};
     const ind = todayAvail.indicator || '—';
     const cls = todayAvail.status ? `avail-${todayAvail.status}` : '';
-    h += `<tr><td>${name}</td><td class="${cls}" title="Est. occ: ${todayAvail.est_occ ? Math.round(todayAvail.est_occ*100)+'%' : '?'}">${ind}</td>`;
-    rates.forEach(r => { h += `<td>$${r.toFixed(0)}</td>`; });
-    h += `</tr>`;
-  });
+    let row = `<tr><td>${name}</td><td class="${cls}" title="Est. occ: ${todayAvail.est_occ ? Math.round(todayAvail.est_occ*100)+'%' : '?'}">${ind}</td>`;
+    rates.forEach(r => { row += `<td>$${r.toFixed(0)}</td>`; });
+    return row + `</tr>`;
+  };
+
+  // Grouped by tier, Tier 1 first, each under a labeled section header.
+  if (Array.isArray(comp_tiers) && comp_tiers.length) {
+    comp_tiers.forEach(group => {
+      h += `<tr><td colspan="${span}" style="background:var(--navy-light);color:var(--gold-light);
+            font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left">
+            ${group.label}</td></tr>`;
+      group.names.forEach(name => { h += compRow(name); });
+    });
+  } else {
+    Object.keys(competitors).forEach(name => { h += compRow(name); });
+  }
   h += `</tbody>`;
   document.getElementById('comp-table').innerHTML = h;
 }
@@ -512,7 +547,7 @@ function renderCompChart(data) {
   if (_charts.comp) _charts.comp.destroy();
   const colors = ['#c9a84c','#e63946','#457b9d','#2a9d8f','#e9c46a','#8e44ad'];
   const datasets = [{
-    label:'Anchorage 1770', data:data.anchorage_avg,
+    label:'Bay Street Inn', data:data.property_avg,
     borderColor:'#c9a84c', backgroundColor:'rgba(201,168,76,.15)',
     borderWidth:2.5, tension:0.3, fill:true,
   }];
@@ -612,7 +647,7 @@ function renderMarketIntelligence(d) {
   _charts.market = new Chart(ctx, {
     type:'line',
     data:{ labels:d.chart.labels, datasets:[
-      { label:'Anchorage 1770', data:d.chart.anchorage_avg, borderColor:'#c9a84c', backgroundColor:'rgba(201,168,76,.12)', borderWidth:2.5, tension:0.4, fill:true, pointRadius:0 },
+      { label:'Bay Street Inn', data:d.chart.property_avg, borderColor:'#c9a84c', backgroundColor:'rgba(201,168,76,.12)', borderWidth:2.5, tension:0.4, fill:true, pointRadius:0 },
       { label:'Comp Avg (excl. Airbnb)', data:d.chart.comp_avg, borderColor:'#457b9d', borderWidth:1.5, borderDash:[5,4], tension:0.4, fill:false, pointRadius:0 }
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
