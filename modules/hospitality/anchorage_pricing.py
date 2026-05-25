@@ -1,7 +1,7 @@
 """
 modules/hospitality/anchorage_pricing.py
 
-Dynamic pricing engine for Bay Street Inn
+Dynamic pricing engine for Anchorage 1770 Inn
 1103 Bay Street, Beaufort SC 29902
 
 Generates optimal nightly rates for 14 rentable rooms based on:
@@ -194,7 +194,7 @@ ANNUAL_EVENTS: List[LocalEvent] = [
                "Independence Day waterfront fireworks and festivities"),
     LocalEvent("Black Boses Freedom Festival",         7,  4,  6, 1.25, 1,
                "Cultural freedom festival, July 4 weekend"),
-    LocalEvent("Annual Beaufort Water Festival",       7, 18, 27, 1.12, 3,
+    LocalEvent("Annual Beaufort Water Festival",       7, 18, 27, 1.30, 3,
                "10-day flagship festival — largest annual event in Beaufort"),
 
     # ── October ─────────────────────────────────────────────────────────────
@@ -238,14 +238,14 @@ PARRIS_ISLAND_MULT = 1.20
 
 class AnchoragePricingEngine:
     """
-    Dynamic pricing engine for Bay Street Inn.
+    Dynamic pricing engine for Anchorage 1770 Inn.
 
     All public methods return plain dicts or DataFrames — no side effects
     except generate_daily_report() and generate_pricing_calendar() which
     export CSVs to data/exports/.
     """
 
-    PROPERTY_NAME    = "Bay Street Inn"
+    PROPERTY_NAME    = "Anchorage 1770 Inn"
     PROPERTY_ADDRESS = "1103 Bay Street, Beaufort SC 29902"
 
     # Occupancy targets
@@ -575,7 +575,7 @@ class AnchoragePricingEngine:
                 })
 
         df = pd.DataFrame(rows)
-        path = self._export_csv(df, f"bay_street_inn_calendar_{days_ahead}d")
+        path = self._export_csv(df, f"anchorage_1770_calendar_{days_ahead}d")
         logger.info(f"Pricing calendar exported → {path}  ({len(df):,} rows)")
         return df
 
@@ -590,7 +590,7 @@ class AnchoragePricingEngine:
     ) -> pd.DataFrame:
         """
         Morning pricing report for a single date across all 14 rooms.
-        Exports to data/exports/bay_street_inn_daily_report_YYYYMMDD.csv.
+        Exports to data/exports/anchorage_1770_daily_report_YYYYMMDD.csv.
         """
         report_date = target_date or date.today()
         logger.info(f"Generating daily pricing report for {report_date}")
@@ -606,7 +606,7 @@ class AnchoragePricingEngine:
         df = pd.concat([df.drop(columns=["competitor_rates"]), comp_df], axis=1)
 
         path = self._export_csv(
-            df, f"bay_street_inn_daily_report_{report_date.strftime('%Y%m%d')}"
+            df, f"anchorage_1770_daily_report_{report_date.strftime('%Y%m%d')}"
         )
         logger.info(f"Daily report exported → {path}")
         return df
@@ -710,7 +710,7 @@ def _print_report(df: pd.DataFrame, engine: AnchoragePricingEngine, report_date:
     our_avg  = df["rate"].mean()
     print(thin)
     print(f"  {'Competitor Average:':<40} ${comp_avg:.0f}")
-    print(f"  {'Bay Street Inn Average (recommended):':<40} ${our_avg:.0f}")
+    print(f"  {'Anchorage 1770 Average (recommended):':<40} ${our_avg:.0f}")
     print(f"  {'Premium over comp set:':<40} {(our_avg - comp_avg) / comp_avg * 100:+.1f}%")
 
     # ── Reasoning summary (top 3 rooms) ───────────────────────────────────
@@ -731,7 +731,7 @@ def _print_report(df: pd.DataFrame, engine: AnchoragePricingEngine, report_date:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="anchorage_pricing",
-        description="Bay Street Inn — Dynamic Pricing Engine",
+        description="Anchorage 1770 Inn — Dynamic Pricing Engine",
     )
     parser.add_argument(
         "--report",

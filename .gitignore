@@ -45,3 +45,12 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# ── Node / Vite build artifacts ───────────────────────────────────────────────
+node_modules/
+dashboard/node_modules/
+.vite/
+
+# ── Generated data outputs (runtime exports + cached snapshots) ───────────────
+data/exports/
+data/processed/
