@@ -46,7 +46,7 @@ export default function LoginScreen() {
             by The Gracious Collection
           </div>
           <div className="text-white/40 text-[10px] uppercase tracking-[3px] mt-1">
-            Revenue intelligence for innkeepers
+            Boutique Hospitality Intelligence
           </div>
         </div>
 

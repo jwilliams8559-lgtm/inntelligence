@@ -119,11 +119,9 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
       <aside className="w-52 lg:w-56 flex-shrink-0 bg-navy flex flex-col shadow-xl">
         {/* Logo */}
         <div className="px-4 pt-6 pb-4 border-b border-navy-light">
-          <div className="text-gold font-bold text-lg leading-tight" style={{ fontFamily: 'Georgia, serif' }}>INNtelligence</div>
-          <div className="text-white/70 text-[10px] mt-0.5 leading-tight tracking-wide">by The Gracious Collection</div>
-          <div className="text-white/60 text-[10px] mt-1 leading-tight">
-            Revenue intelligence for innkeepers
-          </div>
+          <div className="text-white font-bold text-xl leading-tight" style={{ fontFamily: 'Georgia, serif' }}>INNtelligence</div>
+          <div className="text-gold text-[11px] font-semibold mt-0.5 leading-tight tracking-wide">Boutique Hospitality Intelligence</div>
+          <div className="text-white/40 text-[10px] mt-0.5 leading-tight">by The Gracious Collection</div>
         </div>
 
         {/* Property selector */}

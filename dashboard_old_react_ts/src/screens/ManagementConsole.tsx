@@ -316,7 +316,7 @@ export default function ManagementConsole({ }: Props) {
             <div className="text-lg font-bold text-navy">{revenue?.mom_growth_pct ?? 0}%</div>
           </div>
           <div className="bg-cream rounded-lg p-3">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500">Advisory Pipeline</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-500">INNsight Pipeline</div>
             <div className="text-lg font-bold text-navy">${revenue?.advisory_pipeline_value ?? 0}</div>
           </div>
         </div>
@@ -490,12 +490,12 @@ export default function ManagementConsole({ }: Props) {
         </table>
       </section>
 
-      {/* SECTION 6 — Advisory Tracker */}
+      {/* SECTION 6 — INNsight Engagements */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-navy">Advisory Engagements</h2>
+          <h2 className="font-bold text-navy">INNsight Engagements</h2>
           <button className="text-xs font-semibold bg-navy text-white px-3 py-1.5 rounded-lg hover:bg-navy-dark transition-colors">
-            + New Advisory
+            + New Engagement
           </button>
         </div>
         {(!advisory || advisory.engagements.length === 0) ? (
