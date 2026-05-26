@@ -48,11 +48,12 @@ app = Flask(__name__)
 
 @app.route("/health")
 @app.route("/healthz")
+@app.route("/api/health")
 def health():
     """Dependency-free liveness probe for Railway. Returns 200 even if optional
-    services (Supabase, Redis, SendGrid) aren't configured — point Railway's
-    Healthcheck Path here."""
-    return {"status": "ok"}, 200
+    services (Supabase, Redis, SendGrid) aren't configured. Registered at
+    /health, /healthz, and /api/health so whatever probe path Railway uses works."""
+    return {"status": "ok", "service": "inntelligence"}, 200
 
 
 logger.info("INNtelligence starting · PORT=%s", os.environ.get("PORT", "(unset)"))
