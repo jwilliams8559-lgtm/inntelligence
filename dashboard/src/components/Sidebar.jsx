@@ -14,8 +14,9 @@ export default function Sidebar() {
   return (
     <aside className="w-60 shrink-0 bg-navy text-white flex flex-col">
       <div className="px-5 py-4 border-b border-white/10">
-        <div className="font-extrabold text-gold tracking-tight text-lg">INNtelligence</div>
-        <div className="text-[11px] text-gold-light/80">Revenue intelligence</div>
+        <div className="font-extrabold text-white tracking-tight text-xl">INNtelligence</div>
+        <div className="text-[11px] text-gold font-semibold mt-0.5">Boutique Hospitality Intelligence</div>
+        <div className="text-[10px] text-white/40 mt-0.5">by The Gracious Collection</div>
       </div>
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
         <NavLink to="/" end className={itemClass}>

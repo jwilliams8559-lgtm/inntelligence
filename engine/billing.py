@@ -4,7 +4,7 @@ Stripe billing integration for The Gracious Collection.
 
 Public API:
     setup_stripe_products() -> dict
-        Idempotently creates the 4 SHG plan products in Stripe.
+        Idempotently creates the 5 INNtelligence plan products in Stripe.
         Re-running is safe — fetches by lookup_key and only creates missing ones.
 
     create_subscription(tenant_id, plan_tier, billing_email, trial_days=0) -> dict
@@ -140,6 +140,22 @@ _PLAN_CATALOG = {
 }
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  INNsight — hospitality consulting advisory practice (sister business line to
+#  the INNtelligence SaaS, under The Gracious Collection, LLC). Engagements are
+#  scoped and invoiced per-project, NOT billed as a recurring Stripe subscription.
+# ─────────────────────────────────────────────────────────────────────────────
+INNSIGHT_ADVISORY = {
+    "name":           "INNsight Advisory",
+    "tagline":        "Expert Guidance for Boutique Hospitality",
+    "billing":        "per_engagement",       # invoiced manually, not a subscription
+    "price_low_usd":  25_000,
+    "price_high_usd": 80_000,
+    "description":    "Revenue transformation consulting engagements for boutique "
+                      "inns — pricing strategy, market positioning, and operations.",
+}
+
+
 def _is_mock() -> bool:
     """Mock when SDK missing OR key missing/placeholder."""
     if _stripe is None:
@@ -195,7 +211,7 @@ def _sb_patch(table: str, params: dict, body: dict) -> bool:
 
 def setup_stripe_products() -> dict:
     """
-    Idempotently create / update the 4 plan products in Stripe.
+    Idempotently create / update the 5 plan products in Stripe.
     Returns {plan_key: {product_id, price_id}, ...}.
     """
     if _is_mock():
@@ -224,7 +240,7 @@ def setup_stripe_products() -> dict:
 
         # Create product + price
         product = _stripe.Product.create(
-            name=f"TGC {plan['name']}",
+            name=f"INNtelligence {plan['name']}",
             description=plan["description"],
             metadata={"plan_key": key, "features": json.dumps(plan["features"])},
         )

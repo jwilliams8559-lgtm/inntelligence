@@ -42,11 +42,11 @@ we open Stripe billing publicly. The reasons are simple:
 
 | Benefit                                | Value             |
 |----------------------------------------|-------------------|
-| Professional tier — free for 6 months  | $2,400/mo × 6 = $14,400 |
+| Professional tier — free for 6 months  | $699/mo × 6 = $4,194 |
 | Direct line to Jim Williams (founder)  | Unlimited         |
 | Monthly 30-min strategy call           | First in line     |
 | First access to new features           | Pre-launch        |
-| Locked-in 20% discount after free period | $480/mo savings  |
+| Rolls to Professional after free period | $699/mo          |
 | Co-design influence on the roadmap     | Significant       |
 
 Founding members are not beta testers paying to find bugs. The
@@ -138,4 +138,4 @@ Across the next 12 months we're adding:
 
 ---
 
-INNtelligence by The Gracious Collection · Revenue intelligence for innkeepers · 2026
+INNtelligence by The Gracious Collection · Boutique Hospitality Intelligence · 2026

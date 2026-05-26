@@ -4,7 +4,7 @@ Cloudbeds PMS Connector — Phase 4B
 
 Cloudbeds is a leading cloud PMS for boutique hotels and small chains. Auth is
 OAuth 2.0 (Authorization Code flow): innkeepers click an OAuth button in the
-TGC onboarding wizard, authorize their Cloudbeds account, and SHG receives an
+TGC onboarding wizard, authorize their Cloudbeds account, and INNtelligence receives an
 access_token + refresh_token pair which are stored encrypted on the property
 row. Access tokens expire (default 1 hour) — `refresh_access_token` is called
 automatically before every API call when the cached token is stale.

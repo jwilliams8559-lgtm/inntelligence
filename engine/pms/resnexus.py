@@ -141,7 +141,7 @@ class ResNexusConnector(PMSConnector):
             inventory  = {rt["externalId"]: int(rt["totalCount"]) for rt in room_types}
             name_by_id = {rt["externalId"]: rt["name"] for rt in room_types}
 
-            # Resolve PMS externalId → SHG room_type_id when not mock
+            # Resolve PMS externalId → INNtelligence room_type_id when not mock
             shg_rt_id: dict[str, str] = {}
             if not self.mock and self._tenant_id:
                 rows = self._sb_get("room_types",
@@ -359,7 +359,7 @@ class ResNexusConnector(PMSConnector):
         try:
             raw = self._mock_rates(start, end) if self.mock else self._fetch_rates(start, end)
 
-            # Resolve PMS externalId → SHG room_type_id
+            # Resolve PMS externalId → INNtelligence room_type_id
             room_types = self._mock_room_types() if self.mock else self._fetch_room_types()
             name_by_id = {rt["externalId"]: rt["name"] for rt in room_types}
             shg_rt_id: dict[str, str] = {}
@@ -433,7 +433,7 @@ class ResNexusConnector(PMSConnector):
 
     def publish_rate(self, room_type_id: str, target_date: date, new_rate: float) -> bool:
         """PUT /rates with a single (roomTypeId, date, rate) tuple."""
-        # Map SHG room_type_id → PMS externalId
+        # Map INNtelligence room_type_id → PMS externalId
         ext_id = self._shg_to_external(room_type_id)
         if not ext_id and not self.mock:
             logger.error("publish_rate: no PMS externalId for room_type %s", room_type_id)
@@ -467,7 +467,7 @@ class ResNexusConnector(PMSConnector):
         return ok
 
     def _shg_to_external(self, room_type_id: str) -> Optional[str]:
-        """Look up the PMS-side externalId for a SHG room_type_id."""
+        """Look up the PMS-side externalId for a INNtelligence room_type_id."""
         if self.mock:
             return None
         rows = self._sb_get("room_types",

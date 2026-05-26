@@ -168,7 +168,7 @@ class ChannelManagerConnector(ABC):
 
     def _room_code_for(self, room_type_id: str) -> str:
         """
-        Resolve a SHG room_type_id to the code the channel manager expects.
+        Resolve a INNtelligence room_type_id to the code the channel manager expects.
 
         Preference order:
           1. room_types.external_id (if populated during onboarding)

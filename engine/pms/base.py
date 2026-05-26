@@ -103,7 +103,7 @@ class PMSConnector(ABC):
 
     @abstractmethod
     def register_webhook(self, endpoint_url: str) -> bool:
-        """Subscribe SHG to PMS booking/cancellation webhooks."""
+        """Subscribe INNtelligence to PMS booking/cancellation webhooks."""
 
     @abstractmethod
     def handle_webhook(self, payload: dict) -> dict:
