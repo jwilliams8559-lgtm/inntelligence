@@ -45,6 +45,18 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+
+@app.route("/health")
+@app.route("/healthz")
+def health():
+    """Dependency-free liveness probe for Railway. Returns 200 even if optional
+    services (Supabase, Redis, SendGrid) aren't configured — point Railway's
+    Healthcheck Path here."""
+    return {"status": "ok"}, 200
+
+
+logger.info("INNtelligence starting · PORT=%s", os.environ.get("PORT", "(unset)"))
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Config file paths
 # ─────────────────────────────────────────────────────────────────────────────
@@ -210,9 +222,16 @@ GIFT_SHOP_CATEGORIES = [
 #  Singletons + TTL cache
 # ─────────────────────────────────────────────────────────────────────────────
 
-_engine    = AnchoragePricingEngine()
-_scraper   = CompetitorScraper()
-_optimizer = PricingOptimizer()
+try:
+    _engine    = AnchoragePricingEngine()
+    _scraper   = CompetitorScraper()
+    _optimizer = PricingOptimizer()
+    logger.info("Pricing engines initialized")
+except Exception:  # noqa: BLE001
+    # Never let engine init crash the whole app — /health and the SPA must stay
+    # up so Railway's probe passes and we can read the error in the logs.
+    logger.exception("Pricing engine initialization failed — engines disabled")
+    _engine = _scraper = _optimizer = None
 
 # ── Multi-property support ────────────────────────────────────────────────────
 # Anchorage keeps the original singleton (built from the untouched globals).
@@ -2069,5 +2088,7 @@ def spa_catch_all(path):
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    logger.info("Starting Anchorage 1770 Pricing Dashboard on http://localhost:5001")
-    app.run(debug=False, host="0.0.0.0", port=5001, threaded=True)
+    # Local dev only — in production gunicorn binds $PORT (see nixpacks.toml).
+    port = int(os.environ.get("PORT", 5001))
+    logger.info("Starting INNtelligence on http://0.0.0.0:%s", port)
+    app.run(debug=False, host="0.0.0.0", port=port, threaded=True)
