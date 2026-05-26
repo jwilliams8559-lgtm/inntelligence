@@ -23,7 +23,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from flask import Flask, jsonify, make_response, render_template, request, send_file
+from flask import Flask, jsonify, make_response, render_template, request, send_file, send_from_directory
 
 try:
     from dotenv import load_dotenv
@@ -50,6 +50,7 @@ app = Flask(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 
 _BASE_DIR              = os.path.dirname(os.path.abspath(__file__))
+_DIST_DIR              = os.path.join(_BASE_DIR, "dashboard", "dist")  # Vite production build
 _PACKAGES_STATUS_PATH  = os.path.join(_BASE_DIR, "config", "packages_status.json")
 _COMPETITORS_CFG_PATH  = os.path.join(_BASE_DIR, "config", "tenant_competitors.json")
 
@@ -302,9 +303,20 @@ def _save_competitor_settings(data: Dict[str, Any]) -> None:
 #  Routes
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _serve_spa():
+    """Serve the built React app's index.html. Falls back to the legacy Jinja
+    template in dev when dashboard/dist hasn't been built yet."""
+    if os.path.isfile(os.path.join(_DIST_DIR, "index.html")):
+        return send_from_directory(_DIST_DIR, "index.html")
+    try:
+        return render_template("index.html")
+    except Exception:  # noqa: BLE001
+        return ("React build not found. Run: cd dashboard && npm run build", 200)
+
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return _serve_spa()
 
 
 @app.route("/api/dashboard")
@@ -1616,6 +1628,22 @@ def _format_optimizations(raw: Dict[str, Any]) -> Dict[str, Any]:
         "total_package_opportunities": raw.get("total_package_opportunities", 0),
         "estimated_total_uplift":      raw.get("estimated_total_uplift", 0),
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  SPA catch-all — MUST be the last route. Serves built static assets from
+#  dashboard/dist, and falls back to index.html so client-side routing works.
+#  Any unmatched /api/* path returns JSON 404 instead of the SPA shell.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/<path:path>")
+def spa_catch_all(path):
+    if path == "api" or path.startswith("api/"):
+        return jsonify({"error": "Not found"}), 404
+    candidate = os.path.join(_DIST_DIR, path)
+    if os.path.isfile(candidate):
+        return send_from_directory(_DIST_DIR, path)
+    return _serve_spa()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
