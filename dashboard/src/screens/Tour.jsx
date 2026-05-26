@@ -208,21 +208,26 @@ function SWED() {
 }
 
 // ── Step definitions ─────────────────────────────────────────────────────────
+// Narration text uses the hyphenated "Inn-telligence" so the ElevenLabs TTS
+// pronounces it "Inn-telligence". Captions render "INNtelligence" via display().
+const OPENING_NARRATION = "Inn-telligence was built by a pricing professional with eleven years of experience building revenue optimization systems for one of America's largest telecommunications companies. Systems that are now enterprise standard. Systems that generate hundreds of millions of dollars in optimized revenue. He looked at the boutique inn industry and saw the same problem he had solved in telecom: owners making pricing decisions based on gut feel, leaving significant revenue on the table every single night. So he built Inn-telligence. The same institutional-grade pricing intelligence that Fortune 500 companies pay millions for — built specifically for boutique inns, starting at a hundred and forty-nine dollars a month. This is The Bay Street Inn in Beaufort, South Carolina. Nineteen rooms. Let's show you what Inn-telligence does for an inn like this every single morning."
+const CLOSING_NARRATION = "Eleven years building pricing systems for Fortune 500 companies. The same methodology. The same rigor. Now available to every boutique inn owner who has ever wondered if they are charging the right rate. Inn-telligence combines artificial intelligence with real-world pricing expertise built by someone who has spent over a decade doing this professionally — and who now owns a boutique inn himself. Every recommendation is AI-generated and expert-validated. Not just an algorithm. Not just data. Pricing intelligence with the judgment to know what the data means. Bay Street Inn. Nineteen rooms. Maximum revenue. Every single day. Your inn deserves the same. Start your free thirty-day trial today. No credit card required."
+
 const N = {
-  s1: "It's 7:02 on a Friday morning in Beaufort, South Carolina. You open INNtelligence. In ten seconds you know everything you need to know about today. Average rate across all 19 rooms: $487. RevPAR: $365. Market pressure score seven out of ten — the market is strong. Four active events in the next thirty days. And one alert: a competitor dropped rates overnight. Let's see which one.",
-  s2: "Rhett House Inn. Down forty dollars on standard rooms since yesterday. They have availability for Water Festival opening weekend — which means they're getting nervous. Here's what that means for you. Switch to Waterfront rooms. Your direct comp set average tonight is $412. INNtelligence is recommending you hold at $445 — an eight percent premium — because your waterfront rooms have a higher reputation score and Cuthbert House, your strongest direct competitor, hasn't moved. But if Cuthbert drops by Friday you'll get an alert immediately. You're not flying blind anymore.",
-  s3: "Now let's look at Water Festival weekend specifically. Friday July seventeenth. INNtelligence is recommending Waterfront Room 1 at five hundred and two dollars. That's twenty-nine percent above rack rate. Here's the reasoning: seasonal index one point three, Water Festival multiplier one point three five, nine days out with three rooms still available, competitor average four hundred and twelve — your premium is fully justified. Click accept and that rate is set. Saturday July eighteenth — five hundred and forty-seven. Grand Parlor Suite — seven hundred and twenty-one. All nineteen rooms priced individually for that weekend in under sixty seconds. Compare that to what it used to take.",
-  s4: "Three gap nights flagged this week. Tuesday June second — Garden Room 3 is the only unbooked room between two booked dates. Classic orphan gap. INNtelligence recommends lowering the rate twenty-two dollars and sending a targeted offer to guests within a hundred and fifty miles who've stayed in garden rooms before. That one room at a discounted rate is worth more than that room empty at full price. The Friday-Saturday problem: you have six Saturday bookings this week with their adjacent Fridays open. INNtelligence recommends adding a two-night minimum to four of them where demand is strong enough, and offering a modest Friday discount on the other two where it isn't. Estimated additional revenue from acting on these recommendations today: eight hundred and forty dollars.",
-  s5: "Forty-seven guests haven't visited Bay Street Inn in over six months. INNtelligence has identified twelve of them as high-value win-back targets — people who stayed multiple times, spent over six hundred dollars per visit, and whose last stay was more than a hundred and eighty days ago. Margaret Chen from Charlotte is at the top of the list. Four stays. Three thousand eight hundred and forty dollars in lifetime spend. Waterfront room every time. Last visit seven months ago. One personalized email with a ten percent loyalty rate for her next waterfront booking. INNtelligence writes the email, personalizes it with her name and her preferred room type, and sends it. If three of those twelve guests book — conservative estimate — that's five thousand four hundred dollars in recovered revenue from fifteen minutes of your morning.",
-  s6: "Is INNtelligence worth it? Let's look at the numbers. Ninety days in. Bay Street Inn's RevPAR is running twenty-three percent above the competitive set. ADR is up eighteen percent year over year. The subscription cost for those ninety days: eight hundred and ninety-seven dollars. The additional revenue attributable to INNtelligence recommendations: seven thousand eight hundred and three dollars. That's an eight point seven times return. The Water Festival weekend alone — priced dynamically instead of at last year's flat rate — generated four thousand two hundred dollars in additional revenue. One weekend paid for the subscription nine times over.",
-  s7: "The Parlor at Bay Street Inn. Thursday evening is underperforming — eleven hundred in revenue compared to thirty-two hundred on Friday. INNtelligence recommendation: launch a Thursday Lowcountry Sunset Supper — a fixed price three-course menu at sixty-five dollars per person paired with a rooftop cocktail hour at sunset. Similar inns that have added a Thursday evening special see a twenty to twenty-five percent lift. At Bay Street Inn's average cover count that's fourteen hundred dollars in additional monthly food and beverage revenue. One menu change. One night a week.",
-  s8: "A wedding inquiry came in last night. Sarah and James Thompson. August twenty-third. Forty-five guests. They want a full buyout. Let's run the calculator. Nineteen rooms times two nights at four hundred and twenty average: fifteen thousand nine hundred and sixty. Event space: fifteen hundred. Food and beverage for forty-five guests: five thousand six hundred and twenty-five. Setup and coordination: eight hundred. Exclusivity premium: four thousand seven hundred and seventy-seven. Total package: twenty-eight thousand six hundred and sixty-two dollars. Compare that to selling those rooms individually on a late August weekend: fifteen thousand nine hundred and sixty. The wedding generates twelve thousand seven hundred and two dollars more than individual bookings. Recommendation: Accept.",
-  s9: "Nine days until the Water Festival. Thirteen days of the biggest demand event in Beaufort. INNtelligence has been adjusting rates for this window since ninety days out. Right now all waterfront and water view rooms are eighty-five percent booked for the festival period. Garden rooms are at sixty percent. INNtelligence recommendation: hold rates, do not discount. Demand typically surges in the final seven days as last-minute bookers fill those rooms. Trust the model.",
-  s10: "The Romance Package is generating four thousand seven hundred and eighty-one dollars per month at Bay Street Inn. Twenty percent of guests are adding it at eighty-five dollars above rack rate. But INNtelligence has identified a gap in your package lineup. The Proposal Package — a room upgrade, champagne, personalized note, and photographer referral — is offered by only twelve percent of comparable inns in your market. Recommended premium: one hundred and ninety-five dollars. Estimated monthly revenue at fifteen percent take rate: three thousand two hundred dollars. One package activation. Potentially thirty-eight thousand four hundred in additional annual revenue.",
-  s11: "Twenty-four months of performance data. Your best month ever: July twenty twenty-five at sixty-eight thousand four hundred dollars. This May is running twenty-three percent ahead of last year. INNtelligence uses this history to make smarter forward-looking recommendations — because the best predictor of future demand is what actually happened before.",
-  s12: "Pricing Power Score: eighty-four out of one hundred. That means your reputation gives you the right to charge a premium. Guests consistently cite location, breakfast, staff, and river views. One area to watch: value mentions have dropped slightly in the last thirty days. INNtelligence recommendation: add a complimentary Lowcountry welcome amenity to check-ins this month — local jam, pralines, a handwritten note. Cost: under eight dollars per room. Impact on perceived value: significant.",
-  s13: "Rain forecasted for this Saturday. INNtelligence automatically flags this for food and beverage: push The Parlor's indoor dinner reservations, promote the rooftop bar's covered section, consider a rainy day package for guests already booked. Weather isn't something you can control. How you respond to it is.",
-  s14: "Finally — the Gift Shop. Guests who fall in love with their experience want to bring it home. Bay Street Inn sells Comphy bedding — the exact sheets from the rooms — and authentic Murano glass by Gino Mazzuccato, sourced directly from Venice, Italy. This month: three thousand one hundred and sixty dollars in gift shop revenue with zero additional staff. That is pure margin on top of room revenue.",
+  s1: "It's seven oh two on a Friday morning in Beaufort, South Carolina. The owner of Bay Street Inn opens Inn-telligence. Before the first cup of coffee is finished, she knows everything she needs to know about today. Average rate across all nineteen rooms: four hundred and eighty-seven dollars. RevPAR: three hundred and sixty-five dollars. Market pressure score seven out of ten — demand is building. Four active events in the next thirty days. And one alert at the top of the screen: a competitor dropped rates overnight. This is what running an inn looks like with Inn-telligence. Every morning starts with clarity instead of guesswork. Let's walk through exactly what she does next.",
+  s2: "The first screen every morning is Competitive Intelligence. Here is something most inn owners do not know: your competitors are adjusting their rates constantly — sometimes daily, sometimes overnight while you sleep. Without a system monitoring them around the clock, you are always reacting instead of leading. Inn-telligence monitors nine properties in the Beaufort market twenty-four hours a day, updating rates every morning at six AM. The AI identifies patterns in how each competitor prices — when they discount, how aggressively, and what triggers it. Over time it learns their behavior and predicts their next move before they make it. Your competitors are organized into three tiers based on how directly they compete for your guests. Direct competitors — Rhett House Inn, Cuthbert House Inn, Anchorage 1770, and 607 Bay Inn — these four properties drive your rate recommendations with the highest weight. Now filter to Waterfront rooms specifically. Rhett House and City Loft Hotel immediately gray out. They do not have true waterfront rooms. Inn-telligence never compares you to a property that is not actually competing for the same guest on the same product. This is the kind of nuance that comes from real hospitality expertise baked into the system — not just an algorithm pulling rates off a website. Your direct comp set average for waterfront rooms tonight is four hundred and twelve dollars. Inn-telligence recommends holding at four hundred and forty-five dollars — an eight percent premium. Why is that premium justified? Your TripAdvisor score is higher. Your waterfront views are rated better by guests who have stayed at both properties. And the market pressure score of seven out of ten means demand is strong enough to support it. The rate drop alert: Rhett House dropped forty dollars overnight. They have availability for Water Festival weekend — they are nervous. Cuthbert House has not moved. Inn-telligence recommendation: hold your rates. Your strongest competitor is confident. You should be too. That recommendation comes from eleven years of pricing experience encoded into every decision the AI makes. It does not just show you data — it tells you what to do with it.",
+  s3: "The Rate Calendar is where Inn-telligence's pricing expertise becomes real money. Every inn owner knows they should be charging more during peak season and less during slow periods. But knowing that and actually doing it — room by room, night by night, accounting for events, competitor moves, lead time, and demand signals — is a full-time job. It is what a professional revenue manager does. Inn-telligence does it automatically, for every room, every night. Select Waterfront rooms and look at Water Festival weekend — Friday July seventeenth through Sunday July nineteenth. Waterfront Room 1 on Friday: five hundred and two dollars. Twenty-nine percent above rack rate. Here is the exact reasoning. Seasonal index: one point three for peak July. Water Festival demand multiplier: one point three five — thirteen consecutive days of the biggest event in Beaufort. Lead time urgency: nine days out, demand is building. Competitor average for comparable waterfront rooms: four hundred and twelve dollars. Reputation premium: eight percent above comp set, justified. Confidence level: HIGH. Every number in that calculation comes from a methodology developed over eleven years of professional pricing practice. The same approach used to optimize hundreds of millions of dollars in revenue — now running automatically for your nineteen rooms. Click accept. Rate is set. One click. Done. Saturday: five hundred and forty-seven. Grand Parlor Suite: seven hundred and twenty-one. All nineteen rooms, Water Festival weekend, individually priced in under sixty seconds. Now look at Tuesday July twenty-first — mid-week after the festival peak. Garden Room 3: two hundred and forty-nine dollars. Below rack rate. The engine knows demand drops sharply mid-week after the festival and recommends a strategic discount to fill the room rather than hold a rate you will not achieve. That balance — charging premium when you can, being strategic when you should — is exactly what separates professional revenue management from guesswork. And now every inn owner has access to it.",
+  s4: "This is one of the screens I am most proud of, because it solves a problem I saw inn owners struggling with long before Inn-telligence existed. The orphan gap problem. You have a Saturday booking for Waterfront Room 1. Friday before it: empty. Sunday after it: empty. Those nights are almost impossible to fill at full price because most guests want a minimum two-night stay. Without a system watching your calendar, those nights just go empty. You never even think about them until checkout day when it is too late. Inn-telligence finds every orphan gap automatically and gives you specific actions to take right now — not generic suggestions, but calculated recommendations based on your actual guest data and current market conditions. For this Friday gap: contact the Saturday guest and offer Friday at a fifteen percent discount. They are already coming — the incremental cost to you is almost nothing and the revenue is pure upside. If that does not work by Wednesday: send a targeted email to past guests within a hundred and fifty miles who have stayed in waterfront rooms before. Frame it as an exclusive offer for past guests. This week alone: three orphan gaps, eight hundred and forty dollars in recoverable revenue that would have gone empty without this screen. The ten AI recommendations below are generated fresh every morning from your booking data, competitor rates, and the local events calendar. Human pricing expertise, encoded into an algorithm, running while you sleep. That is Inn-telligence.",
+  s5: "The best revenue you will ever generate comes from guests who already love you. Win-back marketing — reaching out to past guests who have not returned — consistently outperforms acquiring new guests by three to five times in both conversion rate and lifetime value. Every major hotel chain has known this for decades and built entire CRM systems around it. Boutique inn owners have had no equivalent tool. Until now. Inn-telligence builds a complete intelligence profile on every guest who has ever stayed with you. Look at Catherine Beaumont from Charlotte, North Carolina. Four stays. Lifetime spend: three thousand eight hundred and forty dollars. Always books waterfront. Last visit: seven months ago. Catherine is a Lapsed VIP. She loved Bay Street Inn enough to come back three times. Something got in the way. Maybe she just needed someone to reach out. Campaign Manager. Lapsed VIP segment. Win-Back template. The email personalizes itself — her name, her preferred room, a ten percent loyalty rate for her next waterfront stay. Twelve guests match this profile right now. If three of them book a two-night waterfront stay — conservative estimate based on industry win-back conversion rates — that is five thousand four hundred dollars in recovered revenue. From fifteen minutes of a Friday morning. From guests who already chose you once.",
+  s6: "I built Inn-telligence to be accountable. Not just to show you data — to show you what that data is worth in actual dollars. The ROI Performance screen is the most transparent thing in hospitality software. It shows you exactly what Inn-telligence has generated and exactly what it missed. Both. Bay Street Inn. Ninety days. Eight point seven times return. Water Festival dynamic pricing: four thousand two hundred dollars above what flat-rate pricing would have generated. Gullah Festival surge: eighteen hundred and fifty. Win-back campaigns: two thousand one hundred. And the misses — because I show you those too. Two Thursday nights in April went unbooked when a modest rate reduction would likely have filled them. Six hundred and eighty dollars in missed revenue. Inn-telligence shows you the misses because that transparency is how the recommendations get smarter over time. The AI learns from every empty room, not just the ones it filled. RevPAR twenty-three percent above comp set. ADR up eighteen percent year over year. Subscription cost for the quarter: eight hundred and ninety-seven dollars. Return: seven thousand eight hundred and three dollars. One Water Festival weekend paid for the year.",
+  s7: "For inns with a restaurant or bar, food and beverage is a revenue center that most owners dramatically underanalyze. I know this from experience. The same yield management principles that work for room pricing work for restaurant seats and bar tops. Day of week. Time of day. Event influence. Guest mix. All of it matters. Inn-telligence applies those principles to The Parlor and The Rooftop at Bay Street Inn automatically. Thursday Rooftop: eight hundred and ninety dollars. Friday: two thousand one hundred. That gap tells a story. Guests arriving Thursday have dinner plans elsewhere. The Rooftop has empty seats on the most beautiful sunset evening of the week. Recommendation: Thursday Lowcountry Sunset Supper. Fixed price, three courses, sixty-five dollars per person, rooftop cocktail hour included. Inns that introduce a Thursday evening special see twenty to twenty-five percent revenue lift. At Bay Street Inn's cover count: fourteen hundred additional dollars per month. Sixteen thousand eight hundred dollars per year. One menu decision.",
+  s8: "This is the screen that surprises people most when they first see Inn-telligence. Because nobody else has built it. Every revenue management system in hospitality is built around transactional nightly bookings. None of them help you price a wedding. None of them tell you whether to accept a corporate buyout on a festival weekend. None of them calculate the exact premium you should charge for exclusivity. I built this screen because I know from personal experience that group events are where boutique inns leave the most money on the table. Elizabeth and William Hartley. Wedding inquiry. August twenty-third. Forty-five guests. Full buyout. The calculator runs in seconds. Room block: fifteen thousand nine hundred and sixty. Event space: fifteen hundred. Food and beverage: five thousand six hundred and twenty-five. Setup: eight hundred. Exclusivity premium: four thousand seven hundred and seventy-seven. Total: twenty-eight thousand six hundred and sixty-two dollars. Compare to individual bookings that weekend: fifteen thousand nine hundred and sixty. Wedding premium: twelve thousand seven hundred and two dollars. Accept. Now change the date to July nineteenth — Water Festival opening weekend. The conflict alert fires immediately. Festival individual pricing: nineteen thousand two hundred. The wedding offer is below that threshold. Recommendation: Decline or negotiate above festival pricing. That one calculation, on that one date change, protects thousands of dollars that most inn owners would never have thought to calculate.",
+  s9: "The Weddings screen is designed to be shared directly with couples who are considering Bay Street Inn for their celebration. Four packages, from intimate elopements at twenty-five hundred to forty-five hundred dollars, all the way to Grand Celebrations for seventy-five guests at twenty-eight to forty-five thousand. Every package includes the full inclusions list, deposit schedule, and cancellation terms — everything a couple needs to make a confident decision. The inquiry form captures everything you need to qualify a wedding lead and routes it to your event coordinator immediately. Your wedding business runs through Inn-telligence from first contact to confirmed booking. No spreadsheets. No pricing uncertainty. Every date checked against your revenue calendar before you say yes.",
+  s10: "Inn-telligence tracks every event in the Beaufort market — from the Original Gullah Festival on Memorial Day weekend to Parris Island Marine Corps graduations that fill rooms eight times a year. Understanding your local events calendar is not optional for a boutique inn in an event-driven market like Beaufort. It is the foundation of everything else. Switch to Next Six Months and every revenue opportunity is laid out in front of you, with pricing impact and recommended action for each. The Beaufort Water Festival: thirty to forty percent premium, rooms selling out sixty days in advance. Inn-telligence started adjusting your rates ninety days ago. Penn Center Heritage Days in November: historically underpriced by most Bay Street properties. Twenty percent premium opportunity. You are planning months ahead now, not reacting the week of.",
+  s11: "The Romance Package generates four thousand seven hundred and eighty-one dollars per month at Bay Street Inn. Nearly fifty-eight thousand dollars a year. From one package offering at eighty-five dollars above rack rate. The Available Packages tab shows what comparable inns offer that Bay Street Inn does not — yet. The Proposal Package is offered by only twelve percent of comparable boutique inns. Low competition. High perceived value. One hundred and ninety-five dollar premium. Estimated monthly revenue: three thousand two hundred dollars. Thirty-eight thousand four hundred dollars a year from one toggle switch. Inn-telligence monitors what packages the market offers and identifies the gaps specific to your property and guest profile. The opportunities are always there. Now you can see them.",
+  s12: "Twenty-four months of performance data so you always know where you have been and where you are going. Best month ever: July twenty twenty-five, sixty-eight thousand four hundred dollars. This May running twenty-three percent ahead of last year. The seasonal pattern becomes visible over time — July and October your peaks, January and February your valleys. Inn-telligence uses this history to build smarter forward recommendations. It knows your property. It learns your patterns. Every month the model gets more accurate.",
+  s13: "Pricing power comes from reputation. You cannot charge a premium if guests do not believe you are worth it. And you cannot know what guests think if you are not systematically listening. Pricing Power Score: eighty-four out of one hundred. That number means Bay Street Inn has earned the right to price above the market average. Top guest keywords: location, breakfast, staff, views. One trend to watch: value mentions dropping slightly. Recommendation: add a Lowcountry welcome amenity to all check-ins. Local jam, pralines, handwritten note. Under eight dollars per room. The kind of gesture that turns a four-star review into a five-star review and a five-star review into a repeat guest.",
+  s14: "The final revenue stream — and one of the most satisfying to build into Inn-telligence, because it turns a guest's love for their experience into ongoing revenue long after checkout. Comphy bedding — the exact sheets on every bed at Bay Street Inn. Eight sets sold this month. Nineteen hundred and twenty dollars. Pure margin. Murano glass by Gino Mazzuccato — authentic hand-blown glass from the island of Murano in Venice, Italy, displayed throughout the inn, available to purchase and ship anywhere in the United States. Three pieces this month. Twelve hundred and forty dollars. Three thousand one hundred and sixty dollars in gift shop revenue. Zero additional staff. Guests take home a piece of Bay Street Inn and a reason to come back.",
 }
 
 const STEPS = [
@@ -230,17 +235,20 @@ const STEPS = [
   { id: 'step_02', title: 'Competitive Intel', duration: 150, Sim: S2, narration: N.s2, callouts: [['Rhett House', 'Down $40 overnight'], ['Your Rate', '$445 (hold)'], ['Comp Average', '$412'], ['Your Premium', '+8% justified']] },
   { id: 'step_03', title: 'Rate Calendar', duration: 180, Sim: S3, narration: N.s3, callouts: [['WF Room 1 · Fri', '$502'], ['WF Room 1 · Sat', '$547'], ['Grand Parlor Suite', '$721'], ['Festival Premium', '+29% above rack']] },
   { id: 'step_04', title: 'Revenue Intelligence', duration: 120, Sim: S4, narration: N.s4, callouts: [['Gap Nights Found', '3'], ['Estimated Recovery', '$840'], ['Friday Orphans', '6'], ['Top Action', 'Lower rate $22 + email']] },
-  { id: 'step_05', title: 'Guest CRM', duration: 120, Sim: S5, narration: N.s5, callouts: [['Lapsed VIP Guests', '12'], ['Margaret Chen', '4 stays · $3,840'], ['Last Visit', '7 months ago'], ['Win-back Potential', '$5,400']] },
+  { id: 'step_05', title: 'Guest CRM', duration: 120, Sim: S5, narration: N.s5, callouts: [['Lapsed VIP Guests', '12'], ['Catherine Beaumont', '4 stays · $3,840'], ['Last Visit', '7 months ago'], ['Win-back Potential', '$5,400']] },
   { id: 'step_06', title: 'ROI Performance', duration: 90, Sim: S6, narration: N.s6, callouts: [['ROI', '8.7× in 90 days'], ['Water Festival Lift', '+$4,200'], ['Win-back Revenue', '+$2,100'], ['ADR vs Last Year', '+18%']] },
-  { id: 'step_07', title: 'F&B Yield', duration: 90, Sim: S7, narration: N.s7, callouts: [['Monthly F&B Revenue', '$21,800'], ['Thursday Gap', '−$2,100 vs Fri'], ['Recommendation', 'Thursday Supper'], ['Projected Lift', '+$1,400/mo']] },
-  { id: 'step_08', title: 'Private Events', duration: 120, Sim: S8, narration: N.s8, callouts: [['Thompson Wedding', '$28,662'], ['Individual Bookings', '$15,960'], ['Event Premium', '$12,702'], ['Recommendation', 'ACCEPT']] },
-  { id: 'step_09', title: 'Events Calendar', duration: 60, Sim: S9, narration: N.s9, callouts: [['Days to Water Festival', '9'], ['Festival Duration', '13 days'], ['Waterfront Occupancy', '85%'], ['Expected Premium', '+35–40%']] },
-  { id: 'step_10', title: 'Packages', duration: 60, Sim: S10, narration: N.s10, callouts: [['Romance Package', '$4,781/mo'], ['Proposal Potential', '$3,200/mo'], ['Inns Offering Proposal', '12%'], ['Action', 'One-click activate']] },
-  { id: 'step_11', title: 'Historical Performance', duration: 45, Sim: S11, narration: N.s11, callouts: [['Best Month Ever', 'Jul 2025 · $68,400'], ['Current vs LY', '+23%'], ['12-Month Trend', 'Consistently up'], ['YoY Growth', '18%']] },
-  { id: 'step_12', title: 'Reputation', duration: 45, Sim: S12, narration: N.s12, callouts: [['Pricing Power Score', '84/100'], ['TripAdvisor', '4.7 ★'], ['Google', '4.8 ★'], ['Top Keywords', 'Location, Views']] },
-  { id: 'step_13', title: 'Weather', duration: 45, Sim: S13, narration: N.s13, callouts: [['Saturday', 'Rain forecasted'], ['F&B Action', 'Push indoor dining'], ['Rooftop', 'Promote covered section'], ['Guest Alert', 'Rainy-day package']] },
-  { id: 'step_14', title: 'Gift Shop', duration: 45, Sim: S14, narration: N.s14, callouts: [['Monthly Gift Revenue', '$3,160'], ['Top Item', 'Comphy $1,920'], ['Murano Glass', '$1,240'], ['Margin', 'No extra staff']] },
+  { id: 'step_07', title: 'F&B Yield', duration: 90, Sim: S7, narration: N.s7, callouts: [['Monthly F&B Revenue', '$21,800'], ['Thursday Rooftop', '$890 vs $2,100 Fri'], ['Recommendation', 'Thursday Sunset Supper'], ['Projected Lift', '+$1,400/mo']] },
+  { id: 'step_08', title: 'Private Events', duration: 120, Sim: S8, narration: N.s8, callouts: [['Hartley Wedding', '$28,662'], ['Individual Bookings', '$15,960'], ['Wedding Premium', '$12,702'], ['Festival-date conflict', 'Decline/negotiate']] },
+  { id: 'step_09', title: 'Weddings', duration: 60, Sim: SWED, narration: N.s9, callouts: [['Packages', '4 tiers'], ['From', '$2,500 elopement'], ['Up to', '$45,000 grand'], ['Leads', 'Routed to coordinator']] },
+  { id: 'step_10', title: 'Events Calendar', duration: 60, Sim: S9, narration: N.s10, callouts: [['Water Festival', '+30–40% premium'], ['Penn Center Heritage', '+20% opportunity'], ['Rates adjusted', '90 days ahead'], ['Parris Island', '8× per year']] },
+  { id: 'step_11', title: 'Packages', duration: 60, Sim: S10, narration: N.s11, callouts: [['Romance Package', '$4,781/mo'], ['Annual', '~$58,000'], ['Proposal Potential', '$3,200/mo'], ['Inns Offering Proposal', '12%']] },
+  { id: 'step_12', title: 'Historical Performance', duration: 45, Sim: S11, narration: N.s12, callouts: [['Best Month Ever', 'Jul 2025 · $68,400'], ['Current vs LY', '+23%'], ['Peaks', 'July & October'], ['Valleys', 'Jan & Feb']] },
+  { id: 'step_13', title: 'Reputation', duration: 45, Sim: S12, narration: N.s13, callouts: [['Pricing Power Score', '84/100'], ['TripAdvisor', '4.7 ★'], ['Google', '4.8 ★'], ['Watch', 'Value mentions dipping']] },
+  { id: 'step_14', title: 'Gift Shop', duration: 45, Sim: S14, narration: N.s14, callouts: [['Monthly Gift Revenue', '$3,160'], ['Comphy Bedding', '$1,920'], ['Murano Glass', '$1,240'], ['Margin', 'No extra staff']] },
 ]
+
+// Captions show the brand as "INNtelligence" while TTS receives "Inn-telligence".
+const display = (text) => text.replace(/Inn-telligence/g, 'INNtelligence')
 
 // ── Web Speech fallback ──────────────────────────────────────────────────────
 function speakFallback(text) {
@@ -260,7 +268,7 @@ function stopSpeak() { try { window.speechSynthesis.cancel() } catch { /* ignore
 // ── Main component ───────────────────────────────────────────────────────────
 export default function Tour() {
   const [phase, setPhase] = useState(TEST_MS ? 'opening' : 'prep')
-  const [prep, setPrep] = useState({ done: 0, total: STEPS.length, label: 'Preparing your tour…' })
+  const [prep, setPrep] = useState({ done: 0, total: STEPS.length + 2, label: 'Preparing your tour…' })
   const [step, setStep] = useState(0)
   const [mode, setMode] = useState('manual')
   const [paused, setPaused] = useState(false)
@@ -275,30 +283,38 @@ export default function Tour() {
   useEffect(() => { mutedRef.current = muted }, [muted])
   useEffect(() => { modeRef.current = mode }, [mode])
 
+  // Opening + 14 steps + closing narration, generated/cached in this order.
+  const PREP_ITEMS = [
+    { id: 'opening', narration: OPENING_NARRATION },
+    ...STEPS.map((s) => ({ id: s.id, narration: s.narration })),
+    { id: 'closing', narration: CLOSING_NARRATION },
+  ]
+
   // ── Prep: generate all audio sequentially (skipped in test mode) ───────────
   useEffect(() => {
     if (TEST_MS) return
     let cancelled = false
+    const total = PREP_ITEMS.length
     async function run() {
       try {
         const status = await fetch('/api/tour/audio-status').then((r) => r.json())
         if (!status.configured) { setUsingFallback(true); setPhase('opening'); return }
-        if (status.all_ready) { setPrep((p) => ({ ...p, done: STEPS.length })); setPhase('opening'); return }
+        if (status.all_ready) { setPrep({ done: total, total, label: 'Ready' }); setPhase('opening'); return }
         const have = new Set(status.generated || [])
         let done = have.size
-        setPrep({ done, total: STEPS.length, label: `Generating narration… ${done}/${STEPS.length}` })
-        for (let i = 0; i < STEPS.length; i++) {
+        setPrep({ done, total, label: `Generating narration… ${done}/${total}` })
+        for (let i = 0; i < total; i++) {
           if (cancelled) return
-          const s = STEPS[i]
-          if (have.has(s.id)) continue
-          setPrep({ done, total: STEPS.length, label: `Step ${i + 1} of ${STEPS.length} — generating audio…` })
+          const item = PREP_ITEMS[i]
+          if (have.has(item.id)) continue
+          setPrep({ done, total, label: `Generating audio… ${i + 1} of ${total}` })
           const res = await fetch('/api/tour/generate-audio', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ step_id: s.id, narration_text: s.narration }),
+            body: JSON.stringify({ step_id: item.id, narration_text: item.narration }),
           }).then((r) => r.json()).catch(() => ({ ok: false }))
           if (!res.ok) setUsingFallback(true)
           done += 1
-          setPrep({ done, total: STEPS.length, label: `Step ${i + 1} of ${STEPS.length} — ready` })
+          setPrep({ done, total, label: `Generated ${i + 1} of ${total}` })
         }
         if (!cancelled) setPhase('opening')
       } catch {
@@ -307,6 +323,7 @@ export default function Tour() {
     }
     run()
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const cur = STEPS[step]
@@ -349,6 +366,31 @@ export default function Tour() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, step])
 
+  // ── Opening (intro) + closing narration playback ──────────────────────────
+  useEffect(() => {
+    if (TEST_MS) return undefined
+    if (phase !== 'intro' && phase !== 'closing') return undefined
+    stopSpeak()
+    const id = phase === 'intro' ? 'opening' : 'closing'
+    const text = phase === 'intro' ? OPENING_NARRATION : CLOSING_NARRATION
+    const a = new Audio(`/api/tour/audio/${id}`)
+    a.muted = mutedRef.current
+    audioRef.current = a
+    let fallbackTimer = null
+    if (phase === 'intro') {
+      a.addEventListener('ended', () => begin('auto'))
+      fallbackTimer = setTimeout(() => begin('auto'), 75000) // proceed even if audio stalls
+    }
+    a.play().catch(() => { setUsingFallback(true); if (!mutedRef.current) speakFallback(text) })
+    return () => {
+      try { a.pause() } catch { /* ignore */ }
+      audioRef.current = null
+      if (fallbackTimer) clearTimeout(fallbackTimer)
+      stopSpeak()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
   // keep audio muted state in sync
   useEffect(() => {
     if (audioRef.current) audioRef.current.muted = muted
@@ -375,6 +417,7 @@ export default function Tour() {
     : Math.min(100, ((completed + Math.min(elapsed, cur.duration)) / TOTAL_SECONDS) * 100)
 
   const begin = (m) => { setMode(m); setPaused(false); setStep(0); advancedRef.current = -1; setPhase('running') }
+  const beginAuto = () => { if (TEST_MS) { begin('auto'); return } setMode('auto'); setPhase('intro') }
   const restart = () => { stopSpeak(); setPhase('opening'); setStep(0); setPaused(false) }
 
   return (
@@ -383,12 +426,36 @@ export default function Tour() {
       <style>{`@keyframes tourFloat{0%{transform:translateY(0);opacity:.5}50%{opacity:1}100%{transform:translateY(-28px);opacity:.35}}`}</style>
 
       {phase === 'prep' && <Prep prep={prep} />}
-      {phase === 'opening' && <Opening usingFallback={usingFallback} onBegin={() => begin('manual')} onAuto={() => begin('auto')} />}
+      {phase === 'opening' && <Opening usingFallback={usingFallback} onBegin={() => begin('manual')} onAuto={beginAuto} />}
+      {phase === 'intro' && <Intro muted={muted} onMute={() => setMuted((m) => !m)} onSkip={() => begin('auto')} />}
       {phase === 'running' && (
         <Running cur={cur} step={step} progress={progress} mode={mode} paused={paused} muted={muted} usingFallback={usingFallback}
           onNext={goNext} onPrev={goPrev} onPause={() => setPaused((p) => !p)} onMute={() => setMuted((m) => !m)} onRestart={restart} />
       )}
-      {phase === 'closing' && <Closing onRestart={restart} />}
+      {phase === 'closing' && <Closing onRestart={restart} muted={muted} onMute={() => setMuted((m) => !m)} />}
+    </div>
+  )
+}
+
+// ── Intro screen (plays opening narration before Step 1 in Auto-Play) ────────
+function Intro({ muted, onMute, onSkip }) {
+  return (
+    <div className="relative flex-1 flex flex-col items-center justify-center text-center px-6"
+         style={{ background: 'radial-gradient(circle at 50% 20%, #14385f 0%, #0a2342 60%, #061629 100%)' }}>
+      <div className="absolute inset-0 pointer-events-none">
+        {Array.from({ length: 16 }).map((_, i) => (
+          <span key={i} className="absolute rounded-full bg-gold" style={{ width: 3 + (i % 3), height: 3 + (i % 3), left: `${(i * 53) % 100}%`, top: `${(i * 37) % 100}%`, opacity: 0.4, animation: `tourFloat ${6 + (i % 5)}s ease-in-out ${i * 0.4}s infinite` }} />
+        ))}
+      </div>
+      <div className="relative z-10 max-w-3xl">
+        <div className="text-gold font-extrabold tracking-tight text-4xl">INNtelligence</div>
+        <div className="text-gold-light text-xs uppercase tracking-[0.3em] mt-2">A note before we begin</div>
+        <p className="text-white/90 text-lg leading-relaxed mt-6">{display(OPENING_NARRATION)}</p>
+        <div className="flex items-center justify-center gap-3 mt-8">
+          <button onClick={onMute} className={`px-4 py-2 rounded-lg text-sm ${muted ? 'bg-rose-500/30 text-rose-200' : 'bg-white/10 hover:bg-white/20'}`}>{muted ? '🔇 Muted' : '🔊 Sound'}</button>
+          <button onClick={onSkip} aria-label="Skip intro" className="px-5 py-2 rounded-lg bg-gold text-navy font-semibold text-sm hover:bg-gold-light">Skip intro → Step 1</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -448,7 +515,7 @@ function Running({ cur, step, progress, mode, paused, muted, usingFallback, onNe
         <div className="w-2/5 border-l border-white/10 bg-navy-dark/40 flex flex-col min-h-0">
           <div className="p-5 overflow-y-auto flex-1">
             <div className="text-gold-light text-xs uppercase tracking-wide">Step {step + 1} of {STEPS.length} · {cur.title}</div>
-            <p className="text-white text-lg leading-relaxed mt-3">{cur.narration}</p>
+            <p className="text-white text-lg leading-relaxed mt-3">{display(cur.narration)}</p>
             {usingFallback && <div className="text-amber-300/70 text-[11px] mt-2">Using browser voice</div>}
           </div>
           <div className="p-5 border-t border-white/10 grid grid-cols-2 gap-2">
@@ -484,7 +551,7 @@ function Running({ cur, step, progress, mode, paused, muted, usingFallback, onNe
 }
 
 // ── Closing screen ───────────────────────────────────────────────────────────
-function Closing({ onRestart }) {
+function Closing({ onRestart, muted, onMute }) {
   const stats = [['8.7×', 'ROI in first 90 days'], ['23%', 'RevPAR above comp set'], ['$28,662', 'private event identified'], ['$840', 'gap night recovery this week']]
   const tiers = [
     { name: 'Starter', price: '$149', feats: ['1 property, up to 20 rooms', '5 competitors monitored', 'Rate Calendar & Competitive Intel', 'Email support'] },
@@ -511,7 +578,10 @@ function Closing({ onRestart }) {
       <a href="mailto:hello@inntelligence.app?subject=Start%20my%20free%2030-day%20trial" className="mt-10 inline-block px-10 py-4 rounded-xl bg-gold text-navy font-bold text-lg hover:bg-gold-light transition-colors shadow-lg shadow-gold/20">Start Your Free 30-Day Trial</a>
       <div className="text-white/40 text-sm mt-3">No credit card required. Cancel anytime. Setup in under 10 minutes.</div>
       <div className="text-white/50 text-sm mt-1">Questions? <span className="text-gold">hello@inntelligence.app</span></div>
-      <button onClick={onRestart} className="mt-6 text-white/40 text-xs underline hover:text-white/70">↺ Replay the tour</button>
+      <div className="flex items-center justify-center gap-3 mt-6">
+        <button onClick={onMute} className={`text-xs px-3 py-1.5 rounded-lg ${muted ? 'bg-rose-500/30 text-rose-200' : 'bg-white/10 hover:bg-white/20'}`}>{muted ? '🔇 Muted' : '🔊 Sound'}</button>
+        <button onClick={onRestart} className="text-white/40 text-xs underline hover:text-white/70">↺ Replay the tour</button>
+      </div>
     </div>
   )
 }
