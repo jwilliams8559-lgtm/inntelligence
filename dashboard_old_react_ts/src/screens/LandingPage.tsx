@@ -29,7 +29,7 @@ export default function LandingPage() {
 
       {/* SOCIAL PROOF BAR */}
       <section className="bg-navy-light text-white/85 text-xs text-center px-4 py-3 tracking-wide">
-        8.7× average ROI · 39 competitors monitored · 7 OTA channels · Built for Select Registry properties · TakeUp AI replacement
+        1.8× average ROI · 39 competitors monitored · 7 OTA channels · Built for Select Registry properties · TakeUp AI replacement
       </section>
 
       {/* FEATURE GRID */}
@@ -42,7 +42,7 @@ export default function LandingPage() {
             { icon: '🍽️', title: 'F&B Yield', body: 'Restaurant and bar revenue tracked alongside rooms. Prix fixe and happy hour recommendations on slow nights.' },
             { icon: '📊', title: 'Plain-English Reasoning', body: 'Every rate explains itself: demand score, comp position, event impact, amenity premium. No black box.' },
             { icon: '💌', title: 'Guest CRM', body: 'Lifetime value, recency, anniversary tracking. Demand-triggered email campaigns drafted automatically.' },
-            { icon: '📈', title: 'Documented ROI', body: 'Monthly performance report shows exact revenue lift vs subscription cost. Average 8.7× return.' },
+            { icon: '📈', title: 'Documented ROI', body: 'Monthly performance report shows exact revenue lift vs subscription cost. Average 1.8× return.' },
           ].map((f, i) => (
             <div key={i} className="bg-white rounded-xl border border-warm shadow-sm p-5">
               <div className="text-3xl mb-2">{f.icon}</div>

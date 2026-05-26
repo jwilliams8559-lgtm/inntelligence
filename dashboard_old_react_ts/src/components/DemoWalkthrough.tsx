@@ -45,7 +45,7 @@ const STEPS: Step[] = [
   {
     screen: 'performance',
     title: 'Subscription ROI',
-    body: 'Last month the engine contributed an estimated $4,840 in additional revenue against a $699 subscription. That\'s 8.7× return. Most months pay for themselves in the first approved recommendation.',
+    body: 'Last month the engine contributed an estimated $1,244 in additional revenue against a $699 subscription. That\'s 1.8× return. The conservative 15% lift case — it climbs past 2× at 20%.',
     cta: 'See your guest packages →',
     next_screen: 'packages',
     spotlight: '[data-tour="roi-hero"]',
