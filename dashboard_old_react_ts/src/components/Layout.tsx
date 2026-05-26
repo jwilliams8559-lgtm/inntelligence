@@ -102,7 +102,7 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
         <div className="bg-gold text-white text-xs font-semibold tracking-wide py-1.5 px-4 shadow-sm flex-shrink-0 flex items-center justify-center gap-3">
           <span className="opacity-90">★ Demo Environment</span>
           <span className="opacity-50">·</span>
-          <span>INNtelligence — Rate Intelligence Center</span>
+          <span>INNtelligence</span>
           <span className="opacity-50">·</span>
           <span>Bay Street Inn, Beaufort SC</span>
           <button
@@ -117,11 +117,11 @@ export default function Layout({ screen, setScreen, pendingCount, propertyName, 
       <div className="flex flex-1 overflow-hidden">
       {/* Sidebar */}
       <aside className="w-52 lg:w-56 flex-shrink-0 bg-navy flex flex-col shadow-xl">
-        {/* Logo */}
-        <div className="px-4 pt-6 pb-4 border-b border-navy-light">
-          <div className="text-white font-bold text-xl leading-tight" style={{ fontFamily: 'Georgia, serif' }}>INNtelligence</div>
-          <div className="text-gold text-[11px] font-semibold mt-0.5 leading-tight tracking-wide">Boutique Hospitality Intelligence</div>
-          <div className="text-white/40 text-[10px] mt-0.5 leading-tight">by The Gracious Collection</div>
+        {/* Logo — brand colors on a light header for legibility */}
+        <div className="px-4 pt-6 pb-4 border-b border-navy-light" style={{ backgroundColor: '#F7F3EC' }}>
+          <div className="font-bold text-xl leading-tight" style={{ fontFamily: 'Georgia, serif', color: '#1A3A5C' }}>INNtelligence</div>
+          <div className="text-[11px] mt-0.5 leading-tight italic" style={{ color: '#A07830' }}>Boutique Hospitality Intelligence</div>
+          <div className="text-[10px] mt-0.5 leading-tight" style={{ color: '#6B7280' }}>by The Gracious Collection</div>
         </div>
 
         {/* Property selector */}

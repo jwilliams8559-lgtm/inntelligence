@@ -165,7 +165,7 @@ export default function Onboarding({ tenant, property }: Props) {
         <div className="max-w-2xl mx-auto mt-8 bg-white rounded-xl shadow-lg border border-slate-100 p-8 text-center">
           <div className="text-6xl mb-4">✓</div>
           <div className="text-[11px] tracking-[3px] uppercase text-gold font-bold mb-1">Setup Complete</div>
-          <h1 className="text-navy font-bold text-3xl mb-2">Your Rate Intelligence Center is ready</h1>
+          <h1 className="text-navy font-bold text-3xl mb-2">Your INNtelligence dashboard is ready</h1>
           <p className="text-slate-500 mb-6">
             Welcome aboard, {draft.name}. We've configured pricing for {rooms.length} room type{rooms.length !== 1 ? 's' : ''} across the next 90 days.
           </p>
