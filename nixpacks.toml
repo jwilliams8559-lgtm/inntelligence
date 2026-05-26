@@ -1,9 +1,14 @@
+# Single Railway service that builds BOTH the Python backend and the React
+# frontend. We use `uv` (a standalone, pip-free installer) because the Nix
+# python311 package ships without a usable pip/ensurepip — `python -m pip`
+# fails with "No module named pip". `uv pip install --system` installs the
+# requirements straight into the Nix Python environment.
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip", "nodejs_20"]
+nixPkgs = ["python311", "uv", "nodejs_20"]
 
 [phases.install]
 cmds = [
-  "python3 -m pip install --break-system-packages -r requirements.txt",
+  "uv pip install --system -r requirements.txt",
   "cd dashboard && npm install && npm run build"
 ]
 
