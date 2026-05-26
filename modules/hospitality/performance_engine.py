@@ -119,7 +119,9 @@ def get_report(property_config: dict[str, Any] | None = None, tier: str = "profe
     rates_approved    = round(312 * scale)
     rates_auto        = round(48  * scale)
     approval_rate_pct = round(rates_approved / rates_recommended * 100) if rates_recommended else 0
-    estimated_revenue_lift = round(4840 * scale)
+    # Monthly revenue lift — matches the Product Tour math (15% lift on a typical
+    # boutique inn ≈ $1,244/mo) so the dashboard ROI and the Tour tell one story.
+    estimated_revenue_lift = round(1244 * scale)
 
     direct_pct_this_month = 38
     direct_pct_last_month = 33
@@ -157,7 +159,10 @@ def get_report(property_config: dict[str, Any] | None = None, tier: str = "profe
         },
     ]
 
-    total_value = estimated_revenue_lift + commission_saved
+    # ROI is the monthly revenue lift vs the monthly subscription ($1,244 / $699
+    # ≈ 1.8×), matching the Product Tour. Direct-booking savings are shown
+    # separately rather than inflating the ROI multiple.
+    total_value = estimated_revenue_lift
     roi_multiple = round(total_value / subscription_cost, 1) if subscription_cost else 0.0
     roi_pct      = round((total_value - subscription_cost) / subscription_cost * 100) if subscription_cost else 0
 

@@ -81,7 +81,7 @@ export default function PricingScreen() {
         <div className="mt-10 bg-gradient-to-br from-gold/15 to-gold/5 border-2 border-gold rounded-2xl p-6 flex items-center justify-between flex-wrap gap-4">
           <div>
             <div className="text-[10px] uppercase tracking-[3px] text-gold-dark font-bold">⭐ Founding Member</div>
-            <h2 className="font-bold text-navy text-xl mt-1">Free for 6 months, then 25% off Professional forever</h2>
+            <h2 className="font-bold text-navy text-xl mt-1">Free for 6 months, then $699/month (Professional)</h2>
             <p className="text-sm text-slate-600 mt-1 max-w-xl">
               In exchange: PMS connection, monthly calls, testimonial, case study. We're looking for 3–5 founding members by Q3 2026.
             </p>
