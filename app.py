@@ -23,7 +23,13 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from flask import Flask, jsonify, make_response, render_template, request
+from flask import Flask, jsonify, make_response, render_template, request, send_file
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # read .env so ELEVENLABS_API_KEY (etc.) are available
+except ImportError:
+    pass
 
 from modules.hospitality.anchorage_pricing import (
     ROOM_INVENTORY,
@@ -617,6 +623,117 @@ def api_competitive():
         "competitors":   competitors,
         "tier_labels":   _TIER_LABELS,
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Product Tour — ElevenLabs (Will) narration, generated server-side & cached
+# ─────────────────────────────────────────────────────────────────────────────
+_TOUR_VOICE_ID  = "kIfcKu9kr8RZrbz7H3ox"           # ElevenLabs "Will"
+_TOUR_AUDIO_DIR = os.path.join(_BASE_DIR, "dashboard", "public", "audio", "tour")
+# 14 numbered steps plus an opening + closing narration. "Inn-telligence" is
+# spelled hyphenated on purpose so the TTS pronounces it "Inn-telligence".
+_TOUR_STEP_IDS  = ["opening"] + [f"step_{i:02d}" for i in range(1, 15)] + ["closing"]
+
+# Source of truth for narration text (used by both POST generate + GET serve).
+_TOUR_NARRATION = {
+    "opening": "Inn-telligence was built by a pricing professional with eleven years of experience building revenue optimization systems for one of America's largest telecommunications companies. Systems that are now enterprise standard. Systems that generate hundreds of millions of dollars in optimized revenue. He looked at the boutique inn industry and saw the same problem he had solved in telecom: owners making pricing decisions based on gut feel, leaving significant revenue on the table every single night. So he built Inn-telligence. The same institutional-grade pricing intelligence that Fortune 500 companies pay millions for — built specifically for boutique inns, starting at a hundred and forty-nine dollars a month. This is The Bay Street Inn in Beaufort, South Carolina. Nineteen rooms. Let's show you what Inn-telligence does for an inn like this every single morning.",
+    "step_01": "It's seven oh two on a Friday morning in Beaufort, South Carolina. The owner of Bay Street Inn opens Inn-telligence. Before the first cup of coffee is finished, she knows everything she needs to know about today. Average rate across all nineteen rooms: four hundred and eighty-seven dollars. RevPAR: three hundred and sixty-five dollars. Market pressure score seven out of ten — demand is building. Four active events in the next thirty days. And one alert at the top of the screen: a competitor dropped rates overnight. This is what running an inn looks like with Inn-telligence. Every morning starts with clarity instead of guesswork. Let's walk through exactly what she does next.",
+    "step_02": "The first screen every morning is Competitive Intelligence. Here is something most inn owners do not know: your competitors are adjusting their rates constantly — sometimes daily, sometimes overnight while you sleep. Without a system monitoring them around the clock, you are always reacting instead of leading. Inn-telligence monitors nine properties in the Beaufort market twenty-four hours a day, updating rates every morning at six AM. The AI identifies patterns in how each competitor prices — when they discount, how aggressively, and what triggers it. Over time it learns their behavior and predicts their next move before they make it. Your competitors are organized into three tiers based on how directly they compete for your guests. Direct competitors — Rhett House Inn, Cuthbert House Inn, Anchorage 1770, and 607 Bay Inn — these four properties drive your rate recommendations with the highest weight. Now filter to Waterfront rooms specifically. Rhett House and City Loft Hotel immediately gray out. They do not have true waterfront rooms. Inn-telligence never compares you to a property that is not actually competing for the same guest on the same product. This is the kind of nuance that comes from real hospitality expertise baked into the system — not just an algorithm pulling rates off a website. Your direct comp set average for waterfront rooms tonight is four hundred and twelve dollars. Inn-telligence recommends holding at four hundred and forty-five dollars — an eight percent premium. Why is that premium justified? Your TripAdvisor score is higher. Your waterfront views are rated better by guests who have stayed at both properties. And the market pressure score of seven out of ten means demand is strong enough to support it. The rate drop alert: Rhett House dropped forty dollars overnight. They have availability for Water Festival weekend — they are nervous. Cuthbert House has not moved. Inn-telligence recommendation: hold your rates. Your strongest competitor is confident. You should be too. That recommendation comes from eleven years of pricing experience encoded into every decision the AI makes. It does not just show you data — it tells you what to do with it.",
+    "step_03": "The Rate Calendar is where Inn-telligence's pricing expertise becomes real money. Every inn owner knows they should be charging more during peak season and less during slow periods. But knowing that and actually doing it — room by room, night by night, accounting for events, competitor moves, lead time, and demand signals — is a full-time job. It is what a professional revenue manager does. Inn-telligence does it automatically, for every room, every night. Select Waterfront rooms and look at Water Festival weekend — Friday July seventeenth through Sunday July nineteenth. Waterfront Room 1 on Friday: five hundred and two dollars. Twenty-nine percent above rack rate. Here is the exact reasoning. Seasonal index: one point three for peak July. Water Festival demand multiplier: one point three five — thirteen consecutive days of the biggest event in Beaufort. Lead time urgency: nine days out, demand is building. Competitor average for comparable waterfront rooms: four hundred and twelve dollars. Reputation premium: eight percent above comp set, justified. Confidence level: HIGH. Every number in that calculation comes from a methodology developed over eleven years of professional pricing practice. The same approach used to optimize hundreds of millions of dollars in revenue — now running automatically for your nineteen rooms. Click accept. Rate is set. One click. Done. Saturday: five hundred and forty-seven. Grand Parlor Suite: seven hundred and twenty-one. All nineteen rooms, Water Festival weekend, individually priced in under sixty seconds. Now look at Tuesday July twenty-first — mid-week after the festival peak. Garden Room 3: two hundred and forty-nine dollars. Below rack rate. The engine knows demand drops sharply mid-week after the festival and recommends a strategic discount to fill the room rather than hold a rate you will not achieve. That balance — charging premium when you can, being strategic when you should — is exactly what separates professional revenue management from guesswork. And now every inn owner has access to it.",
+    "step_04": "This is one of the screens I am most proud of, because it solves a problem I saw inn owners struggling with long before Inn-telligence existed. The orphan gap problem. You have a Saturday booking for Waterfront Room 1. Friday before it: empty. Sunday after it: empty. Those nights are almost impossible to fill at full price because most guests want a minimum two-night stay. Without a system watching your calendar, those nights just go empty. You never even think about them until checkout day when it is too late. Inn-telligence finds every orphan gap automatically and gives you specific actions to take right now — not generic suggestions, but calculated recommendations based on your actual guest data and current market conditions. For this Friday gap: contact the Saturday guest and offer Friday at a fifteen percent discount. They are already coming — the incremental cost to you is almost nothing and the revenue is pure upside. If that does not work by Wednesday: send a targeted email to past guests within a hundred and fifty miles who have stayed in waterfront rooms before. Frame it as an exclusive offer for past guests. This week alone: three orphan gaps, eight hundred and forty dollars in recoverable revenue that would have gone empty without this screen. The ten AI recommendations below are generated fresh every morning from your booking data, competitor rates, and the local events calendar. Human pricing expertise, encoded into an algorithm, running while you sleep. That is Inn-telligence.",
+    "step_05": "The best revenue you will ever generate comes from guests who already love you. Win-back marketing — reaching out to past guests who have not returned — consistently outperforms acquiring new guests by three to five times in both conversion rate and lifetime value. Every major hotel chain has known this for decades and built entire CRM systems around it. Boutique inn owners have had no equivalent tool. Until now. Inn-telligence builds a complete intelligence profile on every guest who has ever stayed with you. Look at Catherine Beaumont from Charlotte, North Carolina. Four stays. Lifetime spend: three thousand eight hundred and forty dollars. Always books waterfront. Last visit: seven months ago. Catherine is a Lapsed VIP. She loved Bay Street Inn enough to come back three times. Something got in the way. Maybe she just needed someone to reach out. Campaign Manager. Lapsed VIP segment. Win-Back template. The email personalizes itself — her name, her preferred room, a ten percent loyalty rate for her next waterfront stay. Twelve guests match this profile right now. If three of them book a two-night waterfront stay — conservative estimate based on industry win-back conversion rates — that is five thousand four hundred dollars in recovered revenue. From fifteen minutes of a Friday morning. From guests who already chose you once.",
+    "step_06": "I built Inn-telligence to be accountable. Not just to show you data — to show you what that data is worth in actual dollars. The ROI Performance screen is the most transparent thing in hospitality software. It shows you exactly what Inn-telligence has generated and exactly what it missed. Both. Bay Street Inn. Ninety days. Eight point seven times return. Water Festival dynamic pricing: four thousand two hundred dollars above what flat-rate pricing would have generated. Gullah Festival surge: eighteen hundred and fifty. Win-back campaigns: two thousand one hundred. And the misses — because I show you those too. Two Thursday nights in April went unbooked when a modest rate reduction would likely have filled them. Six hundred and eighty dollars in missed revenue. Inn-telligence shows you the misses because that transparency is how the recommendations get smarter over time. The AI learns from every empty room, not just the ones it filled. RevPAR twenty-three percent above comp set. ADR up eighteen percent year over year. Subscription cost for the quarter: eight hundred and ninety-seven dollars. Return: seven thousand eight hundred and three dollars. One Water Festival weekend paid for the year.",
+    "step_07": "For inns with a restaurant or bar, food and beverage is a revenue center that most owners dramatically underanalyze. I know this from experience. The same yield management principles that work for room pricing work for restaurant seats and bar tops. Day of week. Time of day. Event influence. Guest mix. All of it matters. Inn-telligence applies those principles to The Parlor and The Rooftop at Bay Street Inn automatically. Thursday Rooftop: eight hundred and ninety dollars. Friday: two thousand one hundred. That gap tells a story. Guests arriving Thursday have dinner plans elsewhere. The Rooftop has empty seats on the most beautiful sunset evening of the week. Recommendation: Thursday Lowcountry Sunset Supper. Fixed price, three courses, sixty-five dollars per person, rooftop cocktail hour included. Inns that introduce a Thursday evening special see twenty to twenty-five percent revenue lift. At Bay Street Inn's cover count: fourteen hundred additional dollars per month. Sixteen thousand eight hundred dollars per year. One menu decision.",
+    "step_08": "This is the screen that surprises people most when they first see Inn-telligence. Because nobody else has built it. Every revenue management system in hospitality is built around transactional nightly bookings. None of them help you price a wedding. None of them tell you whether to accept a corporate buyout on a festival weekend. None of them calculate the exact premium you should charge for exclusivity. I built this screen because I know from personal experience that group events are where boutique inns leave the most money on the table. Elizabeth and William Hartley. Wedding inquiry. August twenty-third. Forty-five guests. Full buyout. The calculator runs in seconds. Room block: fifteen thousand nine hundred and sixty. Event space: fifteen hundred. Food and beverage: five thousand six hundred and twenty-five. Setup: eight hundred. Exclusivity premium: four thousand seven hundred and seventy-seven. Total: twenty-eight thousand six hundred and sixty-two dollars. Compare to individual bookings that weekend: fifteen thousand nine hundred and sixty. Wedding premium: twelve thousand seven hundred and two dollars. Accept. Now change the date to July nineteenth — Water Festival opening weekend. The conflict alert fires immediately. Festival individual pricing: nineteen thousand two hundred. The wedding offer is below that threshold. Recommendation: Decline or negotiate above festival pricing. That one calculation, on that one date change, protects thousands of dollars that most inn owners would never have thought to calculate.",
+    "step_09": "The Weddings screen is designed to be shared directly with couples who are considering Bay Street Inn for their celebration. Four packages, from intimate elopements at twenty-five hundred to forty-five hundred dollars, all the way to Grand Celebrations for seventy-five guests at twenty-eight to forty-five thousand. Every package includes the full inclusions list, deposit schedule, and cancellation terms — everything a couple needs to make a confident decision. The inquiry form captures everything you need to qualify a wedding lead and routes it to your event coordinator immediately. Your wedding business runs through Inn-telligence from first contact to confirmed booking. No spreadsheets. No pricing uncertainty. Every date checked against your revenue calendar before you say yes.",
+    "step_10": "Inn-telligence tracks every event in the Beaufort market — from the Original Gullah Festival on Memorial Day weekend to Parris Island Marine Corps graduations that fill rooms eight times a year. Understanding your local events calendar is not optional for a boutique inn in an event-driven market like Beaufort. It is the foundation of everything else. Switch to Next Six Months and every revenue opportunity is laid out in front of you, with pricing impact and recommended action for each. The Beaufort Water Festival: thirty to forty percent premium, rooms selling out sixty days in advance. Inn-telligence started adjusting your rates ninety days ago. Penn Center Heritage Days in November: historically underpriced by most Bay Street properties. Twenty percent premium opportunity. You are planning months ahead now, not reacting the week of.",
+    "step_11": "The Romance Package generates four thousand seven hundred and eighty-one dollars per month at Bay Street Inn. Nearly fifty-eight thousand dollars a year. From one package offering at eighty-five dollars above rack rate. The Available Packages tab shows what comparable inns offer that Bay Street Inn does not — yet. The Proposal Package is offered by only twelve percent of comparable boutique inns. Low competition. High perceived value. One hundred and ninety-five dollar premium. Estimated monthly revenue: three thousand two hundred dollars. Thirty-eight thousand four hundred dollars a year from one toggle switch. Inn-telligence monitors what packages the market offers and identifies the gaps specific to your property and guest profile. The opportunities are always there. Now you can see them.",
+    "step_12": "Twenty-four months of performance data so you always know where you have been and where you are going. Best month ever: July twenty twenty-five, sixty-eight thousand four hundred dollars. This May running twenty-three percent ahead of last year. The seasonal pattern becomes visible over time — July and October your peaks, January and February your valleys. Inn-telligence uses this history to build smarter forward recommendations. It knows your property. It learns your patterns. Every month the model gets more accurate.",
+    "step_13": "Pricing power comes from reputation. You cannot charge a premium if guests do not believe you are worth it. And you cannot know what guests think if you are not systematically listening. Pricing Power Score: eighty-four out of one hundred. That number means Bay Street Inn has earned the right to price above the market average. Top guest keywords: location, breakfast, staff, views. One trend to watch: value mentions dropping slightly. Recommendation: add a Lowcountry welcome amenity to all check-ins. Local jam, pralines, handwritten note. Under eight dollars per room. The kind of gesture that turns a four-star review into a five-star review and a five-star review into a repeat guest.",
+    "step_14": "The final revenue stream — and one of the most satisfying to build into Inn-telligence, because it turns a guest's love for their experience into ongoing revenue long after checkout. Comphy bedding — the exact sheets on every bed at Bay Street Inn. Eight sets sold this month. Nineteen hundred and twenty dollars. Pure margin. Murano glass by Gino Mazzuccato — authentic hand-blown glass from the island of Murano in Venice, Italy, displayed throughout the inn, available to purchase and ship anywhere in the United States. Three pieces this month. Twelve hundred and forty dollars. Three thousand one hundred and sixty dollars in gift shop revenue. Zero additional staff. Guests take home a piece of Bay Street Inn and a reason to come back.",
+    "closing": "Eleven years building pricing systems for Fortune 500 companies. The same methodology. The same rigor. Now available to every boutique inn owner who has ever wondered if they are charging the right rate. Inn-telligence combines artificial intelligence with real-world pricing expertise built by someone who has spent over a decade doing this professionally — and who now owns a boutique inn himself. Every recommendation is AI-generated and expert-validated. Not just an algorithm. Not just data. Pricing intelligence with the judgment to know what the data means. Bay Street Inn. Nineteen rooms. Maximum revenue. Every single day. Your inn deserves the same. Start your free thirty-day trial today. No credit card required.",
+}
+
+
+def _tour_path(step_id: str) -> str:
+    return os.path.join(_TOUR_AUDIO_DIR, f"{step_id}.mp3")
+
+
+def _tour_generate(step_id: str, text: str | None) -> tuple[str, bool]:
+    """Return (path, cached). Generates the MP3 via ElevenLabs if missing."""
+    path = _tour_path(step_id)
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        return path, True
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise RuntimeError("ELEVENLABS_API_KEY not configured")
+    narration = text or _TOUR_NARRATION.get(step_id)
+    if not narration:
+        raise RuntimeError(f"No narration text for {step_id}")
+    import requests
+    resp = requests.post(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{_TOUR_VOICE_ID}",
+        headers={"xi-api-key": api_key, "accept": "audio/mpeg", "content-type": "application/json"},
+        json={
+            "text": narration,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {
+                "stability": 0.45, "similarity_boost": 0.85,
+                "style": 0.35, "use_speaker_boost": True,
+            },
+        },
+        timeout=120,
+    )
+    resp.raise_for_status()
+    os.makedirs(_TOUR_AUDIO_DIR, exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(resp.content)
+    return path, False
+
+
+@app.route("/api/tour/audio-status")
+def api_tour_audio_status():
+    """Which step audio files exist + whether ElevenLabs is configured."""
+    generated = [
+        sid for sid in _TOUR_STEP_IDS
+        if os.path.exists(_tour_path(sid)) and os.path.getsize(_tour_path(sid)) > 0
+    ]
+    return jsonify({
+        "generated": generated,
+        "total": len(_TOUR_STEP_IDS),
+        "all_ready": len(generated) == len(_TOUR_STEP_IDS),
+        "configured": bool(os.getenv("ELEVENLABS_API_KEY")),
+    })
+
+
+@app.route("/api/tour/generate-audio", methods=["POST"])
+def api_tour_generate_audio():
+    """Generate (or return cached) MP3 for one step."""
+    data = request.get_json(force=True) or {}
+    step_id = data.get("step_id", "")
+    if step_id not in _TOUR_STEP_IDS:
+        return jsonify({"ok": False, "error": "Invalid step_id"}), 400
+    try:
+        _path, cached = _tour_generate(step_id, data.get("narration_text"))
+        return jsonify({"ok": True, "step_id": step_id, "cached": cached,
+                        "path": f"/audio/tour/{step_id}.mp3"})
+    except Exception as e:  # noqa: BLE001 — surface to frontend for Web Speech fallback
+        logger.warning("Tour audio generation failed for %s: %s", step_id, e)
+        return jsonify({"ok": False, "step_id": step_id, "error": str(e)}), 502
+
+
+@app.route("/api/tour/audio/<step_id>")
+def api_tour_audio(step_id: str):
+    """Serve a step's MP3, generating on demand if missing."""
+    if step_id not in _TOUR_STEP_IDS:
+        return jsonify({"error": "Invalid step_id"}), 404
+    path = _tour_path(step_id)
+    if not (os.path.exists(path) and os.path.getsize(path) > 0):
+        try:
+            _tour_generate(step_id, None)
+        except Exception as e:  # noqa: BLE001
+            return jsonify({"error": str(e)}), 502
+    return send_file(path, mimetype="audio/mpeg", conditional=True)
 
 
 @app.route("/api/private-events")

@@ -54,3 +54,6 @@ dashboard/node_modules/
 # ── Generated data outputs (runtime exports + cached snapshots) ───────────────
 data/exports/
 data/processed/
+
+# ── Product Tour generated audio (ElevenLabs) ───────────────────────────────
+dashboard/public/audio/tour/

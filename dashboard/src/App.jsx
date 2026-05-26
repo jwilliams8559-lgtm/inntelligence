@@ -19,7 +19,7 @@ import Reputation from './screens/Reputation'
 import RevenueIntelligence from './screens/RevenueIntelligence'
 import GuestCRM from './screens/GuestCRM'
 import GiftShop from './screens/GiftShop'
-import Demo from './screens/Demo'
+import Tour from './screens/Tour'
 import PrivateEvents from './screens/PrivateEvents'
 import Weddings from './screens/Weddings'
 
@@ -36,7 +36,7 @@ const BUILT = {
   '/gap-night': RevenueIntelligence,
   '/guest-crm': GuestCRM,
   '/gift-shop': GiftShop,
-  '/demo': Demo,
+  '/tour': Tour,
   '/private-events': PrivateEvents,
   '/weddings': Weddings,
 }
