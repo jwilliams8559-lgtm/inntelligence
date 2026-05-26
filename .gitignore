@@ -60,3 +60,7 @@ dashboard/public/audio/tour/
 
 # ── Per-tenant PMS credentials (saved at onboarding) ────────────────────────
 config/pms_creds/
+
+# ── Local Vite env (real Supabase anon key lives here — never commit) ───────
+.env.local
+dashboard/.env.local

@@ -789,47 +789,79 @@ def _sb_user(token: str) -> Optional[dict]:
 
 
 def _role_and_tenant(user: Optional[dict]) -> tuple[str, Optional[str]]:
-    """Extract role + tenant_id from the JWT hook claims (app_metadata first,
-    then user_metadata). Admin email allowlist always wins."""
+    """Extract role + tenant_id from the custom_access_token_hook claims.
+    The hook injects app_metadata.app_role and app_metadata.tenant_id.
+    Admin email allowlist always wins."""
     user = user or {}
     app_md = user.get("app_metadata") or {}
     usr_md = user.get("user_metadata") or {}
     email = (user.get("email") or "").lower()
-    role = app_md.get("role") or usr_md.get("role") or "inn_owner"
+    # app_role is the canonical claim; fall back to legacy 'role' just in case.
+    role = app_md.get("app_role") or app_md.get("role") or usr_md.get("app_role") or "inn_owner"
     tenant_id = app_md.get("tenant_id") or usr_md.get("tenant_id")
     if email in _ADMIN_EMAILS:
         role = "tgc_admin"
     return role, tenant_id
 
 
+def _sb_rest_get(path: str, params: dict) -> list:
+    """Service-key REST GET against Supabase PostgREST. Returns [] on any error."""
+    if not (_SUPABASE_URL and _SUPABASE_SERVICE):
+        return []
+    try:
+        import requests
+        r = requests.get(f"{_SUPABASE_URL}/rest/v1/{path}",
+                         headers={"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}"},
+                         params=params, timeout=15)
+        return r.json() if (r.ok and r.text) else []
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def _tenant_context(tenant_id: Optional[str], user: Optional[dict]) -> dict:
-    """Best-effort property/plan/status. Reads user metadata, then a tenants
-    table if present. Never raises — returns sensible defaults."""
+    """Resolve display context from the real schema:
+      - tenants:        plan_tier, name, onboarding_complete
+      - properties:     first property.name (by tenant_id) → property_name
+      - user_profiles / auth metadata: owner_name
+    onboarding_complete=false → pending_onboarding=true (forces /onboarding).
+    Never raises — falls back to auth metadata + sensible defaults."""
     usr_md = (user or {}).get("user_metadata") or {}
     app_md = (user or {}).get("app_metadata") or {}
     ctx = {
-        "property_name": usr_md.get("property_name") or app_md.get("property_name") or "",
+        "property_name": usr_md.get("property_name") or "",
         "plan_tier": app_md.get("plan_tier") or usr_md.get("plan_tier") or "professional",
-        "owner_name": usr_md.get("owner_name") or "",
-        "pending_onboarding": bool(app_md.get("pending_onboarding", False)),
+        "owner_name": usr_md.get("owner_name") or usr_md.get("full_name") or "",
+        "pending_onboarding": False,
     }
-    if tenant_id and _SUPABASE_SERVICE:
-        try:
-            import requests
-            r = requests.get(f"{_SUPABASE_URL}/rest/v1/tenants",
-                             headers={"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}"},
-                             params={"id": f"eq.{tenant_id}", "select": "*"}, timeout=15)
-            rows = r.json() if r.ok else []
-            if rows:
-                t = rows[0]
-                ctx["property_name"] = t.get("property_name") or t.get("name") or ctx["property_name"]
-                ctx["plan_tier"] = t.get("plan_tier") or ctx["plan_tier"]
-                if "pending_onboarding" in t:
-                    ctx["pending_onboarding"] = bool(t["pending_onboarding"])
-                elif t.get("status"):
-                    ctx["pending_onboarding"] = t["status"] == "pending_onboarding"
-        except Exception:  # noqa: BLE001
-            pass
+    if not tenant_id:
+        return ctx
+
+    # tenants → plan_tier, name, onboarding_complete
+    rows = _sb_rest_get("tenants", {"id": f"eq.{tenant_id}",
+                                    "select": "name,plan_tier,onboarding_complete,active"})
+    if rows:
+        t = rows[0]
+        ctx["plan_tier"] = t.get("plan_tier") or ctx["plan_tier"]
+        if not ctx["property_name"]:
+            ctx["property_name"] = t.get("name") or ""
+        # Force onboarding only when the column explicitly says it's incomplete.
+        if t.get("onboarding_complete") is False:
+            ctx["pending_onboarding"] = True
+
+    # properties → first property's name (preferred display name)
+    props = _sb_rest_get("properties", {"tenant_id": f"eq.{tenant_id}",
+                                        "select": "name", "order": "created_at.asc", "limit": "1"})
+    if props and props[0].get("name"):
+        ctx["property_name"] = props[0]["name"]
+
+    # user_profiles → owner_name (if present), keyed by auth user id
+    uid = (user or {}).get("id")
+    if uid and not ctx["owner_name"]:
+        prof = _sb_rest_get("user_profiles", {"user_id": f"eq.{uid}",
+                                              "select": "full_name,name,owner_name", "limit": "1"})
+        if prof:
+            p = prof[0]
+            ctx["owner_name"] = p.get("full_name") or p.get("name") or p.get("owner_name") or ""
     return ctx
 
 
@@ -965,6 +997,10 @@ def api_auth_reset_password():
     return jsonify({"ok": True})
 
 
+def _slugify(s: str) -> str:
+    return "".join(c if (c.isalnum() or c == "-") else "-" for c in (s or "").lower()).strip("-")[:48] or "inn"
+
+
 @app.route("/api/admin/provision-tenant", methods=["POST"])
 def api_admin_provision_tenant():
     _user, err = _require_admin()
@@ -972,57 +1008,80 @@ def api_admin_provision_tenant():
         return err
     if not _SUPABASE_SERVICE:
         return jsonify({"error": "SUPABASE_SERVICE_KEY not configured"}), 503
-    import secrets as _secrets
     import requests
     d = request.get_json(force=True) or {}
     email = d.get("owner_email", "")
     if not email:
         return jsonify({"error": "owner_email required"}), 400
-    temp_password = _secrets.token_urlsafe(9)
+    plan = d.get("plan_tier", "professional")
+    name = d.get("property_name", "")
     svc_hdr = {"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
                "Content-Type": "application/json"}
-    # 1) Create the Supabase auth user (email confirmed, pending onboarding).
-    try:
-        cr = requests.post(f"{_SUPABASE_URL}/auth/v1/admin/users", headers=svc_hdr, json={
-            "email": email, "password": temp_password, "email_confirm": True,
-            "user_metadata": {"property_name": d.get("property_name", ""), "owner_name": d.get("owner_name", "")},
-            "app_metadata": {"role": "inn_owner", "plan_tier": d.get("plan_tier", "professional"),
-                             "pending_onboarding": True},
-        }, timeout=20)
-    except Exception as e:  # noqa: BLE001
-        return jsonify({"error": f"User creation failed: {e}"}), 502
-    if not cr.ok:
-        return jsonify({"error": f"User creation failed: {cr.text[:200]}"}), 502
-    new_user = cr.json()
-    user_id = new_user.get("id")
+    rep_hdr = {**svc_hdr, "Prefer": "return=representation"}
+    warnings = []
 
-    # 2) Provision the tenant record (DB function if present, else insert).
-    tenant_id, property_id = None, None
+    # 1) Invite the user — Supabase sends the secure invite link automatically.
     try:
-        rpc = requests.post(f"{_SUPABASE_URL}/rest/v1/rpc/provision_tenant", headers=svc_hdr, json={
-            "p_property_name": d.get("property_name", ""), "p_owner_email": email,
-            "p_owner_name": d.get("owner_name", ""), "p_plan_tier": d.get("plan_tier", "professional"),
-            "p_address": d.get("address", ""), "p_city": d.get("city", ""), "p_state": d.get("state", ""),
-            "p_auth_user_id": user_id,
-        }, timeout=20)
-        if rpc.ok and rpc.text:
-            res = rpc.json()
-            res = res[0] if isinstance(res, list) and res else res
-            if isinstance(res, dict):
-                tenant_id = res.get("tenant_id") or res.get("id")
-                property_id = res.get("property_id")
-            elif isinstance(res, str):
-                tenant_id = res
+        inv = requests.post(f"{_SUPABASE_URL}/auth/v1/invite", headers=svc_hdr,
+                            json={"email": email,
+                                  "data": {"property_name": name, "owner_name": d.get("owner_name", "")}},
+                            timeout=20)
     except Exception as e:  # noqa: BLE001
-        logger.warning("provision_tenant RPC failed: %s", e)
+        return jsonify({"error": f"Invite failed: {e}"}), 502
+    if not inv.ok:
+        return jsonify({"error": f"Invite failed: {inv.text[:200]}"}), 502
+    user_id = (inv.json() or {}).get("id")
 
-    # 3) Welcome email (best-effort).
-    emailed = _send_welcome_email(email, d.get("owner_name", ""), temp_password, d.get("property_name", ""))
+    # 2) Insert tenant (onboarding_complete=false → forces /onboarding on first login).
+    tenant_id = None
+    try:
+        tr = requests.post(f"{_SUPABASE_URL}/rest/v1/tenants", headers=rep_hdr, json={
+            "name": name, "slug": _slugify(name), "plan_tier": plan,
+            "active": True, "onboarding_complete": False,
+        }, timeout=20)
+        if tr.ok and tr.text:
+            row = tr.json()
+            tenant_id = (row[0] if isinstance(row, list) else row).get("id")
+        else:
+            warnings.append(f"tenant insert: {tr.text[:120]}")
+    except Exception as e:  # noqa: BLE001
+        warnings.append(f"tenant insert: {e}")
+
+    # 3) Insert property.
+    property_id = None
+    if tenant_id:
+        try:
+            pr = requests.post(f"{_SUPABASE_URL}/rest/v1/properties", headers=rep_hdr, json={
+                "tenant_id": tenant_id, "name": name, "city": d.get("city", ""), "state": d.get("state", ""),
+            }, timeout=20)
+            if pr.ok and pr.text:
+                row = pr.json()
+                property_id = (row[0] if isinstance(row, list) else row).get("id")
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"property insert: {e}")
+
+    # 4) Insert user_profile (feeds the JWT hook: role + tenant_id).
+    if user_id and tenant_id:
+        try:
+            requests.post(f"{_SUPABASE_URL}/rest/v1/user_profiles", headers=svc_hdr, json={
+                "user_id": user_id, "tenant_id": tenant_id, "role": "inn_owner",
+            }, timeout=20)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"user_profile insert: {e}")
+
+    # 5) Mirror claims onto auth app_metadata so the hook always has them.
+    if user_id:
+        try:
+            requests.put(f"{_SUPABASE_URL}/auth/v1/admin/users/{user_id}", headers=svc_hdr, json={
+                "app_metadata": {"app_role": "inn_owner", "tenant_id": tenant_id, "plan_tier": plan},
+            }, timeout=20)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"app_metadata set: {e}")
 
     return jsonify({
-        "tenant_id": tenant_id, "property_id": property_id,
-        "user_id": user_id, "temp_password": temp_password,
-        "welcome_email_sent": emailed,
+        "tenant_id": tenant_id, "property_id": property_id, "user_id": user_id,
+        "invited": True, "note": "Supabase invite email sent. Follow up with the personal welcome email.",
+        "warnings": warnings or None,
     })
 
 
@@ -1034,11 +1093,25 @@ def api_admin_tenants():
     if _SUPABASE_SERVICE:
         try:
             import requests
+            # Join the first property per tenant for a friendly location label.
             r = requests.get(f"{_SUPABASE_URL}/rest/v1/tenants",
                              headers={"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}"},
-                             params={"select": "*"}, timeout=15)
+                             params={"select": "id,name,plan_tier,active,onboarding_complete,created_at,"
+                                               "properties(name,city,state)"}, timeout=15)
             if r.ok and r.json():
-                return jsonify({"tenants": r.json(), "source": "supabase"})
+                out = []
+                for t in r.json():
+                    props = t.get("properties") or []
+                    p0 = props[0] if props else {}
+                    out.append({
+                        "name": p0.get("name") or t.get("name"),
+                        "location": ", ".join([x for x in [p0.get("city"), p0.get("state")] if x]) or "—",
+                        "plan_tier": t.get("plan_tier"),
+                        "last_login": "—",
+                        "sync_status": "synced" if t.get("onboarding_complete") else "pending_onboarding",
+                        "pending_count": 0,
+                    })
+                return jsonify({"tenants": out, "source": "supabase"})
         except Exception as e:  # noqa: BLE001
             logger.warning("admin/tenants query failed: %s", e)
     # Demo fallback so the console renders before the tenants table is populated.
@@ -1073,16 +1146,23 @@ def api_onboarding_complete():
             logger.warning("PMS cred save failed: %s", e)
     # 2) Trigger initial PMS sync — stub until PMS connectors are live.
     sync_status = "queued" if d.get("pms_api_key") else "demo_data"
-    # 3) Mark the account active (clear pending_onboarding) via admin API.
-    if _SUPABASE_SERVICE and user_id:
+    # 3) Mark onboarding complete on the tenant (clears the /onboarding gate).
+    _role, tenant_id = _role_and_tenant(user)
+    if _SUPABASE_SERVICE:
         try:
             import requests
-            requests.put(f"{_SUPABASE_URL}/auth/v1/admin/users/{user_id}",
-                         headers={"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
-                                  "Content-Type": "application/json"},
-                         json={"app_metadata": {"pending_onboarding": False, "status": "active"}}, timeout=15)
+            svc_hdr = {"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+                       "Content-Type": "application/json"}
+            if tenant_id:
+                requests.patch(f"{_SUPABASE_URL}/rest/v1/tenants",
+                               headers={**svc_hdr, "Prefer": "return=minimal"},
+                               params={"id": f"eq.{tenant_id}"},
+                               json={"onboarding_complete": True}, timeout=15)
+            # Also clear the legacy app_metadata flag if present.
+            requests.put(f"{_SUPABASE_URL}/auth/v1/admin/users/{user_id}", headers=svc_hdr,
+                         json={"app_metadata": {"pending_onboarding": False}}, timeout=15)
         except Exception as e:  # noqa: BLE001
-            logger.warning("activate account failed: %s", e)
+            logger.warning("mark onboarding complete failed: %s", e)
     return jsonify({"success": True, "sync_status": sync_status})
 
 

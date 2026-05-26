@@ -1,49 +1,66 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { authMe, authLogin, authLogout, authResetPassword, setToken } from '../api/client'
+import { supabase, supabaseConfigured } from '../lib/supabase'
+import { authMe, setToken } from '../api/client'
 
-// Auth state for the JSX app. Talks only to the Flask /api/auth/* endpoints,
-// which proxy Supabase Auth server-side. When Supabase isn't configured the
-// server reports auth_configured:false and we run in "open mode" (local/demo)
-// so the dashboard stays usable without a login wall.
+// Auth for the JSX app.
+//  • Real mode (Supabase configured): supabase-js owns the session (persistence
+//    + token auto-refresh). The access token carries the custom_access_token_hook
+//    claims (app_metadata.app_role, app_metadata.tenant_id). We enrich with the
+//    Flask /api/auth/me endpoint (joins tenants/properties, onboarding_complete).
+//  • Open mode (no VITE_SUPABASE_* vars): no login wall — local/demo stays usable.
 const AuthCtx = createContext(null)
 
 export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
-  const [authConfigured, setAuthConfigured] = useState(true)
   const [user, setUser] = useState(null)
+  const openMode = !supabaseConfigured
 
-  const refresh = useCallback(async () => {
+  // Enrich the current session via Flask (role/tenant/property/onboarding).
+  const loadContext = useCallback(async (accessToken) => {
+    setToken(accessToken || '')
+    if (!accessToken) { setUser(null); return }
     const me = await authMe()
-    if (me.auth_configured === false) {
-      setAuthConfigured(false); setUser(null)
-    } else if (me.authenticated) {
-      setAuthConfigured(true); setUser(me)
-    } else {
-      setAuthConfigured(true); setUser(null)
-    }
-    setLoading(false)
+    setUser(me.authenticated ? me : null)
   }, [])
 
-  useEffect(() => { refresh() }, [refresh])
+  useEffect(() => {
+    if (openMode) { setLoading(false); return }
+    let active = true
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!active) return
+      await loadContext(data.session?.access_token)
+      setLoading(false)
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      loadContext(session?.access_token)
+    })
+    return () => { active = false; sub?.subscription?.unsubscribe() }
+  }, [openMode, loadContext])
 
   const login = useCallback(async (email, password) => {
-    const j = await authLogin(email, password)
-    setToken(j.access_token)
-    await refresh()
-    return j
-  }, [refresh])
+    if (openMode) return { role: 'tgc_admin' }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw new Error(error.message || 'Invalid email or password.')
+    await loadContext(data.session?.access_token)
+    const me = await authMe()
+    return me.authenticated ? me : { role: 'inn_owner' }
+  }, [openMode, loadContext])
 
   const logout = useCallback(async () => {
-    await authLogout()
-    setToken('')
-    setUser(null)
-  }, [])
+    if (!openMode) { try { await supabase.auth.signOut() } catch { /* ignore */ } }
+    setToken(''); setUser(null)
+  }, [openMode])
 
-  const openMode = !authConfigured            // no Supabase → no auth wall
+  const resetPassword = useCallback(async (email) => {
+    if (openMode) return { ok: true }
+    try { await supabase.auth.resetPasswordForEmail(email) } catch { /* never reveal */ }
+    return { ok: true }
+  }, [openMode])
+
   const role = user?.role || (openMode ? 'tgc_admin' : null)
 
   return (
-    <AuthCtx.Provider value={{ loading, openMode, authConfigured, user, role, login, logout, resetPassword: authResetPassword, refresh }}>
+    <AuthCtx.Provider value={{ loading, openMode, authConfigured: !openMode, user, role, login, logout, resetPassword }}>
       {children}
     </AuthCtx.Provider>
   )
