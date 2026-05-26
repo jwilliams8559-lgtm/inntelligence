@@ -22,6 +22,10 @@ import GiftShop from './screens/GiftShop'
 import Tour from './screens/Tour'
 import PrivateEvents from './screens/PrivateEvents'
 import Weddings from './screens/Weddings'
+import ManagementConsole from './screens/ManagementConsole'
+import Login from './screens/Login'
+import Onboarding from './screens/Onboarding'
+import Pricing from './screens/Pricing'
 
 const BUILT = {
   '/rate-calendar': RateCalendar,
@@ -39,12 +43,17 @@ const BUILT = {
   '/tour': Tour,
   '/private-events': PrivateEvents,
   '/weddings': Weddings,
+  '/management-console': ManagementConsole,
 }
 
 export default function App() {
   return (
     <PriceProvider>
       <Routes>
+        {/* Full-screen routes (no dashboard chrome) */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/pricing" element={<Pricing />} />
         <Route element={<Layout />}>
           <Route index element={<Home />} />
           {SCREENS.map((s) => {
