@@ -22,28 +22,38 @@ DEMO_ACCOUNTS = {
         "role":          "inn_owner",
         "password_hash": "demo2026",
     },
-    "essentials@graciouscollection.com": {
-        "tenant_id":     "essentials-demo",
-        "plan_tier":     "essentials",
-        "property_name": "Essentials Demo Inn",
+    "starter@graciouscollection.com": {
+        "tenant_id":     "starter-demo",
+        "plan_tier":     "starter",
+        "property_name": "Starter Demo Inn",
         "role":          "inn_owner",
         "password_hash": "demo2026",
     },
-    "portfolio@graciouscollection.com": {
-        "tenant_id":     "portfolio-demo",
-        "plan_tier":     "portfolio",
-        "property_name": "Portfolio Demo Properties",
+    "premium@graciouscollection.com": {
+        "tenant_id":     "premium-demo",
+        "plan_tier":     "premium",
+        "property_name": "Premium Demo Properties",
+        "role":          "inn_owner",
+        "password_hash": "demo2026",
+    },
+    "founding@graciouscollection.com": {
+        "tenant_id":     "founding-demo",
+        "plan_tier":     "founding_member",
+        "property_name": "Founding Member Inn",
         "role":          "inn_owner",
         "password_hash": "demo2026",
     },
     "admin@graciouscollection.com": {
         "tenant_id":     "tgc-admin",
-        "plan_tier":     "portfolio",
+        "plan_tier":     "premium",
         "property_name": "INNtelligence Admin",
         "role":          "tgc_admin",
         "password_hash": "admin2026",
     },
 }
+
+# Valid subscription tiers (matches engine/billing.py plan catalog).
+PLAN_TIERS = ["starter", "professional", "enterprise", "premium", "founding_member"]
 
 
 def get_current_user() -> Optional[dict]:
@@ -122,25 +132,25 @@ def create_token(email: str) -> Optional[str]:
 
 def get_plan_features(plan_tier: str) -> dict:
     from config.settings import FEATURE_GATES
-    return FEATURE_GATES.get(plan_tier, FEATURE_GATES.get("essentials", {}))
+    return FEATURE_GATES.get(plan_tier, FEATURE_GATES.get("starter", {}))
 
 
 def check_feature(feature_name: str) -> bool:
     user = get_current_user()
     if not user:
         return False
-    return bool(get_plan_features(user.get("plan_tier", "essentials")).get(feature_name, False))
+    return bool(get_plan_features(user.get("plan_tier", "starter")).get(feature_name, False))
 
 
 def _upgrade_tier_for(current_tier: str, feature: str) -> str:
     from config.settings import FEATURE_GATES
-    order = ["essentials", "professional", "portfolio", "enterprise"]
+    order = ["starter", "professional", "enterprise", "premium"]
     for tier in order:
         if tier == current_tier:
             continue
         if FEATURE_GATES.get(tier, {}).get(feature):
             return tier
-    return "portfolio"
+    return "premium"
 
 
 def require_feature(feature_name: str):
@@ -150,7 +160,7 @@ def require_feature(feature_name: str):
         def wrapped(*args, **kwargs):
             if not check_feature(feature_name):
                 user = get_current_user() or {}
-                tier = user.get("plan_tier", "essentials")
+                tier = user.get("plan_tier", "starter")
                 return jsonify({
                     "error":        "feature_not_available",
                     "feature":      feature_name,

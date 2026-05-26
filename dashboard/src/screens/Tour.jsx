@@ -210,7 +210,7 @@ function SWED() {
 // ── Step definitions ─────────────────────────────────────────────────────────
 // Narration text uses the hyphenated "Inn-telligence" so the ElevenLabs TTS
 // pronounces it "Inn-telligence". Captions render "INNtelligence" via display().
-const OPENING_NARRATION = "Inn-telligence was built by a pricing professional with eleven years of experience building revenue optimization systems for one of America's largest telecommunications companies. Systems that are now enterprise standard. Systems that generate hundreds of millions of dollars in optimized revenue. He looked at the boutique inn industry and saw the same problem he had solved in telecom: owners making pricing decisions based on gut feel, leaving significant revenue on the table every single night. So he built Inn-telligence. The same institutional-grade pricing intelligence that Fortune 500 companies pay millions for — built specifically for boutique inns, starting at a hundred and forty-nine dollars a month. This is The Bay Street Inn in Beaufort, South Carolina. Nineteen rooms. Let's show you what Inn-telligence does for an inn like this every single morning."
+const OPENING_NARRATION = "Inn-telligence was built by a pricing professional with eleven years of experience building revenue optimization systems for one of America's largest telecommunications companies. Systems that are now enterprise standard. Systems that generate hundreds of millions of dollars in optimized revenue. He looked at the boutique inn industry and saw the same problem he had solved in telecom: owners making pricing decisions based on gut feel, leaving significant revenue on the table every single night. So he built Inn-telligence. The same institutional-grade pricing intelligence that Fortune 500 companies pay millions for — built specifically for boutique inns, starting at three hundred and ninety-nine dollars a month. This is The Bay Street Inn in Beaufort, South Carolina. Nineteen rooms. Let's show you what Inn-telligence does for an inn like this every single morning."
 const CLOSING_NARRATION = "Eleven years building pricing systems for Fortune 500 companies. The same methodology. The same rigor. Now available to every boutique inn owner who has ever wondered if they are charging the right rate. Inn-telligence combines artificial intelligence with real-world pricing expertise built by someone who has spent over a decade doing this professionally — and who now owns a boutique inn himself. Every recommendation is AI-generated and expert-validated. Not just an algorithm. Not just data. Pricing intelligence with the judgment to know what the data means. Bay Street Inn. Nineteen rooms. Maximum revenue. Every single day. Your inn deserves the same. Start your free thirty-day trial today. No credit card required."
 
 const N = {
@@ -554,9 +554,11 @@ function Running({ cur, step, progress, mode, paused, muted, usingFallback, onNe
 function Closing({ onRestart, muted, onMute }) {
   const stats = [['8.7×', 'ROI in first 90 days'], ['23%', 'RevPAR above comp set'], ['$28,662', 'private event identified'], ['$840', 'gap night recovery this week']]
   const tiers = [
-    { name: 'Starter', price: '$149', feats: ['1 property, up to 20 rooms', '5 competitors monitored', 'Rate Calendar & Competitive Intel', 'Email support'] },
-    { name: 'Professional', price: '$299', popular: true, feats: ['1 property, unlimited rooms', '9 competitors w/ tier intelligence', 'All 14 screens incl. F&B & CRM', 'Private Events calculator', 'Live competitor scraping', 'Priority support'] },
-    { name: 'Multi-Property', price: '$499', feats: ['Up to 5 properties', 'Everything in Professional', 'White-label option', 'Dedicated account manager'] },
+    { name: 'Starter', price: '$399', feats: ['5–10 rooms', 'Manual rate approval', '1 PMS integration', 'Rate Calendar & Competitive Intel', 'Email support'] },
+    { name: 'Professional', price: '$699', popular: true, feats: ['10–20 rooms', 'Autopilot rate publishing', 'OTA publishing', 'Guest CRM', 'Monthly strategy call'] },
+    { name: 'Enterprise', price: '$1,200', feats: ['20+ rooms', 'Multi-property console', '2 advisory hours / month', 'Everything in Professional'] },
+    { name: 'Premium', price: '$2,400', feats: ['Unlimited properties', 'White-label option', 'Dedicated account manager', 'Everything in Enterprise'] },
+    { name: 'Founding Member', price: 'FREE', sub: '6 months, then $699/mo', feats: ['Everything in Professional', 'Free for 6 months', 'Direct line to founding team', 'First in line for advisory hours'] },
   ]
   return (
     <div className="flex-1 overflow-y-auto text-center px-6 py-10" style={{ background: 'radial-gradient(circle at 50% 15%, #14385f, #061629)' }}>
@@ -565,13 +567,14 @@ function Closing({ onRestart, muted, onMute }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8 max-w-4xl mx-auto">
         {stats.map((s) => <div key={s[1]} className="rounded-xl bg-navy/60 border border-gold/30 p-5"><div className="text-gold text-3xl font-extrabold">{s[0]}</div><div className="text-white/60 text-xs mt-2">{s[1]}</div></div>)}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 max-w-4xl mx-auto text-left">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-10 max-w-6xl mx-auto text-left">
         {tiers.map((t) => (
-          <div key={t.name} className={`rounded-2xl p-5 border relative ${t.popular ? 'border-gold bg-gold/10 sm:scale-105' : 'border-white/15 bg-navy/50'}`}>
-            {t.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gold text-navy text-[10px] font-bold px-3 py-0.5 rounded-full">MOST POPULAR</div>}
+          <div key={t.name} className={`rounded-2xl p-4 border relative ${t.popular ? 'border-gold bg-gold/10' : 'border-white/15 bg-navy/50'}`}>
+            {t.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gold text-navy text-[10px] font-bold px-3 py-0.5 rounded-full whitespace-nowrap">MOST POPULAR</div>}
             <div className="text-gold-light text-sm font-semibold uppercase tracking-wide">{t.name}</div>
-            <div className="mt-2"><span className="text-3xl font-extrabold text-white">{t.price}</span><span className="text-white/40 text-sm">/month</span></div>
-            <ul className="mt-3 space-y-1 text-sm text-white/70">{t.feats.map((f) => <li key={f}>✓ {f}</li>)}</ul>
+            <div className="mt-2"><span className="text-2xl font-extrabold text-white">{t.price}</span>{t.price !== 'FREE' && <span className="text-white/40 text-sm">/month</span>}</div>
+            {t.sub && <div className="text-[10px] text-gold-light mt-0.5">{t.sub}</div>}
+            <ul className="mt-3 space-y-1 text-[13px] text-white/70">{t.feats.map((f) => <li key={f}>✓ {f}</li>)}</ul>
           </div>
         ))}
       </div>
