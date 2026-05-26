@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts'
@@ -27,8 +28,15 @@ const fmtDay = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', 
 
 export default function CompetitiveIntel() {
   const { lastUpdated } = usePrices()
-  const [tier, setTier] = useState('average')
-  const [days, setDays] = useState(14)
+  const [params] = useSearchParams()
+  const [tier, setTier] = useState(() => {
+    const t = params.get('tier')
+    return TIERS.some((x) => x.value === t) ? t : 'average'
+  })
+  const [days, setDays] = useState(() => {
+    const d = Number(params.get('days'))
+    return RANGES.some((r) => r.value === d) ? d : 14
+  })
   const [yoy, setYoy] = useState(false)
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
@@ -138,6 +146,7 @@ export default function CompetitiveIntel() {
                     </td>
                   </tr>
                   {comps.map((c) => {
+                    const tourId = /cuthbert/i.test(c.name) ? 'comp-cuthbert' : undefined
                     const refBadge = c.reference ? (
                       <span title={c.reference_tooltip}
                         className={`ml-1 text-[9px] not-italic font-semibold px-1.5 py-0.5 rounded-full border ${
@@ -147,7 +156,7 @@ export default function CompetitiveIntel() {
                     ) : null
                     if (!c.available) {
                       return (
-                        <tr key={c.name} className="border-b border-gray-100 bg-gray-50 text-gray-300"
+                        <tr key={c.name} data-tour={tourId} className="border-b border-gray-100 bg-gray-50 text-gray-300"
                             title="This property does not offer a comparable room type">
                           <td className="sticky left-0 z-10 bg-gray-50 text-left py-2 pr-3 whitespace-nowrap italic">{c.name}{refBadge}</td>
                           {data.dates.map((_, i) => <td key={i} className="text-right px-2 italic">N/A</td>)}
@@ -156,7 +165,7 @@ export default function CompetitiveIntel() {
                     }
                     if (c.reference) {
                       return (
-                        <tr key={c.name} className="border-b border-gray-100 hover:bg-gray-50" title={c.reference_tooltip}>
+                        <tr key={c.name} data-tour={tourId} className="border-b border-gray-100 hover:bg-gray-50" title={c.reference_tooltip}>
                           <td className="sticky left-0 z-10 bg-white text-left py-2 pr-3 text-gray-500 whitespace-nowrap">{c.name}{refBadge}</td>
                           {c.rates.map((r, i) => <td key={i} className="text-right px-2 text-gray-400 italic">{usd(r)}</td>)}
                         </tr>
@@ -165,7 +174,7 @@ export default function CompetitiveIntel() {
                     if (c.partial) {
                       const tip = `Limited availability — not all units offer this view type${c.label ? ` (${c.label})` : ''}`
                       return (
-                        <tr key={c.name} className="border-b border-gray-100 hover:bg-amber-50/40" title={tip}>
+                        <tr key={c.name} data-tour={tourId} className="border-b border-gray-100 hover:bg-amber-50/40" title={tip}>
                           <td className="sticky left-0 z-10 bg-white text-left py-2 pr-3 text-navy whitespace-nowrap">
                             {c.name} <span className="text-amber-600 text-[10px] not-italic">⚠ {c.label}</span>
                           </td>
@@ -176,7 +185,7 @@ export default function CompetitiveIntel() {
                       )
                     }
                     return (
-                      <tr key={c.name} className="border-b border-gray-100 hover:bg-gray-50">
+                      <tr key={c.name} data-tour={tourId} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="sticky left-0 z-10 bg-white text-left py-2 pr-3 text-navy whitespace-nowrap">{c.name}</td>
                         {c.rates.map((r, i) => <td key={i} className="text-right px-2 text-gray-600">{usd(r)}</td>)}
                       </tr>

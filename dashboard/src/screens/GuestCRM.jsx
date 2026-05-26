@@ -45,7 +45,7 @@ export default function GuestCRM() {
         right={<LastUpdated at={lastUpdated} />}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div data-tour="crm-stats" className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <StatCard label="Total Guests" value={guests.length} sub="in database" accent />
         <StatCard label="VIP Guests" value={vip} sub="top-tier" />
         <StatCard label="Lapsed (6+ mo)" value={lapsed} sub="win-back targets" />

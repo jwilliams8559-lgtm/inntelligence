@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts'
@@ -18,7 +19,11 @@ const VIEW_DAYS = { week: 7, month: 30, quarter: 90, '6mo': 180 }
 
 export default function Events() {
   const { lastUpdated } = usePrices()
-  const [view, setView] = useState('month')
+  const [params] = useSearchParams()
+  const [view, setView] = useState(() => {
+    const v = params.get('view')
+    return VIEWS.some((x) => x.value === v) ? v : 'month'
+  })
   const [yoy, setYoy] = useState(false)
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
@@ -54,7 +59,7 @@ export default function Events() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <StatCard label="Events in Window" value={data.event_count} sub={`${days} days`} accent />
         <StatCard label="Total Revenue Lift" value={usd(data.total_lift)} sub="from event pricing" />
-        <StatCard label="Biggest Impact" value={peak ? `+${peak.impact_pct}%` : '—'} sub={peak?.event || ''} />
+        <div data-tour="events-peak"><StatCard label="Biggest Impact" value={peak ? `+${peak.impact_pct}%` : '—'} sub={peak?.event || ''} /></div>
         <StatCard label="Next Event" value={events[0]?.display || '—'} sub={events[0] ? `${events[0].days_away}d away` : ''} />
       </div>
 

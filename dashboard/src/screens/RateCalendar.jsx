@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts'
@@ -28,7 +29,12 @@ const fmtFull = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('en-US',
 
 export default function RateCalendar() {
   const { lastUpdated } = usePrices()
-  const [days, setDays] = useState(14)
+  const [params] = useSearchParams()
+  const focus = params.get('focus')
+  const [days, setDays] = useState(() => {
+    const d = Number(params.get('days'))
+    return RANGES.some((r) => r.value === d) ? d : 14
+  })
   const [cat, setCat] = useState('all')
   const [yoy, setYoy] = useState(false)
   const [data, setData] = useState(null)
@@ -37,6 +43,8 @@ export default function RateCalendar() {
   const [detail, setDetail] = useState(null)
   const [detailErr, setDetailErr] = useState(null)
   const [decisions, setDecisions] = useState({}) // key -> {action:'accepted'|'override', rate}
+  const [published, setPublished] = useState(null) // {count} after Approve All
+  const focusedRef = useRef(false)
 
   useEffect(() => {
     let live = true
@@ -44,6 +52,25 @@ export default function RateCalendar() {
     getRateCalendar(days).then((d) => live && setData(d)).catch((e) => live && setErr(e.message))
     return () => { live = false }
   }, [days])
+
+  // Demo deep-link: ?focus=peak auto-opens the highest-rate event-night cell so
+  // the guided tour can land directly on a real recommendation drawer.
+  useEffect(() => {
+    if (focus !== 'peak') { focusedRef.current = false; return }
+    if (!data || focusedRef.current) return
+    const cells = data.rooms.flatMap((r) => r.days.map((d) => ({
+      roomId: r.room_id, roomName: r.room_name, date: d.date, rate: d.rate,
+      event: !!(d.active_events && d.active_events.length),
+      wf: (d.active_events || []).some((e) => /water festival/i.test(e)),
+    })))
+    // Prefer a Water Festival cell (keeps the guided story coherent), then any
+    // event night, then the overall top rate — always a real recommendation.
+    const wfCells = cells.filter((c) => c.wf)
+    const eventCells = cells.filter((c) => c.event)
+    const pool = wfCells.length ? wfCells : eventCells.length ? eventCells : cells
+    const best = pool.reduce((m, c) => (c.rate > (m?.rate ?? -1) ? c : m), null)
+    if (best) { focusedRef.current = true; setSel({ roomId: best.roomId, roomName: best.roomName, date: best.date }) }
+  }, [focus, data])
 
   useEffect(() => {
     if (!sel) return
@@ -88,6 +115,26 @@ export default function RateCalendar() {
   const cellTone = (s) => s === 'premium' ? 'bg-emerald-50 text-emerald-800'
     : s === 'discount' ? 'bg-rose-50 text-rose-700' : 'text-navy'
 
+  // Data-driven peak-event alert (e.g. Beaufort Water Festival) — only shows
+  // when the loaded calendar actually contains the event nights.
+  const allDays = data.rooms.flatMap((r) => r.days)
+  const wfDates = [...new Set(
+    allDays.filter((d) => (d.active_events || []).some((e) => /water festival/i.test(e)))
+      .map((d) => d.date)
+  )].sort()
+  const wf = wfDates.length
+    ? { start: wfDates[0], end: wfDates[wfDates.length - 1], nights: wfDates.length }
+    : null
+
+  const recCount = data.rooms.reduce((n, r) => n + r.days.length, 0)
+  const OTAS = ['Booking.com', 'Expedia', 'Airbnb', 'VRBO', 'Hotels.com', 'Trip.com', 'Agoda']
+  const onApproveAll = () => {
+    const next = {}
+    data.rooms.forEach((r) => r.days.forEach((d) => { next[`${r.room_id}|${d.date}`] = { action: 'accepted', rate: d.rate } }))
+    setDecisions(next)
+    setPublished({ count: recCount })
+  }
+
   return (
     <div>
       <ScreenHeader
@@ -95,6 +142,19 @@ export default function RateCalendar() {
         subtitle={`${data.property_name} · AI-recommended nightly rates, every room, every day`}
         right={<div className="flex items-center gap-2 flex-wrap"><YoYToggle on={yoy} onChange={setYoy} /><ExportButton onClick={onExport} /><LastUpdated at={lastUpdated} /></div>}
       />
+
+      {wf && (
+        <div data-tour="wf-banner"
+          className="mb-4 rounded-xl border border-gold/50 bg-gradient-to-r from-gold/15 to-gold/5 px-4 py-3 flex items-center gap-3">
+          <span className="text-2xl" aria-hidden>🌊</span>
+          <div className="min-w-0">
+            <div className="font-bold text-navy">Beaufort Water Festival — peak demand detected</div>
+            <div className="text-xs text-gray-600">
+              {fmtDay(wf.start)}–{fmtDay(wf.end)} · {wf.nights} event nights · rates adjusted automatically across all rooms
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
         <Segmented options={catOptions} value={cat} onChange={setCat} />
@@ -125,6 +185,19 @@ export default function RateCalendar() {
           </AreaChart>
         </ResponsiveContainer>
       </Card>
+
+      <div className="mb-4 rounded-xl border border-navy/15 bg-navy text-white px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="font-bold">{recCount} rate recommendations ready</div>
+          <div className="text-xs text-white/60">Publish to {OTAS.length} channels at once — {OTAS.join(', ')}</div>
+        </div>
+        <button
+          data-tour="approve-all" onClick={onApproveAll}
+          className="px-5 py-2.5 rounded-lg bg-gold text-navy font-bold text-sm hover:bg-gold-light transition-colors shrink-0"
+        >
+          ✓ Approve All & Publish
+        </button>
+      </div>
 
       <Card title="Rate Grid — click any cell for pricing detail">
         <div className="overflow-x-auto">
@@ -188,6 +261,26 @@ export default function RateCalendar() {
           onOverride={(rate) => setDecisions((m) => ({ ...m, [`${sel.roomId}|${sel.date}`]: { action: 'override', rate } }))}
         />
       )}
+
+      {published && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={() => setPublished(null)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="text-4xl mb-2">✅</div>
+            <div className="text-xl font-extrabold text-navy">{published.count} rates approved &amp; publishing</div>
+            <p className="text-sm text-gray-600 mt-1">Your recommended rates are going live across every connected channel simultaneously.</p>
+            <div className="grid grid-cols-2 gap-2 mt-4 text-left">
+              {OTAS.map((o) => (
+                <div key={o} className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-800">
+                  <span>✓</span><span className="font-medium">{o}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setPublished(null)}
+              className="mt-5 w-full bg-navy text-white font-semibold py-2.5 rounded-lg hover:bg-navy-light transition-colors">Done</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -199,7 +292,7 @@ function DetailPanel({ sel, detail, detailErr, yoy, decision, onClose, onAccept,
   return (
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30" />
-      <div className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div data-tour="rate-drawer" className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="bg-navy text-white px-5 py-4 flex items-start justify-between sticky top-0">
           <div>
             <div className="font-bold text-lg">{sel.roomName}</div>

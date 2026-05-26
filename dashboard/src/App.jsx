@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { PriceProvider } from './context/PriceContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -18,13 +19,18 @@ import Reputation from './screens/Reputation'
 import RevenueIntelligence from './screens/RevenueIntelligence'
 import GuestCRM from './screens/GuestCRM'
 import GiftShop from './screens/GiftShop'
-import Tour from './screens/Tour'
 import PrivateEvents from './screens/PrivateEvents'
 import Weddings from './screens/Weddings'
 import ManagementConsole from './screens/ManagementConsole'
 import Login from './screens/Login'
 import Onboarding from './screens/Onboarding'
 import Pricing from './screens/Pricing'
+
+function DemoEntry() {
+  const { startDemo } = useAuth()
+  useEffect(() => { startDemo() }, [startDemo])
+  return <Navigate to="/rate-calendar?days=90" replace />
+}
 
 const BUILT = {
   '/rate-calendar': RateCalendar,
@@ -86,7 +92,8 @@ function AppRoutes() {
       {/* Public — no auth, no dashboard chrome */}
       <Route path="/login" element={<Login />} />
       <Route path="/pricing" element={<Pricing />} />
-      <Route path="/tour" element={<Tour />} />
+      <Route path="/demo" element={<DemoEntry />} />
+      <Route path="/tour" element={<Navigate to="/demo" replace />} />
       <Route path="/onboarding" element={<OnboardingRoute />} />
 
       {/* Authenticated dashboard */}
