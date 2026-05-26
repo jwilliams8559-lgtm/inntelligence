@@ -1,16 +1,20 @@
-# Single Railway service that builds BOTH the Python backend and the React
-# frontend. We use `uv` (a standalone, pip-free installer) because the Nix
-# python311 package ships without a usable pip/ensurepip — `python -m pip`
-# fails with "No module named pip". `uv pip install --system` installs the
-# requirements straight into the Nix Python environment.
+# Builds the Python backend + React frontend in one Railway service.
+#
+# The Nix python311 is "externally managed" (immutable /nix/store) and ships
+# without a usable pip — so we install into a real virtual environment at
+# /app/venv. We create and populate that venv with `uv` (already working in
+# this build; its own error message recommends `uv venv`), which sidesteps both
+# the PEP-668 externally-managed error and the missing-pip problem. gunicorn is
+# then run from the venv at runtime.
 [phases.setup]
 nixPkgs = ["python311", "uv", "nodejs_20"]
 
 [phases.install]
 cmds = [
-  "uv pip install --system -r requirements.txt",
+  "uv venv /app/venv",
+  "uv pip install --python /app/venv/bin/python -r requirements.txt",
   "cd dashboard && npm install && npm run build"
 ]
 
 [start]
-cmd = "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
+cmd = "/app/venv/bin/gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
