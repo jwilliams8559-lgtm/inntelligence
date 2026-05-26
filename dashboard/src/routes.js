@@ -14,4 +14,5 @@ export const SCREENS = [
   { path: '/events',              name: 'Events',              icon: '🎉' },
   { path: '/private-events',      name: 'Private Events',      icon: '💒' },
   { path: '/weddings',            name: 'Weddings',            icon: '💍' },
+  { path: '/demo',                name: 'Live Demo',           icon: '🎬', highlight: true },
 ]

@@ -113,3 +113,6 @@ export function getCompetitive(tier = 'average', days = 14) {
 export function getEventsDetail(days = 90) {
   return _get(`/api/events?days=${days}`)
 }
+export function getPrivateEvents() {
+  return _get('/api/private-events')
+}

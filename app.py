@@ -619,6 +619,61 @@ def api_competitive():
     })
 
 
+@app.route("/api/private-events")
+def api_private_events():
+    """Private-events inquiries + revenue metrics (Private Events screen).
+    Seed data is realistic and static so the screen works independently."""
+    prop = _resolve_property()
+    meta = PROPERTIES[prop]
+    return jsonify({
+        "property_name": meta["name"],
+        "inquiries": [
+            {"id": "pe1", "name": "Sarah & James Thompson", "type": "Wedding",
+             "date": "2026-08-23", "guests": 45, "status": "Negotiating",
+             "quoted_value": 22500, "days_out": 90, "conflict": None,
+             "notes": "Wants rooftop cocktail hour; comparing with one other venue."},
+            {"id": "pe2", "name": "Beaufort Medical Group", "type": "Corporate Retreat",
+             "date": "2026-06-15", "guests": 12, "status": "Confirmed",
+             "quoted_value": 6800, "days_out": 21, "conflict": None,
+             "notes": "Annual leadership offsite. AV confirmed."},
+            {"id": "pe3", "name": "Emily & Robert Chen", "type": "Wedding",
+             "date": "2026-10-10", "guests": 30, "status": "New",
+             "quoted_value": None, "days_out": 138, "conflict": None,
+             "notes": "Inquiry via website. Not yet quoted."},
+            {"id": "pe4", "name": "Marcus & Diana Williams", "type": "Anniversary Buyout",
+             "date": "2026-07-19", "guests": 8, "status": "Quoted",
+             "quoted_value": 4200, "days_out": 55, "conflict": "Beaufort Water Festival",
+             "notes": "July 19 falls during Water Festival — individual bookings may exceed buyout value."},
+            {"id": "pe5", "name": "Lowcountry Realty Group", "type": "Executive Meeting",
+             "date": "2026-06-05", "guests": 8, "status": "Confirmed",
+             "quoted_value": 1200, "days_out": 11, "conflict": None,
+             "notes": "Half-day meeting + working lunch."},
+        ],
+        "metrics": {
+            "this_year_revenue": 47200,
+            "last_year_revenue": 31500,
+            "yoy_growth_pct": 49.8,
+            "avg_package_value": 15733,
+            "conversion_rate_pct": 62,
+            "avg_lead_time_days": 94,
+        },
+        "event_type_breakdown": [
+            {"type": "Weddings", "revenue": 31200, "pct": 66},
+            {"type": "Corporate Retreats", "revenue": 10200, "pct": 22},
+            {"type": "Anniversary Buyouts", "revenue": 5800, "pct": 12},
+        ],
+        "blackout_dates": [
+            {"window": "Jul 17–27", "event": "Beaufort Water Festival", "individual_revenue": 19800},
+            {"window": "May 23–26", "event": "Original Gullah Festival", "individual_revenue": 14200},
+            {"window": "Sep 19–21", "event": "Beaufort Shrimp Festival", "individual_revenue": 11400},
+        ],
+        "projections": [
+            {"label": "2 weddings/month @ $18,000 avg", "annual": 432000},
+            {"label": "4 corporate retreats/month @ $4,500 avg", "annual": 216000},
+        ],
+    })
+
+
 @app.route("/api/events")
 def api_events():
     """Demand events within a horizon, each with revenue lift, recommended

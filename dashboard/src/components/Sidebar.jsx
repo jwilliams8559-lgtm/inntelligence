@@ -22,9 +22,25 @@ export default function Sidebar() {
           <span aria-hidden>🏠</span> Home
         </NavLink>
         {SCREENS.map((s) => (
-          <NavLink key={s.path} to={s.path} className={itemClass}>
-            <span aria-hidden>{s.icon}</span> {s.name}
-          </NavLink>
+          s.highlight ? (
+            <NavLink
+              key={s.path}
+              to={s.path}
+              className={({ isActive }) =>
+                `${linkBase} mt-2 font-semibold border ${
+                  isActive
+                    ? 'bg-gold text-navy border-gold'
+                    : 'bg-gold/15 text-gold border-gold/50 hover:bg-gold/25'
+                }`
+              }
+            >
+              <span aria-hidden>{s.icon}</span> {s.name}
+            </NavLink>
+          ) : (
+            <NavLink key={s.path} to={s.path} className={itemClass}>
+              <span aria-hidden>{s.icon}</span> {s.name}
+            </NavLink>
+          )
         ))}
       </nav>
     </aside>
