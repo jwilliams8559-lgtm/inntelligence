@@ -11,10 +11,10 @@ from datetime import date
 from typing import Any
 
 SUBSCRIPTION_COST = {
-    "essentials":   399,
+    "starter":      399,
     "professional": 699,
-    "portfolio":   1199,
-    "enterprise":  2400,
+    "enterprise":  1200,
+    "premium":     2400,
 }
 
 

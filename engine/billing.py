@@ -62,13 +62,15 @@ _PLAN_CATALOG = {
         "name":        "Founding Member",
         "lookup_key":  "tgc_founding_member",
         "amount_cents": 0,
+        # After the 6-month free period the subscription rolls to Professional.
+        "rollover_amount_cents": 699_00,
         "currency":    "usd",
         "interval":    "month",
-        "description": "Professional tier free for 6 months in exchange for "
-                       "data access and a testimonial.",
+        "description": "Professional tier free for 6 months, then $699/month — "
+                       "in exchange for data access and a testimonial.",
         "features": [
             "Everything in Professional",
-            "6 months free",
+            "6 months free, then $699/month",
             "Direct line to founding team",
             "First in line for advisory hours",
         ],
@@ -76,7 +78,7 @@ _PLAN_CATALOG = {
     "starter": {
         "name":        "Starter",
         "lookup_key":  "tgc_starter_monthly",
-        "amount_cents": 1200_00,
+        "amount_cents": 399_00,
         "currency":    "usd",
         "interval":    "month",
         "description": "Rate recommendations, dashboard, 1 PMS, email support.",
@@ -90,7 +92,7 @@ _PLAN_CATALOG = {
     "professional": {
         "name":        "Professional",
         "lookup_key":  "tgc_professional_monthly",
-        "amount_cents": 2400_00,
+        "amount_cents": 699_00,
         "currency":    "usd",
         "interval":    "month",
         "description": "All Starter plus autopilot, competitor intel, guest CRM, "
@@ -106,7 +108,7 @@ _PLAN_CATALOG = {
     "enterprise": {
         "name":        "Enterprise",
         "lookup_key":  "tgc_enterprise_monthly",
-        "amount_cents": 3600_00,
+        "amount_cents": 1200_00,
         "currency":    "usd",
         "interval":    "month",
         "description": "All Professional plus multi-property console, dedicated "
@@ -117,6 +119,22 @@ _PLAN_CATALOG = {
             "Dedicated onboarding specialist",
             "2 advisory hours / month with Jim Williams",
             "Custom integrations (Mews, Little Hotelier, ThinkReservations)",
+        ],
+    },
+    "premium": {
+        "name":        "Premium",
+        "lookup_key":  "tgc_premium_monthly",
+        "amount_cents": 2400_00,
+        "currency":    "usd",
+        "interval":    "month",
+        "description": "All Enterprise plus white-label, priority support, and a "
+                       "dedicated account manager for portfolios.",
+        "features": [
+            "Everything in Enterprise",
+            "White-label option",
+            "Priority support · same-day response",
+            "Dedicated account manager",
+            "Up to 5 properties",
         ],
     },
 }
