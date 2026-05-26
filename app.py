@@ -748,6 +748,344 @@ def api_tour_audio(step_id: str):
     return send_file(path, mimetype="audio/mpeg", conditional=True)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  Authentication, tenant provisioning, onboarding (Supabase Auth + SendGrid)
+#  All Supabase access is server-side via REST. Frontend talks only to /api/auth/*.
+# ─────────────────────────────────────────────────────────────────────────────
+_SUPABASE_URL     = os.getenv("SUPABASE_URL", "").rstrip("/")
+_SUPABASE_ANON    = os.getenv("SUPABASE_ANON_KEY", "")
+_SUPABASE_SERVICE = os.getenv("SUPABASE_SERVICE_KEY", "")
+_SENDGRID_KEY     = os.getenv("SENDGRID_API_KEY", "")
+_APP_PUBLIC_URL   = os.getenv("APP_PUBLIC_URL", "https://app.inntelligence.app")
+_CALENDLY_URL     = os.getenv("CALENDLY_URL", "https://calendly.com/inntelligence/onboarding")
+_FROM_EMAIL       = os.getenv("WELCOME_FROM_EMAIL", "jim@graciouscollection.com")
+# These accounts are always treated as platform admins regardless of JWT claims.
+_ADMIN_EMAILS     = {"jwilliams8559@gmail.com", "jim@graciouscollection.com"}
+
+
+def _auth_configured() -> bool:
+    return bool(_SUPABASE_URL and _SUPABASE_ANON)
+
+
+def _bearer_token() -> str:
+    h = request.headers.get("Authorization", "")
+    if h.startswith("Bearer "):
+        return h[7:]
+    return request.cookies.get("inn_token", "")
+
+
+def _sb_user(token: str) -> Optional[dict]:
+    """Validate a token by asking Supabase for the user it belongs to."""
+    if not (token and _auth_configured()):
+        return None
+    try:
+        import requests
+        r = requests.get(f"{_SUPABASE_URL}/auth/v1/user",
+                         headers={"apikey": _SUPABASE_ANON, "Authorization": f"Bearer {token}"},
+                         timeout=15)
+        return r.json() if r.ok else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _role_and_tenant(user: Optional[dict]) -> tuple[str, Optional[str]]:
+    """Extract role + tenant_id from the JWT hook claims (app_metadata first,
+    then user_metadata). Admin email allowlist always wins."""
+    user = user or {}
+    app_md = user.get("app_metadata") or {}
+    usr_md = user.get("user_metadata") or {}
+    email = (user.get("email") or "").lower()
+    role = app_md.get("role") or usr_md.get("role") or "inn_owner"
+    tenant_id = app_md.get("tenant_id") or usr_md.get("tenant_id")
+    if email in _ADMIN_EMAILS:
+        role = "tgc_admin"
+    return role, tenant_id
+
+
+def _tenant_context(tenant_id: Optional[str], user: Optional[dict]) -> dict:
+    """Best-effort property/plan/status. Reads user metadata, then a tenants
+    table if present. Never raises — returns sensible defaults."""
+    usr_md = (user or {}).get("user_metadata") or {}
+    app_md = (user or {}).get("app_metadata") or {}
+    ctx = {
+        "property_name": usr_md.get("property_name") or app_md.get("property_name") or "",
+        "plan_tier": app_md.get("plan_tier") or usr_md.get("plan_tier") or "professional",
+        "owner_name": usr_md.get("owner_name") or "",
+        "pending_onboarding": bool(app_md.get("pending_onboarding", False)),
+    }
+    if tenant_id and _SUPABASE_SERVICE:
+        try:
+            import requests
+            r = requests.get(f"{_SUPABASE_URL}/rest/v1/tenants",
+                             headers={"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}"},
+                             params={"id": f"eq.{tenant_id}", "select": "*"}, timeout=15)
+            rows = r.json() if r.ok else []
+            if rows:
+                t = rows[0]
+                ctx["property_name"] = t.get("property_name") or t.get("name") or ctx["property_name"]
+                ctx["plan_tier"] = t.get("plan_tier") or ctx["plan_tier"]
+                if "pending_onboarding" in t:
+                    ctx["pending_onboarding"] = bool(t["pending_onboarding"])
+                elif t.get("status"):
+                    ctx["pending_onboarding"] = t["status"] == "pending_onboarding"
+        except Exception:  # noqa: BLE001
+            pass
+    return ctx
+
+
+def _require_admin() -> tuple[Optional[dict], Optional[tuple]]:
+    """Returns (user, None) if caller is tgc_admin, else (None, error_response)."""
+    if not _auth_configured():
+        return None, (jsonify({"error": "Auth not configured"}), 503)
+    user = _sb_user(_bearer_token())
+    if not user:
+        return None, (jsonify({"error": "Unauthorized"}), 401)
+    role, _ = _role_and_tenant(user)
+    if role != "tgc_admin":
+        return None, (jsonify({"error": "Admin access required"}), 403)
+    return user, None
+
+
+def _send_welcome_email(to_email: str, owner_name: str, temp_password: str, property_name: str) -> bool:
+    """Send the founding-member/welcome email via SendGrid REST. No-op (logged)
+    when SENDGRID_API_KEY isn't set."""
+    if not _SENDGRID_KEY:
+        logger.info("Welcome email skipped (no SENDGRID_API_KEY) for %s", to_email)
+        return False
+    login_url = f"{_APP_PUBLIC_URL}/login"
+    first = (owner_name or "there").split()[0]
+    text = (
+        f"Dear {first},\n\n"
+        f"Welcome to INNtelligence — your account for {property_name} is ready.\n\n"
+        f"Sign in:  {login_url}\n"
+        f"Email:    {to_email}\n"
+        f"Temporary password:  {temp_password}\n\n"
+        f"Please change your password after your first sign-in.\n\n"
+        f"Schedule your onboarding call: {_CALENDLY_URL}\n\n"
+        f"Before the call, please have ready:\n"
+        f"  - Your PMS login (ResNexus or Cloudbeds)\n"
+        f"  - A list of your main competitors\n"
+        f"  - Your base rate for each room type\n\n"
+        f"Looking forward to getting you live.\n\n"
+        f"Jim Williams\nINNtelligence by The Gracious Collection\n{_FROM_EMAIL}"
+    )
+    try:
+        import requests
+        r = requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {_SENDGRID_KEY}", "Content-Type": "application/json"},
+            json={
+                "personalizations": [{"to": [{"email": to_email}]}],
+                "from": {"email": _FROM_EMAIL, "name": "Jim Williams · INNtelligence"},
+                "subject": "Welcome to INNtelligence — Your account is ready",
+                "content": [{"type": "text/plain", "value": text}],
+            },
+            timeout=20,
+        )
+        if not r.ok:
+            logger.warning("SendGrid failed %s: %s", r.status_code, r.text[:200])
+        return r.ok
+    except Exception as e:  # noqa: BLE001
+        logger.warning("SendGrid error: %s", e)
+        return False
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def api_auth_login():
+    if not _auth_configured():
+        return jsonify({"error": "Authentication is not configured on this server."}), 503
+    d = request.get_json(force=True) or {}
+    email, password = d.get("email", ""), d.get("password", "")
+    try:
+        import requests
+        r = requests.post(f"{_SUPABASE_URL}/auth/v1/token?grant_type=password",
+                          headers={"apikey": _SUPABASE_ANON, "Content-Type": "application/json"},
+                          json={"email": email, "password": password}, timeout=15)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"Auth service unavailable: {e}"}), 502
+    if not r.ok:
+        return jsonify({"error": "Invalid email or password."}), 401
+    j = r.json()
+    user = j.get("user") or {}
+    role, tenant_id = _role_and_tenant(user)
+    ctx = _tenant_context(tenant_id, user)
+    return jsonify({
+        "access_token": j.get("access_token"),
+        "refresh_token": j.get("refresh_token"),
+        "user": {"id": user.get("id"), "email": user.get("email")},
+        "tenant_id": tenant_id, "role": role, **ctx,
+    })
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def api_auth_logout():
+    token = _bearer_token()
+    if token and _auth_configured():
+        try:
+            import requests
+            requests.post(f"{_SUPABASE_URL}/auth/v1/logout",
+                          headers={"apikey": _SUPABASE_ANON, "Authorization": f"Bearer {token}"}, timeout=10)
+        except Exception:  # noqa: BLE001
+            pass
+    resp = make_response(jsonify({"ok": True}))
+    resp.delete_cookie("inn_token")
+    return resp
+
+
+@app.route("/api/auth/me")
+def api_auth_me():
+    if not _auth_configured():
+        # Open mode — no Supabase configured (local/demo). Frontend stays usable.
+        return jsonify({"authenticated": False, "auth_configured": False})
+    user = _sb_user(_bearer_token())
+    if not user:
+        return jsonify({"authenticated": False, "auth_configured": True})
+    role, tenant_id = _role_and_tenant(user)
+    ctx = _tenant_context(tenant_id, user)
+    return jsonify({
+        "authenticated": True, "auth_configured": True,
+        "user_id": user.get("id"), "email": user.get("email"),
+        "tenant_id": tenant_id, "role": role, **ctx,
+    })
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+def api_auth_reset_password():
+    d = request.get_json(force=True) or {}
+    email = d.get("email", "")
+    if email and _auth_configured():
+        try:
+            import requests
+            requests.post(f"{_SUPABASE_URL}/auth/v1/recover",
+                          headers={"apikey": _SUPABASE_ANON, "Content-Type": "application/json"},
+                          json={"email": email}, timeout=15)
+        except Exception:  # noqa: BLE001
+            pass
+    # Always 200 — never reveal whether the email exists.
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/provision-tenant", methods=["POST"])
+def api_admin_provision_tenant():
+    _user, err = _require_admin()
+    if err:
+        return err
+    if not _SUPABASE_SERVICE:
+        return jsonify({"error": "SUPABASE_SERVICE_KEY not configured"}), 503
+    import secrets as _secrets
+    import requests
+    d = request.get_json(force=True) or {}
+    email = d.get("owner_email", "")
+    if not email:
+        return jsonify({"error": "owner_email required"}), 400
+    temp_password = _secrets.token_urlsafe(9)
+    svc_hdr = {"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+               "Content-Type": "application/json"}
+    # 1) Create the Supabase auth user (email confirmed, pending onboarding).
+    try:
+        cr = requests.post(f"{_SUPABASE_URL}/auth/v1/admin/users", headers=svc_hdr, json={
+            "email": email, "password": temp_password, "email_confirm": True,
+            "user_metadata": {"property_name": d.get("property_name", ""), "owner_name": d.get("owner_name", "")},
+            "app_metadata": {"role": "inn_owner", "plan_tier": d.get("plan_tier", "professional"),
+                             "pending_onboarding": True},
+        }, timeout=20)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"User creation failed: {e}"}), 502
+    if not cr.ok:
+        return jsonify({"error": f"User creation failed: {cr.text[:200]}"}), 502
+    new_user = cr.json()
+    user_id = new_user.get("id")
+
+    # 2) Provision the tenant record (DB function if present, else insert).
+    tenant_id, property_id = None, None
+    try:
+        rpc = requests.post(f"{_SUPABASE_URL}/rest/v1/rpc/provision_tenant", headers=svc_hdr, json={
+            "p_property_name": d.get("property_name", ""), "p_owner_email": email,
+            "p_owner_name": d.get("owner_name", ""), "p_plan_tier": d.get("plan_tier", "professional"),
+            "p_address": d.get("address", ""), "p_city": d.get("city", ""), "p_state": d.get("state", ""),
+            "p_auth_user_id": user_id,
+        }, timeout=20)
+        if rpc.ok and rpc.text:
+            res = rpc.json()
+            res = res[0] if isinstance(res, list) and res else res
+            if isinstance(res, dict):
+                tenant_id = res.get("tenant_id") or res.get("id")
+                property_id = res.get("property_id")
+            elif isinstance(res, str):
+                tenant_id = res
+    except Exception as e:  # noqa: BLE001
+        logger.warning("provision_tenant RPC failed: %s", e)
+
+    # 3) Welcome email (best-effort).
+    emailed = _send_welcome_email(email, d.get("owner_name", ""), temp_password, d.get("property_name", ""))
+
+    return jsonify({
+        "tenant_id": tenant_id, "property_id": property_id,
+        "user_id": user_id, "temp_password": temp_password,
+        "welcome_email_sent": emailed,
+    })
+
+
+@app.route("/api/admin/tenants")
+def api_admin_tenants():
+    _user, err = _require_admin()
+    if err:
+        return err
+    if _SUPABASE_SERVICE:
+        try:
+            import requests
+            r = requests.get(f"{_SUPABASE_URL}/rest/v1/tenants",
+                             headers={"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}"},
+                             params={"select": "*"}, timeout=15)
+            if r.ok and r.json():
+                return jsonify({"tenants": r.json(), "source": "supabase"})
+        except Exception as e:  # noqa: BLE001
+            logger.warning("admin/tenants query failed: %s", e)
+    # Demo fallback so the console renders before the tenants table is populated.
+    return jsonify({"source": "demo", "tenants": [
+        {"name": "Bay Street Inn", "location": "Beaufort, SC", "plan_tier": "professional",
+         "last_login": "2026-05-25", "sync_status": "synced", "pending_count": 6},
+        {"name": "Cuthbert House Inn", "location": "Beaufort, SC", "plan_tier": "starter",
+         "last_login": "2026-05-24", "sync_status": "synced", "pending_count": 3},
+        {"name": "Palmetto Bluff Cottages", "location": "Bluffton, SC", "plan_tier": "premium",
+         "last_login": "2026-05-26", "sync_status": "syncing", "pending_count": 2},
+    ]})
+
+
+@app.route("/api/onboarding/complete", methods=["POST"])
+def api_onboarding_complete():
+    if not _auth_configured():
+        return jsonify({"success": True, "sync_status": "demo", "note": "auth not configured"})
+    token = _bearer_token()
+    user = _sb_user(token)
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    d = request.get_json(force=True) or {}
+    user_id = user.get("id")
+    # 1) Save PMS credentials (per-tenant JSON; flagged for real KMS encryption).
+    if d.get("pms_api_key"):
+        try:
+            os.makedirs(os.path.join(_BASE_DIR, "config", "pms_creds"), exist_ok=True)
+            with open(os.path.join(_BASE_DIR, "config", "pms_creds", f"{user_id}.json"), "w") as f:
+                json.dump({"pms_type": d.get("pms_type"), "api_key": d.get("pms_api_key"),
+                           "saved_at": datetime.now(timezone.utc).isoformat()}, f)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("PMS cred save failed: %s", e)
+    # 2) Trigger initial PMS sync — stub until PMS connectors are live.
+    sync_status = "queued" if d.get("pms_api_key") else "demo_data"
+    # 3) Mark the account active (clear pending_onboarding) via admin API.
+    if _SUPABASE_SERVICE and user_id:
+        try:
+            import requests
+            requests.put(f"{_SUPABASE_URL}/auth/v1/admin/users/{user_id}",
+                         headers={"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+                                  "Content-Type": "application/json"},
+                         json={"app_metadata": {"pending_onboarding": False, "status": "active"}}, timeout=15)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("activate account failed: %s", e)
+    return jsonify({"success": True, "sync_status": sync_status})
+
+
 @app.route("/api/private-events")
 def api_private_events():
     """Private-events inquiries + revenue metrics (Private Events screen).

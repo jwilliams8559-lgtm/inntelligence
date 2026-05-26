@@ -1,12 +1,11 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { PriceProvider } from './context/PriceContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import Layout from './components/Layout'
 import Home from './screens/Home'
 import ScreenPlaceholder from './screens/ScreenPlaceholder'
 import { SCREENS } from './routes'
 
-// Built screens (extended as each is implemented). Any path not here renders
-// the generic placeholder.
 import RateCalendar from './screens/RateCalendar'
 import CompetitiveIntel from './screens/CompetitiveIntel'
 import FnBYield from './screens/FnBYield'
@@ -40,35 +39,79 @@ const BUILT = {
   '/gap-night': RevenueIntelligence,
   '/guest-crm': GuestCRM,
   '/gift-shop': GiftShop,
-  '/tour': Tour,
   '/private-events': PrivateEvents,
   '/weddings': Weddings,
   '/management-console': ManagementConsole,
 }
+// Screens only tgc_admin may see.
+const ADMIN_ONLY = new Set(['/management-console'])
+
+function FullScreenSpinner() {
+  return (
+    <div className="h-screen flex items-center justify-center bg-navy text-gold">
+      <div className="w-10 h-10 border-4 border-gold border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+}
+
+// Gate for the authenticated dashboard. Open mode (no Supabase) lets everything
+// through so local/demo stays usable.
+function RequireAuth({ children }) {
+  const { loading, openMode, user } = useAuth()
+  if (loading) return <FullScreenSpinner />
+  if (openMode) return children
+  if (!user) return <Navigate to="/login" replace />
+  if (user.pending_onboarding) return <Navigate to="/onboarding" replace />
+  return children
+}
+
+function AdminRoute({ children }) {
+  const { openMode, role } = useAuth()
+  if (!openMode && role !== 'tgc_admin') return <Navigate to="/" replace />
+  return children
+}
+
+function OnboardingRoute() {
+  const { loading, openMode, user } = useAuth()
+  if (loading) return <FullScreenSpinner />
+  if (!openMode && !user) return <Navigate to="/login" replace />
+  return <Onboarding />
+}
+
+function AppRoutes() {
+  const { role, openMode } = useAuth()
+  const isAdmin = openMode || role === 'tgc_admin'
+  return (
+    <Routes>
+      {/* Public — no auth, no dashboard chrome */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/tour" element={<Tour />} />
+      <Route path="/onboarding" element={<OnboardingRoute />} />
+
+      {/* Authenticated dashboard */}
+      <Route element={<RequireAuth><Layout /></RequireAuth>}>
+        <Route index element={<Home />} />
+        {SCREENS.filter((s) => s.path !== '/tour').map((s) => {
+          const Comp = BUILT[s.path]
+          let el = Comp ? <Comp /> : <ScreenPlaceholder name={s.name} />
+          if (ADMIN_ONLY.has(s.path)) el = <AdminRoute>{el}</AdminRoute>
+          // Hide admin routes for non-admins by redirecting.
+          if (ADMIN_ONLY.has(s.path) && !isAdmin) el = <Navigate to="/" replace />
+          return <Route key={s.path} path={s.path} element={el} />
+        })}
+        <Route path="*" element={<ScreenPlaceholder name="Not Found" />} />
+      </Route>
+    </Routes>
+  )
+}
 
 export default function App() {
   return (
-    <PriceProvider>
-      <Routes>
-        {/* Full-screen routes (no dashboard chrome) */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/onboarding" element={<Onboarding />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route element={<Layout />}>
-          <Route index element={<Home />} />
-          {SCREENS.map((s) => {
-            const Comp = BUILT[s.path]
-            return (
-              <Route
-                key={s.path}
-                path={s.path}
-                element={Comp ? <Comp /> : <ScreenPlaceholder name={s.name} />}
-              />
-            )
-          })}
-          <Route path="*" element={<ScreenPlaceholder name="Not Found" />} />
-        </Route>
-      </Routes>
-    </PriceProvider>
+    <AuthProvider>
+      <PriceProvider>
+        <AppRoutes />
+      </PriceProvider>
+    </AuthProvider>
   )
 }

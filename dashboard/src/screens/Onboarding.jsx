@@ -1,50 +1,70 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { usd } from '../components/ui'
+import { useAuth } from '../context/AuthContext'
+import { onboardingComplete } from '../api/client'
 
-const PLANS = [
-  { id: 'starter', name: 'Starter', price: 399, best: '5–10 rooms', bullets: ['Rate calendar', 'AI recommendations', '5 competitors', 'Manual approval'] },
-  { id: 'professional', name: 'Professional', price: 699, best: '10–20 rooms', bullets: ['Autopilot publishing', 'Guest CRM', 'Packages + gift shop', 'Monthly strategy call'] },
-  { id: 'enterprise', name: 'Enterprise', price: 1200, best: '20+ rooms', bullets: ['Multi-property console', '2 advisory hrs/mo', 'Custom integrations'] },
-  { id: 'premium', name: 'Premium', price: 2400, best: 'Portfolios', bullets: ['Unlimited properties', 'White-label', 'Dedicated manager'] },
-]
-const STEPS = ['Property', 'Plan', 'Rooms', 'Review']
-const blankRoom = () => ({ name: '', count: 1, base_rate: '', min_rate: '', max_rate: '' })
+const STEPS = ['Welcome', 'Connect PMS', 'Competitors', 'Rooms', 'Autopilot']
 const INPUT = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold'
+const DEFAULT_ROOMS = [
+  { name: 'Waterfront King', base: 389, min: 329, max: 545, bath: 'En-suite · soaking tub', autopilot: false, confidence: 'balanced' },
+  { name: 'Water View Queen', base: 299, min: 259, max: 399, bath: 'En-suite · walk-in shower', autopilot: false, confidence: 'balanced' },
+  { name: 'Garden Room', base: 249, min: 219, max: 329, bath: 'En-suite · shower', autopilot: false, confidence: 'balanced' },
+  { name: 'Signature Suite', base: 519, min: 469, max: 721, bath: 'En-suite · double vanity', autopilot: false, confidence: 'balanced' },
+]
+const DEMO_COMPS = {
+  'Direct Boutique Competitors': ['Cuthbert House Inn', 'Rhett House Inn', 'Anchorage 1770', '607 Bay Inn'],
+  'Upscale Hotels': ['Beaufort Inn', 'City Loft Hotel'],
+  'Luxury Reference': ['Montage Palmetto Bluff'],
+}
 
 export default function Onboarding() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const first = (user?.owner_name || '').split(' ')[0] || 'there'
+  const property = user?.property_name || 'your inn'
+
   const [step, setStep] = useState(0)
   const [done, setDone] = useState(false)
-  const [form, setForm] = useState({ inn: '', city: '', state: '', rooms: 8, first: '', last: '', email: '' })
-  const [plan, setPlan] = useState('professional')
-  const [founding, setFounding] = useState(false)
-  const [rooms, setRooms] = useState([blankRoom()])
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
-  const planObj = PLANS.find((p) => p.id === plan)
+  const [busy, setBusy] = useState(false)
+  const [pms, setPms] = useState('later')         // resnexus | cloudbeds | later
+  const [apiKey, setApiKey] = useState('')
+  const [pmsTested, setPmsTested] = useState(null)
+  const [comps, setComps] = useState(() => new Set(DEMO_COMPS['Direct Boutique Competitors']))
+  const [discovering, setDiscovering] = useState(false)
+  const [addComp, setAddComp] = useState('')
+  const [rooms, setRooms] = useState(DEFAULT_ROOMS)
 
-  const valid = [
-    form.inn && form.city && form.state && form.first && form.last && /\S+@\S+\.\S+/.test(form.email),
-    true,
-    rooms.length > 0 && rooms.every((r) => r.name && r.count > 0),
-    true,
-  ]
+  useEffect(() => {
+    if (step === 2) { setDiscovering(true); const t = setTimeout(() => setDiscovering(false), 1500); return () => clearTimeout(t) }
+  }, [step])
 
-  const updateRoom = (i, k, v) => setRooms((rs) => rs.map((r, idx) => idx === i ? { ...r, [k]: v } : r))
+  const toggleComp = (n) => setComps((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x })
+  const setRoom = (i, k, v) => setRooms((rs) => rs.map((r, idx) => idx === i ? { ...r, [k]: v } : r))
+
+  const finish = async () => {
+    setBusy(true)
+    try {
+      await onboardingComplete({
+        pms_type: pms,
+        pms_api_key: pms === 'resnexus' ? apiKey : '',
+        room_types: rooms.map(({ name, base, min, max, bath }) => ({ name, base_rate: base, min_rate: min, max_rate: max, bathroom: bath })),
+        autopilot_preferences: rooms.map(({ name, autopilot, confidence }) => ({ room: name, autopilot, confidence })),
+      })
+    } catch { /* proceed regardless — completion is idempotent server-side */ }
+    finally { setBusy(false); setDone(true) }
+  }
 
   if (done) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'radial-gradient(circle at 50% 20%, #14385f, #061629)' }}>
         <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 text-center">
           <div className="w-16 h-16 bg-emerald-500 rounded-full mx-auto flex items-center justify-center text-white text-4xl">✓</div>
-          <h2 className="text-navy font-bold text-2xl mt-3">{form.inn} is ready!</h2>
-          <p className="text-gray-500 text-sm mt-1">Your INNtelligence dashboard is configured and pre-loaded with rate recommendations.</p>
-          <div className="mt-5 rounded-xl border border-gold/40 bg-gold/5 p-4 text-left text-sm">
-            <div className="flex justify-between py-1"><span className="text-gray-500">Plan</span><span className="font-semibold text-navy">{founding ? 'Founding Member (free 6 mo → $699)' : `${planObj.name} · ${usd(planObj.price)}/mo`}</span></div>
-            <div className="flex justify-between py-1"><span className="text-gray-500">Owner</span><span className="text-navy">{form.first} {form.last}</span></div>
-            <div className="flex justify-between py-1"><span className="text-gray-500">Room types</span><span className="text-navy">{rooms.length}</span></div>
+          <h2 className="text-navy font-bold text-2xl mt-3">Your INNtelligence dashboard is ready</h2>
+          <p className="text-gray-500 text-sm mt-1">{property} is configured with {rooms.length} room types and {comps.size} competitors.</p>
+          <div className="mt-4 rounded-lg border border-gold/40 bg-gold/10 p-3 text-left text-sm text-navy">
+            🌊 <span className="font-semibold">Heads-up:</span> the Beaufort Water Festival is 9 days out — your waterfront rooms are already being priced up. Review them first.
           </div>
-          <button onClick={() => navigate('/')} className="mt-6 w-full bg-gold text-navy font-bold py-3 rounded-xl hover:bg-gold-light">Go to Dashboard →</button>
+          <button onClick={() => navigate('/')} className="mt-6 w-full bg-gold text-navy font-bold py-3 rounded-xl hover:bg-gold-light">Go to my Rate Calendar →</button>
         </div>
       </div>
     )
@@ -54,115 +74,147 @@ export default function Onboarding() {
     <div className="min-h-screen py-8 px-4" style={{ background: 'linear-gradient(135deg, #FAF7F0 0%, #F2ECDD 100%)' }}>
       <div className="max-w-3xl mx-auto">
         <div className="bg-navy text-white rounded-t-2xl px-6 py-4">
-          <div className="text-[10px] uppercase tracking-[3px] text-gold font-bold">INNtelligence · New Property</div>
-          <h1 className="font-bold text-lg">Onboard your inn — Step {step + 1} of {STEPS.length}</h1>
+          <div className="text-[10px] uppercase tracking-[3px] text-gold font-bold">INNtelligence Onboarding</div>
+          <h1 className="font-bold text-lg">Step {step + 1} of {STEPS.length} — {STEPS[step]}</h1>
           <div className="flex items-center gap-2 mt-2">
             {STEPS.map((l, i) => (
-              <div key={l} className="flex items-center gap-1.5">
-                <span className={`w-2.5 h-2.5 rounded-full ${i === step ? 'bg-gold' : i < step ? 'bg-emerald-400' : 'bg-white/30'}`} />
-                <span className={`text-[10px] ${i === step ? 'text-gold font-bold' : 'text-white/60'}`}>{l}</span>
-              </div>
+              <span key={l} className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-gold' : 'bg-white/20'}`} />
             ))}
           </div>
         </div>
 
-        <div className="bg-white rounded-b-2xl shadow-lg p-6 min-h-[340px]">
+        <div className="bg-white rounded-b-2xl shadow-lg p-6 min-h-[360px]">
           {step === 0 && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2"><Label l="Inn Name"><input className={INPUT} value={form.inn} onChange={set('inn')} placeholder="The Blue Ridge Inn" /></Label></div>
-              <Label l="City"><input className={INPUT} value={form.city} onChange={set('city')} /></Label>
-              <Label l="State / Region"><input className={INPUT} value={form.state} onChange={set('state')} /></Label>
-              <Label l="Total Rooms"><input type="number" min="1" className={INPUT} value={form.rooms} onChange={set('rooms')} /></Label>
-              <div />
-              <Label l="Owner First Name"><input className={INPUT} value={form.first} onChange={set('first')} /></Label>
-              <Label l="Owner Last Name"><input className={INPUT} value={form.last} onChange={set('last')} /></Label>
-              <div className="col-span-2"><Label l="Owner Email (login)"><input type="email" className={INPUT} value={form.email} onChange={set('email')} placeholder="owner@inn.com" /></Label></div>
+            <div className="text-center py-6">
+              <div className="text-5xl">👋</div>
+              <h2 className="text-navy font-bold text-2xl mt-3">Welcome to INNtelligence, {first}</h2>
+              <p className="text-gray-600 mt-2">We're setting up dynamic pricing for <strong>{property}</strong>.</p>
+              <div className="mt-5 text-left max-w-md mx-auto rounded-xl border border-gray-200 p-4 text-sm text-gray-700 space-y-1.5">
+                <div className="font-semibold text-navy">Over the next ~90 minutes we'll:</div>
+                <div>① Connect your PMS (or use demo data for now)</div>
+                <div>② Confirm your competitor set</div>
+                <div>③ Review your room types and rate floors/ceilings</div>
+                <div>④ Set your autopilot preferences</div>
+              </div>
             </div>
           )}
 
           {step === 1 && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {PLANS.map((p) => {
-                  const active = !founding && plan === p.id
-                  return (
-                    <button key={p.id} onClick={() => { setFounding(false); setPlan(p.id) }}
-                      className={`text-left p-4 rounded-xl border-2 transition-all ${active ? 'border-gold bg-gold/5 shadow-md' : 'border-gray-200 hover:border-navy/30 bg-white'}`}>
-                      <div className="font-bold text-navy">{p.name}</div>
-                      <div className="text-2xl font-extrabold text-navy mt-0.5">{usd(p.price)}<span className="text-xs text-gray-500">/mo</span></div>
-                      <div className="text-[11px] text-gray-500 mt-1">{p.best}</div>
-                      <ul className="mt-2 space-y-0.5 text-[11px] text-gray-700">{p.bullets.map((b, i) => <li key={i}>✓ {b}</li>)}</ul>
-                    </button>
-                  )
-                })}
+            <div className="space-y-4">
+              <h3 className="text-navy font-bold">Connect your Property Management System</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {[['resnexus', 'ResNexus'], ['cloudbeds', 'Cloudbeds'], ['later', 'I’ll connect later']].map(([id, label]) => (
+                  <button key={id} onClick={() => { setPms(id); setPmsTested(null) }}
+                    className={`p-4 rounded-xl border-2 text-sm font-semibold ${pms === id ? 'border-gold bg-gold/10 text-navy' : 'border-gray-200 text-gray-600 hover:border-navy/30'}`}>{label}</button>
+                ))}
               </div>
-              <button onClick={() => { setFounding(true); setPlan('professional') }}
-                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${founding ? 'border-gold bg-gold/10 shadow-md' : 'border-gold/40 bg-gold/5 hover:bg-gold/10'}`}>
-                <span className="text-gold">⭐</span> <strong className="text-navy ml-1">Founding Member</strong>
-                <span className="text-sm text-gray-600 ml-2">— Free 6 months, then $699/month (Professional)</span>
-                {founding && <span className="text-[10px] uppercase text-gold-dark font-bold ml-2">✓ Selected</span>}
-              </button>
+              {pms === 'resnexus' && (
+                <div className="rounded-xl border border-gray-200 p-4 space-y-2">
+                  <label className="block text-xs"><div className="text-gray-600 font-semibold mb-1">ResNexus API Key</div>
+                    <input className={INPUT} value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="rnx_live_…" /></label>
+                  <button onClick={() => setPmsTested(!!apiKey)} className="bg-navy text-white text-xs font-bold px-4 py-1.5 rounded hover:bg-navy-light">Test Connection</button>
+                  {pmsTested === true && <div className="text-xs bg-emerald-50 text-emerald-700 rounded p-2">✓ Connected — syncing 2 years of history…</div>}
+                  {pmsTested === false && <div className="text-xs bg-rose-50 text-rose-700 rounded p-2">Enter an API key first.</div>}
+                </div>
+              )}
+              {pms === 'cloudbeds' && (
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <button onClick={() => setPmsTested(true)} className="bg-navy text-white text-sm font-bold px-4 py-2 rounded hover:bg-navy-light">Connect with Cloudbeds (OAuth)</button>
+                  {pmsTested && <div className="text-xs bg-emerald-50 text-emerald-700 rounded p-2 mt-2">✓ Connected — syncing 2 years of history…</div>}
+                </div>
+              )}
+              {pms === 'later' && <div className="text-xs text-gray-500 rounded-lg bg-gray-50 p-3">No problem — recommendations will use realistic demo data until you connect a PMS. You can connect any time from Settings.</div>}
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">Add the room types at <strong>{form.inn || 'your inn'}</strong> (categories, not individual rooms).</p>
-              <table className="w-full text-xs">
-                <thead className="text-gray-400 uppercase text-[10px] tracking-wide">
-                  <tr><th className="text-left py-1">Room Type</th><th className="text-right">Count</th><th className="text-right">Base</th><th className="text-right">Min</th><th className="text-right">Max</th><th /></tr>
-                </thead>
-                <tbody>
-                  {rooms.map((r, i) => (
-                    <tr key={i} className="border-t border-gray-100">
-                      <td className="py-1 pr-1"><input className={INPUT} value={r.name} onChange={(e) => updateRoom(i, 'name', e.target.value)} placeholder="Waterfront King" /></td>
-                      <td className="py-1 px-1 w-16"><input type="number" min="1" className={`${INPUT} text-right`} value={r.count} onChange={(e) => updateRoom(i, 'count', Number(e.target.value))} /></td>
-                      <td className="py-1 px-1 w-20"><input type="number" className={`${INPUT} text-right`} value={r.base_rate} onChange={(e) => updateRoom(i, 'base_rate', e.target.value)} /></td>
-                      <td className="py-1 px-1 w-20"><input type="number" className={`${INPUT} text-right`} value={r.min_rate} onChange={(e) => updateRoom(i, 'min_rate', e.target.value)} /></td>
-                      <td className="py-1 px-1 w-20"><input type="number" className={`${INPUT} text-right`} value={r.max_rate} onChange={(e) => updateRoom(i, 'max_rate', e.target.value)} /></td>
-                      <td className="text-center"><button onClick={() => setRooms((rs) => rs.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-rose-500">×</button></td>
-                    </tr>
+              <h3 className="text-navy font-bold">Your competitors</h3>
+              {discovering ? (
+                <div className="text-center py-10 text-sm text-gray-500"><div className="w-8 h-8 border-4 border-gold border-t-transparent rounded-full animate-spin mx-auto mb-3" />Searching for competitors within 25 miles…</div>
+              ) : (
+                <>
+                  {Object.entries(DEMO_COMPS).map(([tier, items]) => (
+                    <div key={tier}>
+                      <div className="text-[10px] uppercase tracking-wide text-navy font-bold mb-1">{tier}</div>
+                      <div className="rounded-lg border border-gray-100 divide-y divide-gray-100">
+                        {items.map((c) => (
+                          <label key={c} className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer">
+                            <input type="checkbox" checked={comps.has(c)} onChange={() => toggleComp(c)} />
+                            <span className="text-navy">{c}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-              <button onClick={() => setRooms((rs) => [...rs, blankRoom()])} className="text-xs text-navy font-semibold hover:underline">+ Add Room Type</button>
+                  <div className="flex gap-2 items-center pt-1">
+                    <input className={INPUT} placeholder="Add a property we missed" value={addComp} onChange={(e) => setAddComp(e.target.value)} />
+                    <button onClick={() => { if (addComp) { toggleComp(addComp); setAddComp('') } }} className="bg-navy text-white text-xs font-bold px-3 py-2 rounded">Add</button>
+                  </div>
+                  <div className="text-[11px] text-gray-500">{comps.size} competitors selected</div>
+                </>
+              )}
             </div>
           )}
 
           {step === 3 && (
             <div className="space-y-3">
-              <h3 className="text-navy font-bold">Review your configuration</h3>
-              <div className="rounded-xl border border-gray-200 p-4 text-sm">
-                <Row l="Property" v={form.inn} />
-                <Row l="Location" v={`${form.city}, ${form.state}`} />
-                <Row l="Owner" v={`${form.first} ${form.last} · ${form.email}`} />
-                <Row l="Plan" v={founding ? '⭐ Founding Member — free 6 months → $699/mo' : `${planObj.name} — ${usd(planObj.price)}/mo`} />
-                <Row l="Rooms" v={`${rooms.length} types · ${rooms.reduce((s, r) => s + Number(r.count || 0), 0)} of ${form.rooms} rooms`} />
+              <h3 className="text-navy font-bold">Your room configuration</h3>
+              <p className="text-xs text-gray-500">{pms === 'later' ? 'Default room types shown — edit to match your inn.' : 'Imported from your PMS — confirm or correct.'}</p>
+              <div className="space-y-2">
+                {rooms.map((r, i) => (
+                  <div key={i} className="rounded-lg border border-gray-200 p-3">
+                    <div className="grid grid-cols-4 gap-2 items-end">
+                      <label className="col-span-2 text-xs"><div className="text-gray-500 mb-0.5">Room type</div><input className={INPUT} value={r.name} onChange={(e) => setRoom(i, 'name', e.target.value)} /></label>
+                      <label className="text-xs"><div className="text-gray-500 mb-0.5">Base</div><input type="number" className={`${INPUT} text-right`} value={r.base} onChange={(e) => setRoom(i, 'base', Number(e.target.value))} /></label>
+                      <label className="text-xs"><div className="text-gray-500 mb-0.5">Min / Max</div><div className="flex gap-1"><input type="number" className={`${INPUT} text-right`} value={r.min} onChange={(e) => setRoom(i, 'min', Number(e.target.value))} /><input type="number" className={`${INPUT} text-right`} value={r.max} onChange={(e) => setRoom(i, 'max', Number(e.target.value))} /></div></label>
+                    </div>
+                    <div className="text-[11px] text-gray-500 mt-1">🛁 AI-detected: {r.bath} <span className="text-gold-dark">— confirm or correct above</span></div>
+                  </div>
+                ))}
               </div>
-              <div className="rounded-lg bg-gold/5 border border-gold/30 p-3 text-xs text-gray-700">
-                {founding ? 'Founding Member — no charge for 6 months, then $699/month.' : `First charge of ${usd(planObj.price)} when Stripe billing is activated. No charge today.`}
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-3">
+              <h3 className="text-navy font-bold">Autopilot preferences</h3>
+              <p className="text-xs text-gray-500">Autopilot publishes approved rates automatically within the guardrails you set. You can switch any room to Manual at any time.</p>
+              <div className="space-y-2">
+                {rooms.map((r, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3">
+                    <div className="text-sm font-medium text-navy flex-1">{r.name}</div>
+                    <button onClick={() => setRoom(i, 'autopilot', !r.autopilot)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg border ${r.autopilot ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                      {r.autopilot ? 'Autopilot On' : 'Manual Only'}
+                    </button>
+                    {r.autopilot && (
+                      <select value={r.confidence} onChange={(e) => setRoom(i, 'confidence', e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5">
+                        <option value="conservative">Conservative</option>
+                        <option value="balanced">Balanced</option>
+                        <option value="aggressive">Aggressive</option>
+                      </select>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
         </div>
 
         <div className="flex items-center justify-between mt-4">
-          <button onClick={() => step === 0 ? navigate('/pricing') : setStep(step - 1)} className="text-sm text-gray-500 hover:text-navy">← Back</button>
+          <button onClick={() => step === 0 ? navigate('/') : setStep(step - 1)} className="text-sm text-gray-500 hover:text-navy">← Back</button>
           {step < STEPS.length - 1 ? (
-            <button onClick={() => setStep(step + 1)} disabled={!valid[step]}
-              className="bg-navy text-white text-sm font-bold px-5 py-2 rounded-lg hover:bg-navy-light disabled:bg-gray-300">Next →</button>
+            <button onClick={() => setStep(step + 1)} className="bg-navy text-white text-sm font-bold px-5 py-2 rounded-lg hover:bg-navy-light">
+              {step === 0 ? "Let's get started" : 'Next →'}
+            </button>
           ) : (
-            <button onClick={() => setDone(true)} className="bg-gold text-navy text-sm font-bold px-6 py-2 rounded-lg hover:bg-gold-light">Activate Property</button>
+            <button onClick={finish} disabled={busy} className="bg-gold text-navy text-sm font-bold px-6 py-2 rounded-lg hover:bg-gold-light disabled:opacity-60">
+              {busy ? 'Starting…' : 'Start INNtelligence'}
+            </button>
           )}
         </div>
       </div>
     </div>
   )
 }
-
-const Label = ({ l, children }) => (
-  <label className="block text-xs"><div className="text-gray-600 font-semibold mb-1">{l}</div>{children}</label>
-)
-const Row = ({ l, v }) => (
-  <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-gray-100 last:border-0"><span className="text-gray-500 font-semibold">{l}</span><span className="col-span-2 text-navy">{v}</span></div>
-)

@@ -5,11 +5,38 @@
 //  which Vite proxies to the Flask backend on :5001 (see vite.config.js).
 // ─────────────────────────────────────────────────────────────────────────────
 
+const _TOKEN_KEY = 'inn_token'
+export const getToken = () => { try { return localStorage.getItem(_TOKEN_KEY) || '' } catch { return '' } }
+export const setToken = (t) => { try { t ? localStorage.setItem(_TOKEN_KEY, t) : localStorage.removeItem(_TOKEN_KEY) } catch { /* ignore */ } }
+const _authHdrs = () => { const t = getToken(); return t ? { Authorization: `Bearer ${t}` } : {} }
+
 async function _get(url) {
-  const r = await fetch(url, { headers: { Accept: 'application/json' } })
+  const r = await fetch(url, { headers: { Accept: 'application/json', ..._authHdrs() } })
   if (!r.ok) throw new Error(`API ${url} → HTTP ${r.status}`)
   return r.json()
 }
+
+async function _post(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ..._authHdrs() },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`)
+  return j
+}
+
+// ── Auth + admin + onboarding ────────────────────────────────────────────────
+export function authMe() {
+  return fetch('/api/auth/me', { headers: _authHdrs() }).then((r) => r.json()).catch(() => ({ authenticated: false, auth_configured: false }))
+}
+export function authLogin(email, password) { return _post('/api/auth/login', { email, password }) }
+export function authLogout() { return _post('/api/auth/logout').catch(() => ({})) }
+export function authResetPassword(email) { return _post('/api/auth/reset-password', { email }) }
+export function adminTenants() { return _get('/api/admin/tenants') }
+export function adminProvisionTenant(body) { return _post('/api/admin/provision-tenant', body) }
+export function onboardingComplete(body) { return _post('/api/onboarding/complete', body) }
 
 function _today() {
   return new Date().toISOString().slice(0, 10)
