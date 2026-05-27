@@ -57,9 +57,14 @@ export const DEMO_STEPS = [
     caption: "A wedding inquiry: 40 guests, full buyout, 2 nights → $37,300, a clear accept. Move it onto Water Festival dates and the conflict alert fires — festival pricing beats the buyout. The AI flags it; Sarah decides.",
   },
   {
-    id: 'step_07', kind: 'screen', route: '/packages', target: null,
-    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 20, title: 'Packages, Gift Shop & F&B',
-    caption: "Romance +$85, Anniversary +$120, $40–60k/yr in gift shop retail, plus The Parlor dinner and the rooftop bar. INNtelligence optimizes every revenue stream the property produces — not just the rooms.",
+    id: 'step_07', kind: 'screen', route: '/private-events', target: null,
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 26, title: 'Private Events, Packages & Gift Shop',
+    caption: "Private Events manages buyouts, corporate retreats, and group bookings with the same revenue intelligence as weddings.",
+    sequence: [
+      { route: '/private-events', at: 0, caption: "Private Events manages buyouts, corporate retreats, and group bookings with the same revenue intelligence as weddings — conflict detection, exclusivity premium, and comparison to displaced individual room revenue." },
+      { route: '/packages', at: 8000, caption: "INNtelligence includes 25 pre-built packages used by top boutique inns nationwide — romance, anniversary, culinary, birding, and more. Turn any on or off instantly. Each is pre-priced and integrated with your rate calendar for total RevPAR optimization." },
+      { route: '/gift-shop', at: 18000, caption: "Gift shop and retail revenue — tracked alongside room revenue for a complete picture of every dollar your property generates." },
+    ],
   },
   {
     id: 'step_08', kind: 'screen', route: '/guest-crm', target: 'crm-stats',

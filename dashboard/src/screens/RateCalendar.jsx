@@ -349,6 +349,7 @@ function DetailPanel({ sel, detail, detailErr, yoy, decision, onClose, onAccept,
 
         {detail && (
           <div className="p-5 space-y-5">
+            {typeof detail.demand_score === 'number' && <DemandGauge score={detail.demand_score} label={detail.demand_label} drivers={detail.demand_drivers} />}
             <div className="flex items-end justify-between">
               <div>
                 <div className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Recommended Rate</div>
@@ -423,6 +424,36 @@ function DetailPanel({ sel, detail, detailErr, yoy, decision, onClose, onAccept,
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function DemandGauge({ score, label, drivers }) {
+  const s = Math.max(0, Math.min(100, Number(score) || 0))
+  const color = s <= 40 ? '#e11d48' : s <= 75 ? '#d97706' : '#059669'   // red / amber / green
+  const R = 52, C = 2 * Math.PI * R, off = C * (1 - s / 100)
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 flex flex-col items-center">
+      <div className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold mb-2">Demand Score</div>
+      <div className="relative" style={{ width: 132, height: 132 }}>
+        <svg width="132" height="132" viewBox="0 0 132 132">
+          <circle cx="66" cy="66" r={R} fill="none" stroke="#e5e7eb" strokeWidth="12" />
+          <circle cx="66" cy="66" r={R} fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
+            strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 66 66)" />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <div className="text-4xl font-extrabold" style={{ color }}>{s}</div>
+          <div className="text-[10px] text-gray-400">out of 100</div>
+        </div>
+      </div>
+      <div className="mt-2 font-bold text-navy">{label}</div>
+      {drivers && drivers.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+          {drivers.map((dvr, i) => (
+            <span key={i} className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-gold/15 text-gold-dark border border-gold/30">{dvr}</span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

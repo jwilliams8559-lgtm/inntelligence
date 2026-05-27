@@ -144,13 +144,13 @@ export default function CompetitiveIntel() {
           <table className="text-xs border-separate" style={{ borderSpacing: 0 }}>
             <thead>
               <tr className="text-gray-400 uppercase text-[10px] tracking-wide">
-                <th className="sticky left-0 z-10 bg-white text-left py-2 pr-3">Property</th>
+                <th className="sticky left-0 z-10 bg-white text-left py-2 pr-3 min-w-[200px] whitespace-nowrap border-r border-gray-200">Property</th>
                 {data.dates.map((d) => <th key={d} className="text-right px-2 whitespace-nowrap">{fmtDay(d)}</th>)}
               </tr>
             </thead>
             <tbody>
               <tr className="bg-gold/10 font-bold text-navy">
-                <td className="sticky left-0 z-10 bg-gold/10 text-left py-2 pr-3 whitespace-nowrap">★ {propName}</td>
+                <td className="sticky left-0 z-10 bg-white text-left py-2 pr-3 min-w-[200px] whitespace-nowrap border-r border-gray-200">★ {propName}</td>
                 {data.you.map((r, i) => <td key={i} className="text-right px-2">{usd(r)}</td>)}
               </tr>
               {yoy && (
@@ -160,7 +160,7 @@ export default function CompetitiveIntel() {
                 </tr>
               )}
               <tr className="bg-navy/5 font-semibold text-navy border-y border-navy/10">
-                <td className="sticky left-0 z-10 bg-navy/5 text-left py-2 pr-3 whitespace-nowrap">Comp-set average</td>
+                <td className="sticky left-0 z-10 bg-white text-left py-2 pr-3 min-w-[200px] whitespace-nowrap border-r border-gray-200">Comp-set average</td>
                 {data.comp_avg.map((r, i) => <td key={i} className="text-right px-2">{usd(r)}</td>)}
               </tr>
               <tr>
@@ -217,7 +217,7 @@ export default function CompetitiveIntel() {
                     }
                     return (
                       <tr key={c.name} data-tour={tourId} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="sticky left-0 z-10 bg-white text-left py-2 pr-3 text-navy whitespace-nowrap">{c.name}</td>
+                        <td className="sticky left-0 z-10 bg-white text-left py-2 pr-3 text-navy whitespace-nowrap min-w-[200px] border-r border-gray-200">{c.name}</td>
                         {c.rates.map((r, i) => <td key={i} className="text-right px-2 text-gray-600">{usd(r)}</td>)}
                       </tr>
                     )

@@ -36,27 +36,34 @@ export default function DemoOverlay() {
   const [rect, setRect] = useState(null)
   const [muted, setMuted] = useState(false)
   const [bannerOff, setBannerOff] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [progressSecs, setProgressSecs] = useState(20)
   const [openingFade, setOpeningFade] = useState(false)   // crossfade Step 0 → 1
   const [liveRate, setLiveRate] = useState('')            // dynamic rate read from the drawer
+  const [subCaption, setSubCaption] = useState('')        // FIX 7: per-screen caption in a multi-screen step
+  const [paused, setPaused] = useState(false)
+  const [remaining, setRemaining] = useState(0)           // seconds left on this step
+  const [stepSecs, setStepSecs] = useState(0)             // total seconds for this step
+  const [barReady, setBarReady] = useState(false)         // bar appears 300ms after the step mounts
 
   const audioRef = useRef(null)
   const cleanupRef = useRef(null)
   const advancedRef = useRef(-1)
   const mutedRef = useRef(muted)
+  const pausedRef = useRef(paused)
   useEffect(() => { mutedRef.current = muted }, [muted])
+  useEffect(() => { pausedRef.current = paused }, [paused])
 
   const step = DEMO_STEPS[idx]
 
   const goNext = useCallback(() => setIdx((i) => Math.min(i + 1, LAST_INDEX)), [])
   const goPrev = useCallback(() => setIdx((i) => Math.max(i - 1, 0)), [])
-  const skip = useCallback(() => { stopSpeak(); setActive(false); setRect(null) }, [])
+  const clearStartFlag = () => { try { sessionStorage.removeItem('inn_demo_tour') } catch { /* ignore */ } }
+  const skip = useCallback(() => { stopSpeak(); clearStartFlag(); setActive(false); setRect(null) }, [])
   const replay = useCallback(() => { setIdx(0); setActive(true) }, [])
   const advance = useCallback(() => {
     if (advancedRef.current === idx) return
     advancedRef.current = idx
     if (idx === 0) {                       // crossfade the opening out before Step 1
+      clearStartFlag()                     // past the intro — don't re-trigger on remount
       setOpeningFade(true)
       setTimeout(() => { setOpeningFade(false); goNext() }, 500)
       return
@@ -64,22 +71,39 @@ export default function DemoOverlay() {
     goNext()
   }, [idx, goNext])
 
-  // Auto-start the guided tour once if /demo flagged it.
+  // Auto-start the guided tour at Step 0 if /demo flagged it. We do NOT clear the
+  // flag here — React.StrictMode double-invokes effects in dev, and consuming the
+  // flag on the first pass made the second mount skip the intro (landing on Home).
+  // The flag is cleared when the user leaves Step 0 (advance) or skips the tour.
   useEffect(() => {
     if (!demoMode) return
     let pending = false
     try { pending = sessionStorage.getItem('inn_demo_tour') === '1' } catch { /* ignore */ }
-    if (pending) {
-      try { sessionStorage.removeItem('inn_demo_tour') } catch { /* ignore */ }
-      setActive(true); setIdx(0)
-    }
+    if (pending) { setActive(true); setIdx(0) }
   }, [demoMode])
 
-  // Navigate to the step's screen when the active step changes.
+  // Navigate to the step's screen when the active step changes. Steps with a
+  // `sequence` (FIX 7) walk through several screens on timers, updating the
+  // caption for each.
   useEffect(() => {
-    if (!active || !step.route) return
-    const here = location.pathname + location.search
-    if (here !== step.route) navigate(step.route)
+    if (!active) return undefined
+    setSubCaption('')
+    if (step.sequence) {
+      const timers = []
+      step.sequence.forEach((seg) => {
+        timers.push(window.setTimeout(() => {
+          const here = location.pathname + location.search
+          if (here !== seg.route) navigate(seg.route)
+          setSubCaption(seg.caption || '')
+        }, seg.at || 0))
+      })
+      return () => timers.forEach(clearTimeout)
+    }
+    if (step.route) {
+      const here = location.pathname + location.search
+      if (here !== step.route) navigate(step.route)
+    }
+    return undefined
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, idx])
 
@@ -128,55 +152,61 @@ export default function DemoOverlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, idx, location.pathname, location.search])
 
-  // Narration audio + auto-advance + progress (per step). Step 1's narration is
-  // held until the opening→home crossfade has finished (Step 1 fully visible).
+  // Narration audio + countdown auto-advance + progress (per step). A 250ms
+  // ticker decrements `remaining` (skipped while paused); the bar fills from it.
+  // The closing step does not auto-advance. Step 1 + the opening hold briefly so
+  // their content is visible before the bar/narration begin (FIX 1 / FIX 9).
   useEffect(() => {
-    if (!active) return undefined
+    if (!active || step.kind === 'closing') { setBarReady(false); return undefined }
     stopSpeak()
     advancedRef.current = -1
+    setPaused(false)
+    setBarReady(false)
     let secs = step.timer || 18
-    let advTimer = 0
-    let safety = 0
-    const startProgress = (d) => {
-      setProgress(0); setProgressSecs(d)
-      requestAnimationFrame(() => requestAnimationFrame(() => setProgress(100)))
+    setStepSecs(secs); setRemaining(secs)
+    let ticker = 0
+    let last = 0
+
+    const startTicker = () => {
+      last = Date.now()
+      ticker = window.setInterval(() => {
+        if (pausedRef.current) { last = Date.now(); return }
+        const now = Date.now()
+        const dt = (now - last) / 1000; last = now
+        setRemaining((r) => {
+          const nr = r - dt
+          if (nr <= 0) { advance(); return 0 }
+          return nr
+        })
+      }, 250)
     }
-    const armTimer = (d) => { clearTimeout(advTimer); advTimer = window.setTimeout(advance, d * 1000) }
 
     const kickoff = () => {
-      if (mutedRef.current) {
-        startProgress(secs); armTimer(secs)
-        return
+      setBarReady(true)
+      if (!mutedRef.current) {
+        const a = new Audio(`/api/demo/audio/${step.id}`)
+        audioRef.current = a
+        a.muted = mutedRef.current
+        a.addEventListener('loadedmetadata', () => {
+          if (isFinite(a.duration) && a.duration > 1) {
+            secs = a.duration + 0.6; setStepSecs(secs); setRemaining(secs)
+          }
+        })
+        a.addEventListener('ended', advance)
+        a.play().catch(() => {
+          fetch(`/api/demo/narration/${step.id}`)
+            .then((r) => r.json()).then((d) => { if (!mutedRef.current && !pausedRef.current) speak(d.text) })
+            .catch(() => {})
+        })
       }
-      const a = new Audio(`/api/demo/audio/${step.id}`)
-      audioRef.current = a
-      a.muted = mutedRef.current
-      a.addEventListener('loadedmetadata', () => {
-        if (isFinite(a.duration) && a.duration > 1) {
-          secs = a.duration + 0.6
-          startProgress(secs)
-          clearTimeout(advTimer)               // prefer audio 'ended'
-        }
-      })
-      a.addEventListener('ended', advance)
-      a.play().then(() => {
-        startProgress(secs)
-        safety = window.setTimeout(advance, (secs + 30) * 1000)  // never get stuck
-      }).catch(() => {
-        // No ElevenLabs audio → browser speech + timer-driven advance.
-        fetch(`/api/demo/narration/${step.id}`)
-          .then((r) => r.json()).then((d) => { if (!mutedRef.current) speak(d.text) })
-          .catch(() => {})
-        startProgress(secs); armTimer(secs)
-      })
-      armTimer(secs)   // initial timer until metadata arrives (cleared if audio loads)
+      startTicker()
     }
 
-    const startDelay = idx === 1 ? 600 : 0   // wait out the opening crossfade
+    const startDelay = idx === 1 ? 600 : idx === 0 ? 300 : 200  // let content mount first
     const kickTimer = window.setTimeout(kickoff, startDelay)
 
     return () => {
-      clearTimeout(kickTimer); clearTimeout(advTimer); clearTimeout(safety)
+      clearTimeout(kickTimer); clearInterval(ticker)
       const a = audioRef.current
       if (a) { try { a.pause() } catch { /* ignore */ } a.removeEventListener('ended', advance) }
       audioRef.current = null
@@ -184,6 +214,14 @@ export default function DemoOverlay() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, idx])
+
+  // Pause/resume the narration audio with the countdown.
+  useEffect(() => {
+    const a = audioRef.current
+    if (!a) { if (paused) stopSpeak(); return }
+    if (paused) { try { a.pause() } catch { /* ignore */ } }
+    else if (!mutedRef.current) { a.play().catch(() => {}) }
+  }, [paused])
 
   // FIX 3b: read the recommended rate live from the open drawer so the Step 3
   // tooltip always matches the screen (no hardcoded dollar amount).
@@ -251,7 +289,12 @@ export default function DemoOverlay() {
     )
   }
 
-  if (step.kind === 'opening') return <>{banner}<Opening fading={openingFade} onSkip={skip} onNext={advance} muted={muted} onMute={() => setMuted((m) => !m)} progress={progress} progressSecs={progressSecs} /></>
+  const pct = stepSecs > 0 ? Math.min(100, Math.max(0, (1 - remaining / stepSecs) * 100)) : 0
+  const bottomBar = barReady && step.kind !== 'closing' && (
+    <BottomBar pct={pct} remaining={remaining} paused={paused} onTogglePause={() => setPaused((p) => !p)} />
+  )
+
+  if (step.kind === 'opening') return <>{banner}<Opening fading={openingFade} onSkip={skip} onNext={advance} muted={muted} onMute={() => setMuted((m) => !m)} />{bottomBar}</>
   if (step.kind === 'closing') return <>{banner}<Closing onReplay={replay} onExplore={skip} exitDemo={exitDemo} /></>
 
   return (
@@ -259,9 +302,27 @@ export default function DemoOverlay() {
       {banner}
       <Spotlight rect={rect} />
       <Coachmark
-        step={step} idx={idx} rect={rect} muted={muted} progress={progress} progressSecs={progressSecs} liveRate={liveRate}
+        step={step} idx={idx} rect={rect} muted={muted} liveRate={liveRate} caption={subCaption || step.caption}
         onNext={advance} onPrev={goPrev} onSkip={skip} onMute={() => setMuted((m) => !m)} />
+      {bottomBar}
     </>
+  )
+}
+
+// ── Bottom auto-advance bar (full width, gold, with countdown + pause) ────────
+function BottomBar({ pct, remaining, paused, onTogglePause }) {
+  return (
+    <div className="fixed bottom-0 inset-x-0 z-[62]">
+      <div className="h-1.5 bg-navy/30">
+        <div className="h-full bg-gold" style={{ width: `${pct}%`, transition: 'width 0.25s linear' }} />
+      </div>
+      <div className="bg-navy/90 backdrop-blur text-white/90 px-4 py-1.5 flex items-center justify-center gap-3 text-xs">
+        <span>{paused ? 'Paused — read at your own pace' : `Auto-advancing in ${Math.max(0, Math.ceil(remaining))}s`}</span>
+        <button onClick={onTogglePause} className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25 font-semibold">
+          {paused ? '▶ Resume' : '⏸ Pause'}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -280,7 +341,7 @@ function Spotlight({ rect }) {
 }
 
 // ── Coachmark tooltip (gold card, navy text) ──────────────────────────────────
-function Coachmark({ step, idx, rect, muted, progress, progressSecs, liveRate, onNext, onPrev, onSkip, onMute }) {
+function Coachmark({ step, idx, rect, muted, liveRate, caption, onNext, onPrev, onSkip, onMute }) {
   const ref = useRef(null)
   const [pos, setPos] = useState(null)
   const mobile = isMobile()
@@ -317,13 +378,10 @@ function Coachmark({ step, idx, rect, muted, progress, progressSecs, liveRate, o
           {step.dynamicRate && liveRate && (
             <span className="block font-bold text-gold mb-1">INNtelligence is recommending {liveRate}</span>
           )}
-          {step.caption}
+          {caption}
           {step.badge && (
             <span className="block mt-2 text-gold italic text-[13px]" style={{ fontSize: mobile ? 14 : undefined }}>{step.badge}</span>
           )}
-        </div>
-        <div className="mt-3 h-1.5 bg-navy/15 rounded-full overflow-hidden">
-          <div className="h-full bg-navy rounded-full" style={{ width: `${progress}%`, transition: `width ${progressSecs}s linear` }} />
         </div>
         <div className="flex items-center gap-2 mt-3">
           <button onClick={onPrev} disabled={idx === 0}
@@ -337,7 +395,7 @@ function Coachmark({ step, idx, rect, muted, progress, progressSecs, liveRate, o
 }
 
 // ── Step 0 — Opening (founder intro) ──────────────────────────────────────────
-function Opening({ fading, onSkip, onNext, muted, onMute, progress, progressSecs }) {
+function Opening({ fading, onSkip, onNext, muted, onMute }) {
   return (
     <div className={`fixed inset-0 z-[60] overflow-y-auto transition-opacity duration-500 ${fading ? 'opacity-0' : 'opacity-100'}`}
       style={{ background: 'radial-gradient(circle at 50% 15%, #14385f, #061629)' }}>
@@ -358,14 +416,9 @@ function Opening({ fading, onSkip, onNext, muted, onMute, progress, progressSecs
         <div className="text-white/90 text-lg font-semibold">Demonstrating with The Bay Street Inn</div>
         <div className="text-gold-light text-sm mt-1">Beaufort, South Carolina — Waterfront Boutique Inn</div>
 
-        <div className="w-[min(90vw,360px)] mt-10">
-          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full bg-gold rounded-full" style={{ width: `${progress}%`, transition: `width ${progressSecs}s linear` }} />
-          </div>
-          <div className="flex items-center justify-center gap-3 mt-5">
-            <button onClick={onMute} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm text-white">{muted ? '🔇 Muted' : '🔊 Sound'}</button>
-            <button onClick={onNext} className="px-6 py-2 rounded-lg bg-gold text-navy font-bold text-sm hover:bg-gold-light">Begin →</button>
-          </div>
+        <div className="flex items-center justify-center gap-3 mt-10">
+          <button onClick={onMute} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm text-white">{muted ? '🔇 Muted' : '🔊 Sound'}</button>
+          <button onClick={onNext} className="px-6 py-2 rounded-lg bg-gold text-navy font-bold text-sm hover:bg-gold-light">Begin →</button>
         </div>
       </div>
     </div>

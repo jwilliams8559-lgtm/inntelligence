@@ -40,16 +40,58 @@ export default function ROIPerformance() {
 
       <div className="rounded-2xl bg-navy text-white p-6 mb-6 flex flex-col sm:flex-row items-center justify-between gap-6">
         <div>
-          <div className="text-gold-light text-sm uppercase tracking-wide font-semibold">Return on subscription</div>
+          <div className="text-gold-light text-sm uppercase tracking-wide font-semibold">Total return on subscription</div>
           <div className="text-6xl font-extrabold text-gold mt-1">{roi.roi_multiple}×</div>
-          <div className="text-white/70 text-sm mt-1">Every $1 spent returned {usd2(roi.roi_multiple)} this month</div>
+          <div className="text-white/70 text-sm mt-1">{roi.roi_subtitle || 'Across all revenue streams'}</div>
         </div>
         <div className="grid grid-cols-3 gap-6 text-center">
-          <div><div className="text-2xl font-bold">{usd(roi.total_value)}</div><div className="text-xs text-gold-light">value delivered</div></div>
-          <div><div className="text-2xl font-bold">{usd(roi.subscription_cost)}</div><div className="text-xs text-gold-light">subscription</div></div>
-          <div><div className="text-2xl font-bold text-emerald-400">{roi.roi_pct}%</div><div className="text-xs text-gold-light">net ROI</div></div>
+          <div><div className="text-2xl font-bold">{usd(roi.total_annual_lift ?? roi.total_value)}</div><div className="text-xs text-gold-light">total annual lift</div></div>
+          <div><div className="text-2xl font-bold">{usd(roi.annual_subscription ?? roi.subscription_cost)}</div><div className="text-xs text-gold-light">annual subscription</div></div>
+          <div><div className="text-2xl font-bold text-emerald-400">{usd(roi.net_annual_benefit ?? 0)}</div><div className="text-xs text-gold-light">net annual benefit</div></div>
         </div>
       </div>
+
+      {roi.breakdown && (
+        <Card title="Where the return comes from — total property ROI" className="mb-6">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {[
+                  ['Room Rate Optimization', roi.breakdown.room_revenue_lift],
+                  ['Direct Booking Savings', roi.breakdown.direct_booking_savings],
+                  ['Guest CRM Repeat Bookings', roi.breakdown.crm_repeat_bookings],
+                  ['Package Optimization', roi.breakdown.package_optimization],
+                  ['Gift Shop and F&B', roi.breakdown.gift_shop_fb_improvement],
+                ].map(([label, val]) => (
+                  <tr key={label} className="border-b border-gray-100">
+                    <td className="py-2 text-gray-700">{label}</td>
+                    <td className="py-2 text-right font-semibold text-navy">{usd(val)}/year</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-navy/20">
+                  <td className="py-2 font-bold text-navy">Total Annual Lift</td>
+                  <td className="py-2 text-right font-extrabold text-navy">{usd(roi.total_annual_lift)}/year</td>
+                </tr>
+                <tr className="border-b border-gray-100">
+                  <td className="py-2 text-gray-700">Annual Subscription</td>
+                  <td className="py-2 text-right font-semibold text-rose-600">−{usd(roi.annual_subscription)}/year</td>
+                </tr>
+                <tr className="border-t-2 border-navy/20">
+                  <td className="py-2 font-bold text-navy">Net Annual Benefit</td>
+                  <td className="py-2 text-right font-extrabold text-emerald-700">{usd(roi.net_annual_benefit)}/year</td>
+                </tr>
+                <tr>
+                  <td className="py-2 font-bold text-navy">ROI</td>
+                  <td className="py-2 text-right font-extrabold text-gold-dark">{roi.roi_multiple}×</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-3 leading-snug">
+            Based on conservative 15% room revenue lift and modest improvements across all other revenue streams. Actual results vary.
+          </p>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <Card title="Occupancy">
