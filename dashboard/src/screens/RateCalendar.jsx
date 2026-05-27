@@ -60,19 +60,28 @@ export default function RateCalendar() {
   // Demo deep-link: ?focus=peak auto-opens the highest-rate event-night cell so
   // the guided tour can land directly on a real recommendation drawer.
   useEffect(() => {
-    if (focus !== 'peak') { focusedRef.current = false; return }
+    if (focus !== 'peak' && focus !== 'wf') { focusedRef.current = false; return }
     if (!data || focusedRef.current) return
     const cells = data.rooms.flatMap((r) => r.days.map((d) => ({
-      roomId: r.room_id, roomName: r.room_name, date: d.date, rate: d.rate,
+      roomId: r.room_id, roomName: r.room_name, tier: r.tier, date: d.date, rate: d.rate,
       event: !!(d.active_events && d.active_events.length),
       wf: (d.active_events || []).some((e) => /water festival/i.test(e)),
     })))
-    // Prefer a Water Festival cell (keeps the guided story coherent), then any
-    // event night, then the overall top rate — always a real recommendation.
-    const wfCells = cells.filter((c) => c.wf)
-    const eventCells = cells.filter((c) => c.event)
-    const pool = wfCells.length ? wfCells : eventCells.length ? eventCells : cells
-    const best = pool.reduce((m, c) => (c.rate > (m?.rate ?? -1) ? c : m), null)
+    let best
+    if (focus === 'wf') {
+      // A Water Festival waterfront recommendation in the $550–650 band,
+      // closest to $599 — keeps the guided story coherent and credible.
+      const wfWater = cells.filter((c) => c.wf && c.tier === 'waterfront')
+      const inRange = wfWater.filter((c) => c.rate >= 550 && c.rate <= 650)
+      const pickFrom = inRange.length ? inRange : (wfWater.length ? wfWater : cells.filter((c) => c.wf))
+      best = pickFrom.reduce((m, c) => (Math.abs(c.rate - 599) < Math.abs((m?.rate ?? -9999) - 599) ? c : m), null)
+    } else {
+      // focus=peak: prefer WF cells, then any event night, then overall top rate.
+      const wfCells = cells.filter((c) => c.wf)
+      const eventCells = cells.filter((c) => c.event)
+      const pool = wfCells.length ? wfCells : eventCells.length ? eventCells : cells
+      best = pool.reduce((m, c) => (c.rate > (m?.rate ?? -1) ? c : m), null)
+    }
     if (best) { focusedRef.current = true; setSel({ roomId: best.roomId, roomName: best.roomName, date: best.date }) }
   }, [focus, data])
 
@@ -343,7 +352,7 @@ function DetailPanel({ sel, detail, detailErr, yoy, decision, onClose, onAccept,
             <div className="flex items-end justify-between">
               <div>
                 <div className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Recommended Rate</div>
-                <div className="text-4xl font-extrabold text-gold">{usd(decision?.rate ?? detail.rate)}</div>
+                <div data-demo-rate className="text-4xl font-extrabold text-gold">{usd(decision?.rate ?? detail.rate)}</div>
                 {decision && <div className="text-[11px] text-emerald-600 font-semibold mt-0.5">✓ {decision.action === 'accepted' ? 'Accepted' : 'Overridden'}</div>}
               </div>
               <ConfidencePill level={detail.confidence} />

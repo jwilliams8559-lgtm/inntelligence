@@ -97,15 +97,17 @@ export default function CompetitiveIntel() {
         right={<div className="flex items-center gap-2 flex-wrap"><YoYToggle on={yoy} onChange={setYoy} /><ExportButton onClick={onExport} /><LastUpdated at={lastUpdated} /></div>}
       />
 
-      <div data-tour="comp-roomfilter" className="flex items-center gap-2 flex-wrap mb-3">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Room Type</span>
-        <Segmented options={ROOM_FILTERS} value={roomFilter} onChange={onRoom} />
+      <div data-tour="comp-roomfilter" className="mt-4 mb-4">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1 shrink-0">Room Type</span>
+          <div className="shrink-0"><Segmented options={ROOM_FILTERS} value={roomFilter} onChange={onRoom} /></div>
+        </div>
         {roomFilter !== 'all' && (
-          <span className="text-[11px] text-gray-400">— competitors without this room type are dimmed</span>
+          <div className="text-[11px] text-gray-400 mt-1.5">Competitors without this room type are dimmed below.</div>
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
         <Segmented options={TIERS} value={tier} onChange={setTier} />
         <Segmented options={RANGES} value={days} onChange={setDays} />
       </div>

@@ -2,8 +2,7 @@ import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
-  DEMO_STEPS, DEMO_CONTACT, DEMO_MAILTO, LAST_INDEX,
-  SCREEN_STEP_COUNT, PMS_LIST, OTA_LIST, GEO_LIST,
+  DEMO_STEPS, DEMO_CONTACT, DEMO_MAILTO, LAST_INDEX, SCREEN_STEP_COUNT,
 } from './demoSteps'
 
 // ── Browser-speech fallback (used when an ElevenLabs MP3 can't load) ──────────
@@ -39,6 +38,8 @@ export default function DemoOverlay() {
   const [bannerOff, setBannerOff] = useState(false)
   const [progress, setProgress] = useState(0)
   const [progressSecs, setProgressSecs] = useState(20)
+  const [openingFade, setOpeningFade] = useState(false)   // crossfade Step 0 → 1
+  const [liveRate, setLiveRate] = useState('')            // dynamic rate read from the drawer
 
   const audioRef = useRef(null)
   const cleanupRef = useRef(null)
@@ -55,6 +56,11 @@ export default function DemoOverlay() {
   const advance = useCallback(() => {
     if (advancedRef.current === idx) return
     advancedRef.current = idx
+    if (idx === 0) {                       // crossfade the opening out before Step 1
+      setOpeningFade(true)
+      setTimeout(() => { setOpeningFade(false); goNext() }, 500)
+      return
+    }
     goNext()
   }, [idx, goNext])
 
@@ -122,7 +128,8 @@ export default function DemoOverlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, idx, location.pathname, location.search])
 
-  // Narration audio + auto-advance + progress (per step).
+  // Narration audio + auto-advance + progress (per step). Step 1's narration is
+  // held until the opening→home crossfade has finished (Step 1 fully visible).
   useEffect(() => {
     if (!active) return undefined
     stopSpeak()
@@ -136,11 +143,14 @@ export default function DemoOverlay() {
     }
     const armTimer = (d) => { clearTimeout(advTimer); advTimer = window.setTimeout(advance, d * 1000) }
 
-    if (mutedRef.current) {
-      startProgress(secs); armTimer(secs)
-    } else {
+    const kickoff = () => {
+      if (mutedRef.current) {
+        startProgress(secs); armTimer(secs)
+        return
+      }
       const a = new Audio(`/api/demo/audio/${step.id}`)
       audioRef.current = a
+      a.muted = mutedRef.current
       a.addEventListener('loadedmetadata', () => {
         if (isFinite(a.duration) && a.duration > 1) {
           secs = a.duration + 0.6
@@ -159,17 +169,37 @@ export default function DemoOverlay() {
           .catch(() => {})
         startProgress(secs); armTimer(secs)
       })
-      // initial timer until metadata arrives (cleared if audio loads)
-      armTimer(secs)
+      armTimer(secs)   // initial timer until metadata arrives (cleared if audio loads)
     }
 
+    const startDelay = idx === 1 ? 600 : 0   // wait out the opening crossfade
+    const kickTimer = window.setTimeout(kickoff, startDelay)
+
     return () => {
-      clearTimeout(advTimer); clearTimeout(safety)
+      clearTimeout(kickTimer); clearTimeout(advTimer); clearTimeout(safety)
       const a = audioRef.current
       if (a) { try { a.pause() } catch { /* ignore */ } a.removeEventListener('ended', advance) }
       audioRef.current = null
       stopSpeak()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, idx])
+
+  // FIX 3b: read the recommended rate live from the open drawer so the Step 3
+  // tooltip always matches the screen (no hardcoded dollar amount).
+  useEffect(() => {
+    if (!active || !step.dynamicRate) { setLiveRate(''); return undefined }
+    let stop = false, t = 0, tries = 0
+    const poll = () => {
+      if (stop) return
+      const el = document.querySelector('[data-demo-rate]')
+      const txt = el && el.textContent && el.textContent.trim()
+      if (txt) { setLiveRate(txt); return }
+      if (tries++ > 40) return
+      t = window.setTimeout(poll, 200)
+    }
+    poll()
+    return () => { stop = true; clearTimeout(t) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, idx])
 
@@ -221,7 +251,7 @@ export default function DemoOverlay() {
     )
   }
 
-  if (step.kind === 'opening') return <>{banner}<Opening onSkip={skip} onNext={advance} muted={muted} onMute={() => setMuted((m) => !m)} progress={progress} progressSecs={progressSecs} /></>
+  if (step.kind === 'opening') return <>{banner}<Opening fading={openingFade} onSkip={skip} onNext={advance} muted={muted} onMute={() => setMuted((m) => !m)} progress={progress} progressSecs={progressSecs} /></>
   if (step.kind === 'closing') return <>{banner}<Closing onReplay={replay} onExplore={skip} exitDemo={exitDemo} /></>
 
   return (
@@ -229,7 +259,7 @@ export default function DemoOverlay() {
       {banner}
       <Spotlight rect={rect} />
       <Coachmark
-        step={step} idx={idx} rect={rect} muted={muted} progress={progress} progressSecs={progressSecs}
+        step={step} idx={idx} rect={rect} muted={muted} progress={progress} progressSecs={progressSecs} liveRate={liveRate}
         onNext={advance} onPrev={goPrev} onSkip={skip} onMute={() => setMuted((m) => !m)} />
     </>
   )
@@ -250,7 +280,7 @@ function Spotlight({ rect }) {
 }
 
 // ── Coachmark tooltip (gold card, navy text) ──────────────────────────────────
-function Coachmark({ step, idx, rect, muted, progress, progressSecs, onNext, onPrev, onSkip, onMute }) {
+function Coachmark({ step, idx, rect, muted, progress, progressSecs, liveRate, onNext, onPrev, onSkip, onMute }) {
   const ref = useRef(null)
   const [pos, setPos] = useState(null)
   const mobile = isMobile()
@@ -284,7 +314,13 @@ function Coachmark({ step, idx, rect, muted, progress, progressSecs, onNext, onP
         <div className="font-extrabold text-lg leading-tight">{step.title}</div>
         {/* dark scrim behind text for guaranteed contrast */}
         <div className="mt-2 rounded-lg bg-navy text-white/95 p-3 text-[15px] sm:text-sm leading-relaxed" style={{ fontSize: mobile ? 16 : undefined }}>
+          {step.dynamicRate && liveRate && (
+            <span className="block font-bold text-gold mb-1">INNtelligence is recommending {liveRate}</span>
+          )}
           {step.caption}
+          {step.badge && (
+            <span className="block mt-2 text-gold italic text-[13px]" style={{ fontSize: mobile ? 14 : undefined }}>{step.badge}</span>
+          )}
         </div>
         <div className="mt-3 h-1.5 bg-navy/15 rounded-full overflow-hidden">
           <div className="h-full bg-navy rounded-full" style={{ width: `${progress}%`, transition: `width ${progressSecs}s linear` }} />
@@ -301,9 +337,9 @@ function Coachmark({ step, idx, rect, muted, progress, progressSecs, onNext, onP
 }
 
 // ── Step 0 — Opening (founder intro) ──────────────────────────────────────────
-function Opening({ onSkip, onNext, muted, onMute, progress, progressSecs }) {
+function Opening({ fading, onSkip, onNext, muted, onMute, progress, progressSecs }) {
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto"
+    <div className={`fixed inset-0 z-[60] overflow-y-auto transition-opacity duration-500 ${fading ? 'opacity-0' : 'opacity-100'}`}
       style={{ background: 'radial-gradient(circle at 50% 15%, #14385f, #061629)' }}>
       <button onClick={onSkip} className="absolute top-3 right-4 z-10 text-white/70 hover:text-white text-sm underline">Skip Tour →</button>
       <div className="min-h-full flex flex-col items-center justify-center px-6 py-14 text-center">
@@ -340,10 +376,17 @@ function Opening({ onSkip, onNext, muted, onMute, progress, progressSecs }) {
 function Closing({ onReplay, onExplore, exitDemo }) {
   const cards = [
     { t: 'Founding Member Program', lines: ['3–5 Founding Member Slots Available', 'Professional Tier — FREE for 6 months', '$699/month after founding period', 'You shape what INNtelligence becomes'] },
-    { t: 'The ROI Math', lines: ['$699/month Professional subscription', '$1,244 average monthly revenue lift', '$545 net monthly benefit', '7.1× annual return on investment'] },
+    { t: 'The ROI Math', lines: ['$93,500 total annual revenue lift', '$8,388 annual subscription', '11.1x total return on investment', 'Across rooms, direct bookings, CRM, packages, and F&B'] },
     { t: 'What We Ask', lines: ['Connect your PMS', 'Monthly 30-minute feedback calls', 'Honest testimonial at 90 days', 'Help shape the product roadmap'] },
-    { t: 'Where INNtelligence Works', lines: [GEO_LIST.join(' · '), 'PMS: ' + PMS_LIST.join(' · '), 'OTAs: ' + OTA_LIST.join(' · ')] },
-    { t: `Contact ${DEMO_CONTACT.name}`, lines: [DEMO_CONTACT.phone, DEMO_CONTACT.email, 'Jim Williams, Founder', 'The Gracious Collection / INNtelligence'], big: true },
+    { t: 'Ready to Connect — Right Now', lines: [
+      'Already integrated with your existing systems',
+      'PMS: ResNexus · Cloudbeds · ThinkReservations',
+      'Guesty · WebRezPro · Little Hotelier',
+      'OTAs: Booking.com · Expedia · Airbnb · VRBO',
+      'Hotels.com · Trip.com · Agoda',
+      'Connect in minutes. Go live today.',
+    ], goldLast: true },
+    { t: `Contact ${DEMO_CONTACT.name}`, lines: ['Jim Williams — Founder', DEMO_CONTACT.phone, DEMO_CONTACT.email, 'I personally respond within 24 hours'], bigIndex: 1 },
   ]
   return (
     <div className="fixed inset-0 z-[60] overflow-y-auto" style={{ background: 'radial-gradient(circle at 50% 10%, #14385f, #061629)' }}>
@@ -357,9 +400,14 @@ function Closing({ onReplay, onExplore, exitDemo }) {
             <div key={c.t} className="rounded-2xl border border-gold/30 bg-navy/50 p-4">
               <div className="text-gold-light text-xs font-bold uppercase tracking-wide">{c.t}</div>
               <div className="mt-2 space-y-1">
-                {c.lines.map((l, i) => (
-                  <div key={i} className={c.big && i === 0 ? 'text-white text-2xl font-extrabold' : 'text-white/75 text-[13px]'}>{l}</div>
-                ))}
+                {c.lines.map((l, i) => {
+                  const isBig = c.bigIndex === i
+                  const isGold = c.goldLast && i === c.lines.length - 1
+                  const cls = isBig ? 'text-white text-2xl font-extrabold'
+                    : isGold ? 'text-gold font-bold text-[13px] pt-1'
+                    : 'text-white/75 text-[13px]'
+                  return <div key={i} className={cls}>{l}</div>
+                })}
               </div>
             </div>
           ))}

@@ -10,7 +10,7 @@
 
 export const DEMO_CONTACT = {
   name: 'Jim Williams',
-  phone: '404-909-5818',
+  phone: '470-789-2433',
   email: 'jwilliams8559@gmail.com',
 }
 
@@ -28,7 +28,8 @@ export const DEMO_STEPS = [
   {
     id: 'step_01', kind: 'screen', route: '/', target: null,
     selectors: ['main .grid', 'main h1'], timer: 18, title: 'Tuesday Morning',
-    caption: "Tuesday at The Bay Street Inn. INNtelligence ran all night — 39 properties watched, booking pace checked against last year. Water Festival in 52 days: peak demand. Nothing changes until Sarah approves.",
+    caption: "Tuesday at The Bay Street Inn. INNtelligence is mobile-first — every feature works identically on iPhone, Android, iPad, or any tablet. It ran all night: 39 properties watched, booking pace checked. Water Festival in 52 days: peak demand. Nothing changes until Sarah approves.",
+    badge: 'Works on iPhone · Android · iPad · Any tablet',
   },
   {
     id: 'step_02', kind: 'screen', route: '/rate-calendar?days=90', target: 'wf-banner',
@@ -36,9 +37,9 @@ export const DEMO_STEPS = [
     caption: "90 days of AI rate recommendations — every room, every night. The gold Water Festival columns (Jul 17–26) score 90/100 — Peak. These are recommendations only. Nothing is live until Sarah approves.",
   },
   {
-    id: 'step_03', kind: 'screen', route: '/rate-calendar?days=90&focus=peak', target: 'rate-drawer',
-    timer: 25, title: 'Why This Rate?',
-    caption: "Waterfront Suite, Water Festival Saturday: $450 → $599. See the reasoning — demand 90/100, competitor compression, pace +47%. Direct rate $549 nets Sarah $40 more than the OTA. 3-night minimum on peak dates.",
+    id: 'step_03', kind: 'screen', route: '/rate-calendar?days=90&focus=wf', target: 'rate-drawer',
+    timer: 25, title: 'Why This Rate?', dynamicRate: true,
+    caption: "On a Water Festival night, see the full reasoning — demand 90/100, competitor compression, booking pace +47%. The direct rate nets more than the OTA, with a 3-night minimum on peak dates.",
   },
   {
     id: 'step_04', kind: 'screen', route: '/competitive-intel?tier=waterfront&days=90&room=waterfront', target: 'comp-cuthbert',
