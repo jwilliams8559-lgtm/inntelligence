@@ -22,18 +22,18 @@ export const DEMO_MAILTO =
 
 export const DEMO_STEPS = [
   {
-    id: 'step_00', kind: 'opening', route: '/', target: null, timer: 20,
+    id: 'step_00', kind: 'opening', route: '/', target: null, timer: 30,
     title: 'INNtelligence',
   },
   {
     id: 'step_01', kind: 'screen', route: '/', target: null,
-    selectors: ['main .grid', 'main h1'], timer: 18, title: 'Tuesday Morning',
+    selectors: ['main .grid', 'main h1'], timer: 25, title: 'Tuesday Morning',
     caption: "Tuesday at The Bay Street Inn. INNtelligence is mobile-first — every feature works identically on iPhone, Android, iPad, or any tablet. It ran all night: 39 properties watched, booking pace checked. Water Festival in 52 days: peak demand. Nothing changes until Sarah approves.",
     badge: 'Works on iPhone · Android · iPad · Any tablet',
   },
   {
     id: 'step_02', kind: 'screen', route: '/rate-calendar?days=90', target: 'wf-banner',
-    timer: 22, title: 'Rate Calendar — 90 Days',
+    timer: 25, title: 'Rate Calendar — 90 Days',
     caption: "90 days of AI rate recommendations — every room, every night. The gold Water Festival columns (Jul 17–26) score 90/100 — Peak. These are recommendations only. Nothing is live until Sarah approves.",
   },
   {
@@ -43,42 +43,42 @@ export const DEMO_STEPS = [
   },
   {
     id: 'step_04', kind: 'screen', route: '/competitive-intel?tier=waterfront&days=90&room=waterfront', target: 'comp-cuthbert',
-    timer: 22, title: 'Competitive Intelligence',
+    timer: 25, title: 'Competitive Intelligence',
     caption: "39 competitors found within 25 miles; the 9 most relevant scored. Filter to Waterfront Suite and non-waterfront competitors gray out. Cuthbert (92.7) sold out, Anchorage (88.5) limited — Bay Street becomes THE waterfront option.",
   },
   {
     id: 'step_05', kind: 'screen', route: '/events?view=6mo', target: 'events-peak',
-    timer: 18, title: 'Demand Calendar',
+    timer: 25, title: 'Demand Calendar',
     caption: "Every Beaufort demand driver, by horizon. Parris Island graduations every Friday, the Gullah Festival, Water Festival, the Film Festival — months of revenue intelligence with time to prepare. No surprises.",
   },
   {
     id: 'step_06', kind: 'screen', route: '/weddings', target: 'wedding-calc',
-    selectors: ['main .rounded-2xl', 'main .rounded-xl', 'main .grid'], timer: 24, title: 'Weddings & Private Events',
+    selectors: ['main .rounded-2xl', 'main .rounded-xl', 'main .grid'], timer: 45, title: 'Weddings & Private Events',
     caption: "A wedding inquiry — Margaret & Thomas, 40 guests, full buyout, 2 nights → $37,300, a clear accept. Watch what happens when the date moves onto Water Festival weekend.",
   },
   {
     id: 'step_07', kind: 'screen', route: '/private-events', target: null,
-    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 34, title: 'Private Events, Packages & Gift Shop',
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 45, title: 'Private Events, Packages & Gift Shop',
     caption: "Private Events manages buyouts, corporate retreats, and group bookings with the same revenue intelligence as weddings.",
     sequence: [
       { route: '/private-events', at: 0, caption: "Private Events manages buyouts, corporate retreats, and group bookings with the same revenue intelligence as weddings — conflict detection, exclusivity premium, and comparison to displaced individual room revenue." },
-      { route: '/packages', at: 12000, caption: "INNtelligence includes 25 pre-built packages used by top boutique inns nationwide — romance, anniversary, culinary, birding, and more. Turn any on or off instantly. Each is pre-priced and integrated with your rate calendar for total RevPAR optimization." },
-      { route: '/gift-shop', at: 24000, caption: "Gift shop and retail revenue — tracked alongside room revenue for a complete picture of every dollar your property generates." },
+      { route: '/packages', at: 15000, caption: "INNtelligence includes 25 pre-built packages used by top boutique inns nationwide — romance, anniversary, culinary, birding, and more. Turn any on or off instantly. Each is pre-priced and integrated with your rate calendar for total RevPAR optimization." },
+      { route: '/gift-shop', at: 30000, caption: "Gift shop and retail revenue — tracked alongside room revenue for a complete picture of every dollar your property generates." },
     ],
   },
   {
     id: 'step_08', kind: 'screen', route: '/guest-crm', target: 'crm-stats',
-    timer: 22, title: 'Guest CRM',
+    timer: 25, title: 'Guest CRM',
     caption: "Guests auto-segmented nightly — 7 VIP, 8 local, 3 lapsed, 4 new. With November occupancy forecast under 55%, INNtelligence drafted a win-back campaign. Sarah personalizes it in her own voice and approves.",
   },
   {
     id: 'step_09', kind: 'screen', route: '/reputation', target: null,
-    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 16, title: 'Reputation',
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 25, title: 'Reputation',
     caption: "Google, TripAdvisor and Booking reviews in one feed. 4.8 overall, up from 4.6. One review flagged with a suggested reply — Sarah answers in her own voice. Reputation is revenue.",
   },
   {
     id: 'step_10', kind: 'screen', route: '/roi-performance', target: null,
-    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 22, title: 'ROI Performance',
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 45, title: 'ROI Performance',
     caption: "Occupancy +9%, ADR +16%, RevPAR +26% vs last year. During Water Festival month, room lift alone is ~$45k on a $699 subscription — a 64× month. Annualized across every revenue stream: $93,500 lift, 11.1× return. Conservative. Auditable. Real.",
   },
   {

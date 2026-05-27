@@ -67,9 +67,9 @@ export default function DemoOverlay() {
   const advance = useCallback(() => {
     if (advancedRef.current === idx) return
     advancedRef.current = idx
-    if (idx === 0) {                       // crossfade the opening out before Step 1
+    if (idx === 0) {                       // fade the full-screen intro out over 1s, revealing Home
       setOpeningFade(true)
-      setTimeout(() => { setOpeningFade(false); goNext() }, 500)
+      setTimeout(() => { setOpeningFade(false); goNext() }, 1000)
       return
     }
     goNext()
@@ -156,7 +156,13 @@ export default function DemoOverlay() {
     setPaused(false)
     setBarReady(false)
     const isClosing = step.kind === 'closing'   // plays narration but never auto-advances
-    let secs = (step.timer || 18) + 2            // +2s buffer so audio never gets cut mid-sentence
+    const isSeq = !!step.sequence                // Step 7: sub-screens on their own 15s timers
+    // Advance = audio end + 2s buffer (ticker reaches 0 at audio.duration + 2, set
+    // on loadedmetadata). Sequence steps run a fixed window so each sub-screen gets
+    // its full 15s regardless of audio length. Fallback uses the generous step timer.
+    let secs = isSeq
+      ? (Math.max(...step.sequence.map((s) => s.at)) / 1000 + 15)   // last sub-screen + 15s
+      : (step.timer || 25) + 2
     if (!isClosing) { setStepSecs(secs); setRemaining(secs) }
     let ticker = 0
     let last = 0
@@ -182,11 +188,12 @@ export default function DemoOverlay() {
         audioRef.current = a
         a.muted = mutedRef.current
         a.addEventListener('loadedmetadata', () => {
-          if (isFinite(a.duration) && a.duration > 1 && !isClosing) {
+          if (isFinite(a.duration) && a.duration > 1 && !isClosing && !isSeq) {
             secs = a.duration + 2; setStepSecs(secs); setRemaining(secs)  // advance only after audio + buffer
           }
         })
-        if (!isClosing) a.addEventListener('ended', advance)
+        // No 'ended' advance — the ticker advances at audio end + 2s so a step
+        // never cuts off mid-sentence, and sequence steps keep their full window.
         a.play().catch(() => {
           fetch(`/api/demo/narration/${step.id}`)
             .then((r) => r.json()).then((d) => { if (!mutedRef.current && !pausedRef.current) speak(d.text) })
@@ -302,7 +309,12 @@ export default function DemoOverlay() {
     <BottomBar pct={pct} remaining={remaining} paused={paused} onTogglePause={() => setPaused((p) => !p)} />
   )
 
-  if (step.kind === 'opening') return <>{banner}<Opening fading={openingFade} onSkip={skip} onNext={advance} muted={muted} onMute={() => setMuted((m) => !m)} />{bottomBar}</>
+  // Step 0 is a full-screen takeover (z-9999) — no banner, no separate bottom bar;
+  // the progress bar + Pause live inside the overlay so they sit above it.
+  if (step.kind === 'opening') return (
+    <Opening fading={openingFade} onSkip={skip} muted={muted} onMute={() => setMuted((m) => !m)}
+      pct={pct} remaining={remaining} paused={paused} onTogglePause={() => setPaused((p) => !p)} />
+  )
   if (step.kind === 'closing') return <>{banner}<Closing onReplay={replay} onExplore={skip} exitDemo={exitDemo} /></>
 
   return (
@@ -404,31 +416,44 @@ function Coachmark({ step, idx, rect, muted, liveRate, liveDemand, caption, onNe
   )
 }
 
-// ── Step 0 — Opening (founder intro) ──────────────────────────────────────────
-function Opening({ fading, onSkip, onNext, muted, onMute }) {
+// ── Step 0 — Opening: full-screen navy takeover over the Home screen ──────────
+function Opening({ fading, onSkip, muted, onMute, pct, remaining, paused, onTogglePause }) {
   return (
-    <div className={`fixed inset-0 z-[60] overflow-y-auto transition-opacity duration-500 ${fading ? 'opacity-0' : 'opacity-100'}`}
-      style={{ background: 'radial-gradient(circle at 50% 15%, #14385f, #061629)' }}>
+    <div
+      className={`transition-opacity duration-1000 ${fading ? 'opacity-0' : 'opacity-100'}`}
+      style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, backgroundColor: '#1A3A5C', overflowY: 'auto' }}>
       <button onClick={onSkip} className="absolute top-3 right-4 z-10 text-white/70 hover:text-white text-sm underline">Skip Tour →</button>
-      <div className="min-h-full flex flex-col items-center justify-center px-6 py-14 text-center">
-        <div className="text-gold font-extrabold tracking-tight text-3xl sm:text-4xl">INNtelligence</div>
-        <div className="grid sm:grid-cols-[auto_1fr] items-center gap-6 mt-10 max-w-2xl text-left">
-          <div className="w-28 h-28 rounded-full bg-gold text-navy flex items-center justify-center text-4xl font-extrabold mx-auto shadow-lg shadow-gold/30">JW</div>
+      <div className="min-h-full flex flex-col items-center justify-center px-6 py-16 text-center">
+        <div className="text-gold font-extrabold" style={{ fontFamily: 'Georgia, serif', fontSize: 48 }}>INNtelligence</div>
+        <div className="text-gold italic text-lg mt-1">Boutique Hospitality Intelligence</div>
+        <div className="text-white/50 text-sm">by The Gracious Collection</div>
+
+        <div className="grid sm:grid-cols-[auto_1fr] items-center gap-8 mt-12 max-w-2xl text-left">
+          <div className="rounded-full bg-gold text-navy flex items-center justify-center font-extrabold mx-auto shadow-lg shadow-gold/30"
+            style={{ width: 120, height: 120, fontSize: 44, fontFamily: 'Georgia, serif' }}>JW</div>
           <div>
-            <div className="text-white text-2xl font-bold">Jim Williams</div>
-            <div className="text-gold mt-0.5">Director of Pricing, Cox Communications</div>
-            <div className="text-white/60 text-sm mt-2">11 Years Enterprise Pricing Strategy</div>
-            <div className="text-white/60 text-sm">MBA, University of South Florida</div>
-            <div className="text-white/60 text-sm">BA Economics, Duke University</div>
+            <div className="text-white font-bold" style={{ fontSize: 28 }}>Jim Williams</div>
+            <div className="text-gold mt-1" style={{ fontSize: 18 }}>Director of Pricing, Cox Communications</div>
+            <div className="text-white/55 mt-3" style={{ fontSize: 16 }}>11 Years Enterprise Pricing Strategy</div>
+            <div className="text-white/55" style={{ fontSize: 16 }}>MBA, University of South Florida</div>
+            <div className="text-white/55" style={{ fontSize: 16 }}>BA Economics, Duke University</div>
           </div>
         </div>
-        <div className="w-40 h-px bg-gold/60 my-9" />
-        <div className="text-white/90 text-lg font-semibold">Demonstrating with The Bay Street Inn</div>
-        <div className="text-gold-light text-sm mt-1">Beaufort, South Carolina — Waterfront Boutique Inn</div>
 
-        <div className="flex items-center justify-center gap-3 mt-10">
-          <button onClick={onMute} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm text-white">{muted ? '🔇 Muted' : '🔊 Sound'}</button>
-          <button onClick={onNext} className="px-6 py-2 rounded-lg bg-gold text-navy font-bold text-sm hover:bg-gold-light">Begin →</button>
+        <div className="w-40 h-px bg-gold/60 my-10" />
+        <div className="text-white" style={{ fontSize: 18 }}>Demonstrating with The Bay Street Inn</div>
+        <div className="text-white/70 mt-1" style={{ fontSize: 18 }}>South Carolina Lowcountry · Waterfront Boutique Inn</div>
+      </div>
+
+      {/* Very bottom: full-width gold progress bar + Pause */}
+      <div className="fixed bottom-0 inset-x-0">
+        <div className="h-1.5 bg-white/10">
+          <div className="h-full bg-gold" style={{ width: `${pct}%`, transition: 'width 0.25s linear' }} />
+        </div>
+        <div className="px-4 py-2 flex items-center justify-center gap-3 text-xs text-white/85">
+          <span>{paused ? 'Paused' : `Beginning the tour in ${Math.max(0, Math.ceil(remaining))}s`}</span>
+          <button onClick={onTogglePause} className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25 font-semibold">{paused ? '▶ Resume' : '⏸ Pause'}</button>
+          <button onClick={onMute} className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25">{muted ? '🔇' : '🔊'}</button>
         </div>
       </div>
     </div>
