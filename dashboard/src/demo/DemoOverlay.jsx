@@ -49,6 +49,7 @@ export default function DemoOverlay() {
   const [remaining, setRemaining] = useState(0)           // seconds left on this step
   const [stepSecs, setStepSecs] = useState(0)             // total seconds for this step
   const [barReady, setBarReady] = useState(false)         // bar appears 300ms after the step mounts
+  const [started, setStarted] = useState(false)           // Step 0 waits for the "Begin Demo" gesture
 
   const audioRef = useRef(null)
   const cleanupRef = useRef(null)
@@ -63,7 +64,20 @@ export default function DemoOverlay() {
   const goNext = useCallback(() => setIdx((i) => Math.min(i + 1, LAST_INDEX)), [])
   const goPrev = useCallback(() => setIdx((i) => Math.max(i - 1, 0)), [])
   const skip = useCallback(() => { stopSpeak(); setActive(false); setRect(null) }, [])
-  const replay = useCallback(() => { setIdx(0); setActive(true) }, [])
+  const replay = useCallback(() => { setStarted(false); setIdx(0); setActive(true) }, [])
+  // Begin Demo: the explicit user gesture that unlocks audio in every browser.
+  // We start step_00 playback right here in the click handler (guaranteed), then
+  // every later step reuses this now-unlocked element.
+  const beginDemo = useCallback(() => {
+    if (!audioRef.current) audioRef.current = new Audio()
+    const a = audioRef.current
+    a.onloadedmetadata = null; a.onended = null
+    a.src = '/audio/demo/step_00.mp3'
+    a.muted = mutedRef.current
+    try { a.currentTime = 0 } catch { /* ignore */ }
+    a.play().catch(() => {})
+    setStarted(true)
+  }, [])
   const advance = useCallback(() => {
     if (advancedRef.current === idx) return
     advancedRef.current = idx
@@ -151,6 +165,7 @@ export default function DemoOverlay() {
   // their content is visible before the bar/narration begin (FIX 1 / FIX 9).
   useEffect(() => {
     if (!active) { setBarReady(false); return undefined }
+    if (idx === 0 && !started) { setBarReady(false); return undefined }  // wait for the Begin Demo click
     stopSpeak()
     advancedRef.current = -1
     setPaused(false)
@@ -194,9 +209,13 @@ export default function DemoOverlay() {
         if (!audioRef.current) audioRef.current = new Audio()
         const a = audioRef.current
         a.onloadedmetadata = null; a.onended = null
-        a.src = `/audio/demo/${step.id}.mp3`
-        a.muted = mutedRef.current
-        try { a.currentTime = 0 } catch { /* ignore */ }
+        // Step 0 is already playing from the Begin Demo gesture — don't reset/replay
+        // it here. Every later step re-points this same (now unlocked) element.
+        if (idx !== 0) {
+          a.src = `/audio/demo/${step.id}.mp3`
+          a.muted = mutedRef.current
+          try { a.currentTime = 0 } catch { /* ignore */ }
+        }
         a.onloadedmetadata = () => {
           if (isFinite(a.duration) && a.duration > 1 && !isClosing && !isSeq) {
             secs = a.duration + 2; setStepSecs(secs); setRemaining(secs)  // advance only after audio + buffer
@@ -208,7 +227,7 @@ export default function DemoOverlay() {
         if (!isClosing && !isSeq) {
           a.onended = () => { endedTimer = window.setTimeout(advance, 2000) }
         }
-        a.play().catch(() => {
+        if (idx !== 0) a.play().catch(() => {
           fetch(`/api/demo/narration/${step.id}`)
             .then((r) => r.json()).then((d) => { if (!mutedRef.current && !pausedRef.current) speak(d.text) })
             .catch(() => {})
@@ -227,7 +246,7 @@ export default function DemoOverlay() {
       stopSpeak()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, idx])
+  }, [active, idx, started])
 
   // Pause/resume the narration audio with the countdown.
   useEffect(() => {
@@ -326,6 +345,7 @@ export default function DemoOverlay() {
   // the progress bar + Pause live inside the overlay so they sit above it.
   if (step.kind === 'opening') return (
     <Opening fading={openingFade} onSkip={skip} muted={muted} onMute={() => setMuted((m) => !m)}
+      started={started} onBegin={beginDemo}
       pct={pct} remaining={remaining} paused={paused} onTogglePause={() => setPaused((p) => !p)} />
   )
   if (step.kind === 'closing') return <>{banner}<Closing onReplay={replay} onExplore={skip} exitDemo={exitDemo} /></>
@@ -430,7 +450,7 @@ function Coachmark({ step, idx, rect, muted, liveRate, liveDemand, caption, onNe
 }
 
 // ── Step 0 — Opening: full-screen navy takeover over the Home screen ──────────
-function Opening({ fading, onSkip, muted, onMute, pct, remaining, paused, onTogglePause }) {
+function Opening({ fading, onSkip, muted, onMute, started, onBegin, pct, remaining, paused, onTogglePause }) {
   return (
     <div
       className={`transition-opacity duration-1000 ${fading ? 'opacity-0' : 'opacity-100'}`}
@@ -446,9 +466,8 @@ function Opening({ fading, onSkip, muted, onMute, pct, remaining, paused, onTogg
             style={{ width: 120, height: 120, fontSize: 44, fontFamily: 'Georgia, serif' }}>JW</div>
           <div>
             <div className="text-white font-bold" style={{ fontSize: 28 }}>Jim Williams</div>
-            <div className="text-gold mt-1" style={{ fontSize: 18 }}>Director of Pricing, Cox Communications</div>
-            <div className="text-white/55 mt-3" style={{ fontSize: 16 }}>11 Years Enterprise Pricing Strategy</div>
-            <div className="text-white/55" style={{ fontSize: 16 }}>MBA, University of South Florida</div>
+            <div className="text-gold mt-1" style={{ fontSize: 18 }}>11 Years Enterprise Pricing Strategy</div>
+            <div className="text-white/55 mt-3" style={{ fontSize: 16 }}>MBA, University of South Florida</div>
             <div className="text-white/55" style={{ fontSize: 16 }}>BA Economics, Duke University</div>
           </div>
         </div>
@@ -458,17 +477,27 @@ function Opening({ fading, onSkip, muted, onMute, pct, remaining, paused, onTogg
         <div className="text-white/70 mt-1" style={{ fontSize: 18 }}>South Carolina Lowcountry · Waterfront Boutique Inn</div>
       </div>
 
-      {/* Very bottom: full-width gold progress bar + Pause */}
-      <div className="fixed bottom-0 inset-x-0">
-        <div className="h-1.5 bg-white/10">
-          <div className="h-full bg-gold" style={{ width: `${pct}%`, transition: 'width 0.25s linear' }} />
+      {/* Before start: the Begin Demo gesture (guaranteed audio unlock). After: progress bar + Pause. */}
+      {!started ? (
+        <div className="fixed bottom-0 inset-x-0 flex flex-col items-center pb-8">
+          <div className="text-gold italic text-sm mb-3">Click Begin Demo to start with narration</div>
+          <button onClick={onBegin}
+            className="px-12 py-4 rounded-xl bg-gold text-navy font-extrabold text-xl shadow-lg shadow-gold/30 hover:bg-gold-light transition-colors">
+            ▶ Begin Demo
+          </button>
         </div>
-        <div className="px-4 py-2 flex items-center justify-center gap-3 text-xs text-white/85">
-          <span>{paused ? 'Paused' : `Beginning the tour in ${Math.max(0, Math.ceil(remaining))}s`}</span>
-          <button onClick={onTogglePause} className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25 font-semibold">{paused ? '▶ Resume' : '⏸ Pause'}</button>
-          <button onClick={onMute} className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25">{muted ? '🔇' : '🔊'}</button>
+      ) : (
+        <div className="fixed bottom-0 inset-x-0">
+          <div className="h-1.5 bg-white/10">
+            <div className="h-full bg-gold" style={{ width: `${pct}%`, transition: 'width 0.25s linear' }} />
+          </div>
+          <div className="px-4 py-2 flex items-center justify-center gap-3 text-xs text-white/85">
+            <span>{paused ? 'Paused' : `Beginning the tour in ${Math.max(0, Math.ceil(remaining))}s`}</span>
+            <button onClick={onTogglePause} className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25 font-semibold">{paused ? '▶ Resume' : '⏸ Pause'}</button>
+            <button onClick={onMute} className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25">{muted ? '🔇' : '🔊'}</button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
