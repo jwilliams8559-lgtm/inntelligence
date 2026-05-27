@@ -29,7 +29,7 @@ import Pricing from './screens/Pricing'
 function DemoEntry() {
   const { startDemo } = useAuth()
   useEffect(() => { startDemo() }, [startDemo])
-  return <Navigate to="/rate-calendar?days=90" replace />
+  return <Navigate to="/" replace />
 }
 
 const BUILT = {

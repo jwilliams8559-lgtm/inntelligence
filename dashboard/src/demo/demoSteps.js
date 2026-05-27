@@ -1,63 +1,96 @@
-// Guided /demo tour — 7 steps over the REAL Bay Street Inn dashboard.
+// Guided /demo tour — 11 steps over the REAL Bay Street Inn dashboard, framed
+// by a full-screen opening (founder intro) and a full-screen closing (CTA).
 //
-// Each step deep-links to a real screen (with query params that set its initial
-// view), then spotlights a real element by its data-tour id. Tooltip copy is
-// number-light on purpose: the spotlighted element shows the real, live values
-// so the words can never contradict the screen. Narration audio is served from
-// /api/tour/audio/<narrationId> (ElevenLabs "Will"), generated server-side.
-//
-// Step 7 has no target — the overlay renders a closing call-to-action card.
+// Each "screen" step deep-links to a real screen and spotlights a real element
+// by its data-tour id when one exists, falling back to robust CSS selectors,
+// then to a no-spotlight centered tooltip. On-screen captions are short; the
+// full narration lives server-side (app.py DEMO_NARRATION) for ElevenLabs audio
+// and the browser-speech fallback. Auto-advance is driven by audio end, with the
+// per-step `timer` (seconds) as the fallback when no audio is available.
+
+export const DEMO_CONTACT = {
+  name: 'Jim Williams',
+  phone: '404-909-5818',
+  email: 'jwilliams8559@gmail.com',
+}
+
+export const DEMO_MAILTO =
+  'mailto:jwilliams8559@gmail.com' +
+  '?subject=' + encodeURIComponent('INNtelligence Founding Member Request') +
+  '&body=' + encodeURIComponent(
+    'Hi Jim, I watched the INNtelligence demo and I am interested in the Founding Member program. My property is:')
 
 export const DEMO_STEPS = [
   {
-    id: 'demo_01',
-    title: '90-Day Rate Calendar',
-    route: '/rate-calendar?days=90',
-    target: 'wf-banner',
-    text: "This is the real INNtelligence dashboard for The Bay Street Inn. Every cell is an AI-generated rate recommendation — one room, one night. Note the Water Festival alert: peak demand, detected automatically.",
-  },
-  {
-    id: 'demo_02',
-    title: 'Why this rate?',
-    route: '/rate-calendar?days=90&focus=peak',
-    target: 'rate-drawer',
-    text: "Click any date and INNtelligence shows the full reasoning — demand, competitor rates, seasonal index and lead time, in plain English. Accept it or override it in one click.",
-  },
-  {
-    id: 'demo_03',
-    title: 'Competitive Intelligence',
-    route: '/competitive-intel?tier=waterfront&days=90',
-    target: 'comp-cuthbert',
-    text: "INNtelligence monitors your Beaufort competitors around the clock and compares you like-for-like, by room type. Cuthbert House Inn is one of your closest waterfront competitors.",
-  },
-  {
-    id: 'demo_04',
-    title: 'Demand Forecast',
-    route: '/events?view=quarter',
-    target: 'events-peak',
-    text: "Your demand forecast reads the local Beaufort events calendar and turns it into revenue. Every event is scored by pricing impact, and the biggest demand drivers are surfaced automatically — months ahead.",
-  },
-  {
-    id: 'demo_05',
-    title: 'Guest CRM',
-    route: '/guest-crm',
-    target: 'crm-stats',
-    text: "INNtelligence segments every guest automatically — VIPs, regulars, and lapsed guests worth winning back. When occupancy dips, it can trigger a personalized win-back campaign.",
-  },
-  {
-    id: 'demo_06',
-    title: 'Approve All',
-    route: '/rate-calendar?days=90&spotlight=approve',
-    target: 'approve-all',
-    text: "Here's the moment that changes your morning: approve every recommendation in one click, and INNtelligence publishes to Booking.com, Expedia, Airbnb, VRBO, Hotels.com, Trip.com and Agoda at once.",
-  },
-  {
-    id: 'demo_closing',
+    id: 'step_00', kind: 'opening', route: '/', target: null, timer: 20,
     title: 'INNtelligence',
-    route: '/rate-calendar?days=90',
-    target: null,           // closing CTA card, no spotlight
-    text: "That's INNtelligence — real pricing intelligence for boutique inns. Starting at $399 a month, with Founding Member access free for six months. Request access today.",
+  },
+  {
+    id: 'step_01', kind: 'screen', route: '/', target: null,
+    selectors: ['main .grid', 'main h1'], timer: 18, title: 'Tuesday Morning',
+    caption: "Tuesday at The Bay Street Inn. INNtelligence ran all night — 39 properties watched, booking pace checked against last year. Water Festival in 52 days: peak demand. Nothing changes until Sarah approves.",
+  },
+  {
+    id: 'step_02', kind: 'screen', route: '/rate-calendar?days=90', target: 'wf-banner',
+    timer: 22, title: 'Rate Calendar — 90 Days',
+    caption: "90 days of AI rate recommendations — every room, every night. The gold Water Festival columns (Jul 17–26) score 90/100 — Peak. These are recommendations only. Nothing is live until Sarah approves.",
+  },
+  {
+    id: 'step_03', kind: 'screen', route: '/rate-calendar?days=90&focus=peak', target: 'rate-drawer',
+    timer: 25, title: 'Why This Rate?',
+    caption: "Waterfront Suite, Water Festival Saturday: $450 → $599. See the reasoning — demand 90/100, competitor compression, pace +47%. Direct rate $549 nets Sarah $40 more than the OTA. 3-night minimum on peak dates.",
+  },
+  {
+    id: 'step_04', kind: 'screen', route: '/competitive-intel?tier=waterfront&days=90&room=waterfront', target: 'comp-cuthbert',
+    timer: 22, title: 'Competitive Intelligence',
+    caption: "39 competitors found within 25 miles; the 9 most relevant scored. Filter to Waterfront Suite and non-waterfront competitors gray out. Cuthbert (92.7) sold out, Anchorage (88.5) limited — Bay Street becomes THE waterfront option.",
+  },
+  {
+    id: 'step_05', kind: 'screen', route: '/events?view=6mo', target: 'events-peak',
+    timer: 18, title: 'Demand Calendar',
+    caption: "Every Beaufort demand driver, by horizon. Parris Island graduations every Friday, the Gullah Festival, Water Festival, the Film Festival — months of revenue intelligence with time to prepare. No surprises.",
+  },
+  {
+    id: 'step_06', kind: 'screen', route: '/weddings', target: null,
+    selectors: ['main .rounded-2xl', 'main .rounded-xl', 'main .grid'], timer: 20, title: 'Weddings & Private Events',
+    caption: "A wedding inquiry: 40 guests, full buyout, 2 nights → $37,300, a clear accept. Move it onto Water Festival dates and the conflict alert fires — festival pricing beats the buyout. The AI flags it; Sarah decides.",
+  },
+  {
+    id: 'step_07', kind: 'screen', route: '/packages', target: null,
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 20, title: 'Packages, Gift Shop & F&B',
+    caption: "Romance +$85, Anniversary +$120, $40–60k/yr in gift shop retail, plus The Parlor dinner and the rooftop bar. INNtelligence optimizes every revenue stream the property produces — not just the rooms.",
+  },
+  {
+    id: 'step_08', kind: 'screen', route: '/guest-crm', target: 'crm-stats',
+    timer: 22, title: 'Guest CRM',
+    caption: "Guests auto-segmented nightly — 7 VIP, 8 local, 3 lapsed, 4 new. With November occupancy forecast under 55%, INNtelligence drafted a win-back campaign. Sarah personalizes it in her own voice and approves.",
+  },
+  {
+    id: 'step_09', kind: 'screen', route: '/reputation', target: null,
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 16, title: 'Reputation',
+    caption: "Google, TripAdvisor and Booking reviews in one feed. 4.8 overall, up from 4.6. One review flagged with a suggested reply — Sarah answers in her own voice. Reputation is revenue.",
+  },
+  {
+    id: 'step_10', kind: 'screen', route: '/roi-performance', target: null,
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 20, title: 'ROI Performance',
+    caption: "This month vs last year: occupancy +9%, ADR +16%, RevPAR +26%. $699/mo subscription, $1,244 avg lift, $545 net benefit — 1.8× monthly, 7.1× annual ROI. Conservative. Auditable. Real.",
+  },
+  {
+    id: 'step_11', kind: 'screen', route: '/rate-calendar?days=90', target: 'approve-all',
+    timer: 22, title: 'Approve All & Publish',
+    caption: "55 minutes reviewed. Sarah taps Approve All — and in 2.26 seconds rates publish to all 7 OTAs at once. The AI works all night so the innkeeper works smarter in the morning.",
+  },
+  {
+    id: 'closing', kind: 'closing', route: null, target: null, timer: 30,
+    title: 'INNtelligence',
   },
 ]
 
-export const DEMO_CONTACT_EMAIL = 'jwilliams8559@gmail.com'
+// Steps that carry a "Step X of 11" counter (the 11 numbered screen steps).
+export const SCREEN_STEP_COUNT = DEMO_STEPS.filter((s) => s.kind === 'screen').length
+export const FIRST_SCREEN_INDEX = DEMO_STEPS.findIndex((s) => s.kind === 'screen')
+export const LAST_INDEX = DEMO_STEPS.length - 1
+
+export const PMS_LIST = ['ResNexus', 'Cloudbeds', 'ThinkReservations', 'Guesty', 'WebRezPro', 'Little Hotelier']
+export const OTA_LIST = ['Booking.com', 'Expedia', 'Airbnb', 'VRBO', 'Hotels.com', 'Trip.com', 'Agoda']
+export const GEO_LIST = ['United States', 'Canada', 'United Kingdom', 'Europe', 'Caribbean']

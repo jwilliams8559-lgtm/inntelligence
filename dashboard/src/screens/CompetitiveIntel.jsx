@@ -24,6 +24,16 @@ const RANGES = [
   { value: 7, label: 'Week' }, { value: 14, label: '2 Weeks' },
   { value: 30, label: 'Month' }, { value: 90, label: '90 Days' },
 ]
+// Room-type filter — maps a friendly room name to the comp-set tier. Selecting
+// a specific room grays out competitors that don't offer that room type
+// (the API returns available:false for them under that tier).
+const ROOM_FILTERS = [
+  { value: 'all', label: 'All Rooms', tier: null },
+  { value: 'waterfront', label: 'Waterfront Suite', tier: 'waterfront' },
+  { value: 'water_view', label: 'Waterview Suite', tier: 'water_view' },
+  { value: 'garden', label: 'Garden View Room', tier: 'garden' },
+  { value: 'carriage_house', label: 'Cottage Room', tier: 'carriage_house' },
+]
 const fmtDay = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
 export default function CompetitiveIntel() {
@@ -37,11 +47,21 @@ export default function CompetitiveIntel() {
     const d = Number(params.get('days'))
     return RANGES.some((r) => r.value === d) ? d : 14
   })
+  const [roomFilter, setRoomFilter] = useState(() => {
+    const r = params.get('room')
+    return ROOM_FILTERS.some((x) => x.value === r) ? r : 'all'
+  })
   const [yoy, setYoy] = useState(false)
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
   const [mi, setMi] = useState(null)
   const [miErr, setMiErr] = useState(null)
+
+  const onRoom = (value) => {
+    setRoomFilter(value)
+    const m = ROOM_FILTERS.find((x) => x.value === value)
+    setTier(m?.tier || 'average')
+  }
 
   useEffect(() => { getMarketIntel().then(setMi).catch((e) => setMiErr(e.message)) }, [])
   useEffect(() => {
@@ -76,6 +96,14 @@ export default function CompetitiveIntel() {
         subtitle={`${propName} vs Beaufort comp set · like-for-like by room category`}
         right={<div className="flex items-center gap-2 flex-wrap"><YoYToggle on={yoy} onChange={setYoy} /><ExportButton onClick={onExport} /><LastUpdated at={lastUpdated} /></div>}
       />
+
+      <div data-tour="comp-roomfilter" className="flex items-center gap-2 flex-wrap mb-3">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Room Type</span>
+        <Segmented options={ROOM_FILTERS} value={roomFilter} onChange={onRoom} />
+        {roomFilter !== 'all' && (
+          <span className="text-[11px] text-gray-400">— competitors without this room type are dimmed</span>
+        )}
+      </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
         <Segmented options={TIERS} value={tier} onChange={setTier} />
@@ -147,6 +175,7 @@ export default function CompetitiveIntel() {
                   </tr>
                   {comps.map((c) => {
                     const tourId = /cuthbert/i.test(c.name) ? 'comp-cuthbert' : undefined
+                    const dim = roomFilter !== 'all' && !c.available ? ' opacity-40 pointer-events-none' : ''
                     const refBadge = c.reference ? (
                       <span title={c.reference_tooltip}
                         className={`ml-1 text-[9px] not-italic font-semibold px-1.5 py-0.5 rounded-full border ${
@@ -156,7 +185,7 @@ export default function CompetitiveIntel() {
                     ) : null
                     if (!c.available) {
                       return (
-                        <tr key={c.name} data-tour={tourId} className="border-b border-gray-100 bg-gray-50 text-gray-300"
+                        <tr key={c.name} data-tour={tourId} className={`border-b border-gray-100 bg-gray-50 text-gray-300${dim}`}
                             title="This property does not offer a comparable room type">
                           <td className="sticky left-0 z-10 bg-gray-50 text-left py-2 pr-3 whitespace-nowrap italic">{c.name}{refBadge}</td>
                           {data.dates.map((_, i) => <td key={i} className="text-right px-2 italic">N/A</td>)}

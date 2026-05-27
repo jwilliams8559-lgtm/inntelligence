@@ -1,49 +1,64 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { DEMO_STEPS, DEMO_CONTACT_EMAIL } from './demoSteps'
+import {
+  DEMO_STEPS, DEMO_CONTACT, DEMO_MAILTO, LAST_INDEX,
+  SCREEN_STEP_COUNT, PMS_LIST, OTA_LIST, GEO_LIST,
+} from './demoSteps'
 
-// ── Web Speech fallback (used only if the ElevenLabs MP3 can't load) ──────────
-function speakFallback(text) {
+// ── Browser-speech fallback (used when an ElevenLabs MP3 can't load) ──────────
+function speak(text) {
   try {
     if (!('speechSynthesis' in window) || !text) return
     window.speechSynthesis.cancel()
     const u = new SpeechSynthesisUtterance(text)
-    u.rate = 0.95
+    u.rate = 0.96
     const v = (window.speechSynthesis.getVoices() || []).find((x) => /en[-_]US/i.test(x.lang))
     if (v) u.voice = v
     window.speechSynthesis.speak(u)
   } catch { /* ignore */ }
 }
 const stopSpeak = () => { try { window.speechSynthesis.cancel() } catch { /* ignore */ } }
-
-const LAST = DEMO_STEPS.length - 1
 const isMobile = () => typeof window !== 'undefined' && window.innerWidth < 768
 
+// screen-step index → "Step N of 11"
+const screenNumber = (idx) => DEMO_STEPS.slice(0, idx + 1).filter((s) => s.kind === 'screen').length
+
 // ─────────────────────────────────────────────────────────────────────────────
-//  DemoOverlay — rides on top of the real dashboard during /demo.
-//   • Guided mode: spotlight + coach-mark tooltip walking 7 steps.
-//   • Free-explore mode (after finish/skip): a slim banner; tour can be replayed.
+//  DemoOverlay — rides on top of the real dashboard for /demo.
 // ─────────────────────────────────────────────────────────────────────────────
 export default function DemoOverlay() {
   const { demoMode, exitDemo } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [active, setActive] = useState(false)     // guided tour running
+  const [active, setActive] = useState(false)
   const [idx, setIdx] = useState(0)
-  const [rect, setRect] = useState(null)          // spotlight target rect
-  const [auto, setAuto] = useState(false)
+  const [rect, setRect] = useState(null)
   const [muted, setMuted] = useState(false)
+  const [bannerOff, setBannerOff] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [progressSecs, setProgressSecs] = useState(20)
 
   const audioRef = useRef(null)
   const cleanupRef = useRef(null)
+  const advancedRef = useRef(-1)
   const mutedRef = useRef(muted)
-  const autoRef = useRef(auto)
   useEffect(() => { mutedRef.current = muted }, [muted])
-  useEffect(() => { autoRef.current = auto }, [auto])
 
-  // Start the guided tour once, if /demo flagged it.
+  const step = DEMO_STEPS[idx]
+
+  const goNext = useCallback(() => setIdx((i) => Math.min(i + 1, LAST_INDEX)), [])
+  const goPrev = useCallback(() => setIdx((i) => Math.max(i - 1, 0)), [])
+  const skip = useCallback(() => { stopSpeak(); setActive(false); setRect(null) }, [])
+  const replay = useCallback(() => { setIdx(0); setActive(true) }, [])
+  const advance = useCallback(() => {
+    if (advancedRef.current === idx) return
+    advancedRef.current = idx
+    goNext()
+  }, [idx, goNext])
+
+  // Auto-start the guided tour once if /demo flagged it.
   useEffect(() => {
     if (!demoMode) return
     let pending = false
@@ -54,39 +69,42 @@ export default function DemoOverlay() {
     }
   }, [demoMode])
 
-  const step = DEMO_STEPS[idx]
-
-  const goNext = useCallback(() => setIdx((i) => Math.min(i + 1, LAST)), [])
-  const goPrev = useCallback(() => setIdx((i) => Math.max(i - 1, 0)), [])
-  const skipToEnd = useCallback(() => setIdx(LAST), [])
-  const finish = useCallback(() => { stopSpeak(); setActive(false); setRect(null) }, [])
-  const replay = useCallback(() => { setIdx(0); setActive(true) }, [])
-
-  // Navigate to the step's screen whenever the active step changes.
+  // Navigate to the step's screen when the active step changes.
   useEffect(() => {
-    if (!active) return
-    const want = step.route
+    if (!active || !step.route) return
     const here = location.pathname + location.search
-    if (here !== want) navigate(want)
+    if (here !== step.route) navigate(step.route)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, idx])
 
-  // Locate + track the spotlight target after navigation/data-load settles.
+  // Locate + track the spotlight target (data-tour id, then CSS selectors).
   useEffect(() => {
-    if (!active) { setRect(null); return undefined }
-    if (!step.target) { setRect(null); return undefined }   // closing card
-    let raf = 0, tries = 0, stop = false
+    cleanupRef.current?.(); cleanupRef.current = null
+    if (!active || step.kind !== 'screen') { setRect(null); return undefined }
+    let tries = 0, stop = false, timer = 0
+    const queryEl = () => {
+      if (step.target) {
+        const el = document.querySelector(`[data-tour="${step.target}"]`)
+        if (el) return el
+      }
+      for (const sel of (step.selectors || [])) {
+        const el = document.querySelector(sel)
+        if (el) return el
+      }
+      return null
+    }
     const measure = (el) => {
       const r = el.getBoundingClientRect()
+      if (r.width === 0 && r.height === 0) return
       setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
     }
     const find = () => {
       if (stop) return
-      const el = document.querySelector(`[data-tour="${step.target}"]`)
+      const el = queryEl()
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
-        setTimeout(() => !stop && measure(el), 350)
-        const onMove = () => { const e2 = document.querySelector(`[data-tour="${step.target}"]`); if (e2) measure(e2) }
+        setTimeout(() => { if (!stop) measure(el) }, 320)
+        const onMove = () => { const e2 = queryEl(); if (e2) measure(e2) }
         window.addEventListener('scroll', onMove, true)
         window.addEventListener('resize', onMove)
         cleanupRef.current = () => {
@@ -95,187 +113,267 @@ export default function DemoOverlay() {
         }
         return
       }
-      if (tries++ > 50) { setRect(null); return }   // ~6s → graceful center
-      raf = window.setTimeout(find, 120)
+      if (tries++ > 45) { setRect(null); return }     // graceful: no spotlight
+      timer = window.setTimeout(find, 130)
     }
+    setRect(null)
     find()
-    return () => { stop = true; clearTimeout(raf); cleanupRef.current?.(); cleanupRef.current = null }
+    return () => { stop = true; clearTimeout(timer); cleanupRef.current?.(); cleanupRef.current = null }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, idx, location.pathname, location.search])
 
-  // Narration audio per step (ElevenLabs MP3 with Web Speech fallback).
+  // Narration audio + auto-advance + progress (per step).
   useEffect(() => {
     if (!active) return undefined
     stopSpeak()
-    const a = new Audio(`/api/tour/audio/${step.id}`)
-    a.muted = mutedRef.current
-    audioRef.current = a
-    const onEnded = () => { if (autoRef.current) goNext() }
-    a.addEventListener('ended', onEnded)
-    a.play().catch(() => { if (!mutedRef.current) speakFallback(step.text) })
+    advancedRef.current = -1
+    let secs = step.timer || 18
+    let advTimer = 0
+    let safety = 0
+    const startProgress = (d) => {
+      setProgress(0); setProgressSecs(d)
+      requestAnimationFrame(() => requestAnimationFrame(() => setProgress(100)))
+    }
+    const armTimer = (d) => { clearTimeout(advTimer); advTimer = window.setTimeout(advance, d * 1000) }
+
+    if (mutedRef.current) {
+      startProgress(secs); armTimer(secs)
+    } else {
+      const a = new Audio(`/api/demo/audio/${step.id}`)
+      audioRef.current = a
+      a.addEventListener('loadedmetadata', () => {
+        if (isFinite(a.duration) && a.duration > 1) {
+          secs = a.duration + 0.6
+          startProgress(secs)
+          clearTimeout(advTimer)               // prefer audio 'ended'
+        }
+      })
+      a.addEventListener('ended', advance)
+      a.play().then(() => {
+        startProgress(secs)
+        safety = window.setTimeout(advance, (secs + 30) * 1000)  // never get stuck
+      }).catch(() => {
+        // No ElevenLabs audio → browser speech + timer-driven advance.
+        fetch(`/api/demo/narration/${step.id}`)
+          .then((r) => r.json()).then((d) => { if (!mutedRef.current) speak(d.text) })
+          .catch(() => {})
+        startProgress(secs); armTimer(secs)
+      })
+      // initial timer until metadata arrives (cleared if audio loads)
+      armTimer(secs)
+    }
+
     return () => {
-      a.removeEventListener('ended', onEnded)
-      try { a.pause() } catch { /* ignore */ }
+      clearTimeout(advTimer); clearTimeout(safety)
+      const a = audioRef.current
+      if (a) { try { a.pause() } catch { /* ignore */ } a.removeEventListener('ended', advance) }
       audioRef.current = null
       stopSpeak()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, idx])
 
-  useEffect(() => { if (audioRef.current) audioRef.current.muted = muted; if (muted) stopSpeak() }, [muted])
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.muted = muted
+    if (muted) stopSpeak()
+  }, [muted])
+
+  // Step 11: auto-trigger the Approve All animation, then advance to closing
+  // when it signals completion.
+  useEffect(() => {
+    if (!active || step.target !== 'approve-all') return undefined
+    const onDone = () => advance()
+    window.addEventListener('inn-demo-approve-done', onDone)
+    const t = window.setTimeout(() => {
+      const btn = document.querySelector('[data-tour="approve-all"]')
+      if (btn) btn.click()
+    }, 8000)
+    return () => { window.removeEventListener('inn-demo-approve-done', onDone); clearTimeout(t) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, idx])
 
   if (!demoMode) return null
 
-  // Free-explore banner (tour finished or skipped to explore).
+  const banner = !bannerOff && (
+    <div className="fixed top-0 inset-x-0 z-[65] bg-gold text-navy px-4 py-2 flex items-center justify-between gap-3 text-sm font-medium shadow">
+      <div className="min-w-0 truncate">
+        <span className="font-bold">Demo Mode</span>
+        <span className="hidden sm:inline"> — The Bay Street Inn, Beaufort SC — Request access to see YOUR property's data</span>
+        <span className="sm:hidden"> — Bay Street Inn</span>
+      </div>
+      <button onClick={() => setBannerOff(true)} aria-label="Dismiss banner"
+        className="shrink-0 w-6 h-6 rounded-full hover:bg-navy/10 flex items-center justify-center font-bold">✕</button>
+    </div>
+  )
+
+  // Free exploration (tour finished or skipped).
   if (!active) {
     return (
-      <div className="fixed bottom-0 inset-x-0 z-[60] bg-navy/95 backdrop-blur border-t border-gold/40 text-white px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
-        <div className="min-w-0">
-          <span className="text-gold font-semibold">Demo Mode</span>
-          <span className="text-white/70 hidden sm:inline"> — The Bay Street Inn, Beaufort SC · explore freely</span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={replay} className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs">↺ Replay tour</button>
-          <a href={`mailto:${DEMO_CONTACT_EMAIL}?subject=INNtelligence%20Founding%20Member%20Access`}
-             className="px-3 py-1.5 rounded-lg bg-gold text-navy font-semibold text-xs hover:bg-gold-light">Request access</a>
-          <Link to="/login" onClick={exitDemo} className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs">Sign in</Link>
-        </div>
-      </div>
+      <>
+        {banner}
+        <a href={DEMO_MAILTO}
+          className="fixed bottom-5 right-5 z-[60] px-5 py-3 rounded-xl bg-gold text-navy font-bold shadow-lg shadow-gold/30 hover:bg-gold-light text-sm">
+          Request Founding Member Access
+        </a>
+        <button onClick={replay}
+          className="fixed bottom-5 left-5 z-[60] px-4 py-2.5 rounded-xl bg-navy/90 text-white text-xs hover:bg-navy">↺ Replay tour</button>
+      </>
     )
   }
 
-  const onClosing = idx === LAST
+  if (step.kind === 'opening') return <>{banner}<Opening onSkip={skip} onNext={advance} muted={muted} onMute={() => setMuted((m) => !m)} progress={progress} progressSecs={progressSecs} /></>
+  if (step.kind === 'closing') return <>{banner}<Closing onReplay={replay} onExplore={skip} exitDemo={exitDemo} /></>
+
   return (
     <>
-      {!onClosing && <Spotlight rect={rect} />}
-      {onClosing
-        ? <ClosingCard onExplore={finish} onPrev={goPrev} exitDemo={exitDemo} />
-        : <Coachmark
-            step={step} idx={idx} rect={rect}
-            auto={auto} muted={muted}
-            onNext={goNext} onPrev={goPrev} onSkip={skipToEnd}
-            onToggleAuto={() => setAuto((a) => !a)} onToggleMute={() => setMuted((m) => !m)} />}
+      {banner}
+      <Spotlight rect={rect} />
+      <Coachmark
+        step={step} idx={idx} rect={rect} muted={muted} progress={progress} progressSecs={progressSecs}
+        onNext={advance} onPrev={goPrev} onSkip={skip} onMute={() => setMuted((m) => !m)} />
     </>
   )
 }
 
-// ── Spotlight: dim the page, cut a glowing hole around the target ─────────────
+// ── Spotlight ─────────────────────────────────────────────────────────────────
 function Spotlight({ rect }) {
-  if (!rect) return <div className="fixed inset-0 z-[55] bg-black/55 pointer-events-none" />
+  if (!rect) return <div className="fixed inset-0 z-[55] bg-black/60 pointer-events-none" />
   const pad = 6
   return (
-    <div
-      className="fixed z-[55] rounded-xl pointer-events-none transition-all duration-300"
+    <div className="fixed z-[55] rounded-xl pointer-events-none transition-all duration-300"
       style={{
         top: rect.top - pad, left: rect.left - pad,
         width: rect.width + pad * 2, height: rect.height + pad * 2,
-        boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)',
-        outline: '3px solid #c9a84c', outlineOffset: 2,
-      }}
-    />
+        boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)', outline: '3px solid #c9a84c', outlineOffset: 2,
+      }} />
   )
 }
 
-// ── Coachmark tooltip: floats near the target (desktop) or docks bottom (mobile)
-function Coachmark({ step, idx, rect, auto, muted, onNext, onPrev, onSkip, onToggleAuto, onToggleMute }) {
+// ── Coachmark tooltip (gold card, navy text) ──────────────────────────────────
+function Coachmark({ step, idx, rect, muted, progress, progressSecs, onNext, onPrev, onSkip, onMute }) {
   const ref = useRef(null)
   const [pos, setPos] = useState(null)
   const mobile = isMobile()
 
   useLayoutEffect(() => {
     if (mobile || !rect || !ref.current) { setPos(null); return }
-    const vw = window.innerWidth, vh = window.innerHeight
+    const vw = window.innerWidth, vh = window.innerHeight, gap = 14
     const w = ref.current.offsetWidth, h = ref.current.offsetHeight
-    const gap = 14
-    const clampTop = (t) => Math.min(Math.max(12, t), vh - h - 12)
-    const clampLeft = (l) => Math.min(Math.max(12, l), vw - w - 12)
-    if (rect.top + rect.height + gap + h < vh) {            // below
-      setPos({ top: rect.top + rect.height + gap, left: clampLeft(rect.left) })
-    } else if (rect.top - h - gap > 12) {                   // above
-      setPos({ top: rect.top - h - gap, left: clampLeft(rect.left) })
-    } else if (rect.left - w - gap > 12) {                  // left (tall targets)
-      setPos({ top: clampTop(rect.top), left: rect.left - w - gap })
-    } else if (rect.left + rect.width + w + gap < vw) {     // right
-      setPos({ top: clampTop(rect.top), left: rect.left + rect.width + gap })
-    } else {
-      setPos(null)                                          // center fallback
-    }
+    const cT = (t) => Math.min(Math.max(12, t), vh - h - 12)
+    const cL = (l) => Math.min(Math.max(12, l), vw - w - 12)
+    if (rect.top + rect.height + gap + h < vh) setPos({ top: rect.top + rect.height + gap, left: cL(rect.left) })          // below
+    else if (rect.top - h - gap > 12) setPos({ top: rect.top - h - gap, left: cL(rect.left) })                            // above
+    else if (rect.left + rect.width + w + gap < vw) setPos({ top: cT(rect.top), left: rect.left + rect.width + gap })     // right
+    else if (rect.left - w - gap > 12) setPos({ top: cT(rect.top), left: rect.left - w - gap })                           // left
+    else setPos(null)                                                                                                     // center
   }, [rect, mobile, idx])
 
-  const baseCls = mobile
-    ? 'fixed z-[60] inset-x-0 bottom-0 rounded-t-2xl'
-    : 'fixed z-[60] w-[min(92vw,360px)] rounded-2xl'
-  const style = mobile ? {} : (pos ? { top: pos.top, left: pos.left }
-    : { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' })
+  const base = mobile
+    ? 'fixed z-[60] inset-x-0 bottom-0 rounded-t-2xl pb-6'
+    : 'fixed z-[60] w-[min(94vw,380px)] rounded-2xl'
+  const style = mobile ? {} : (pos ? { top: pos.top, left: pos.left } : { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' })
 
   return (
-    <div ref={ref} style={style}
-         className={`${baseCls} bg-navy text-white shadow-2xl ring-1 ring-gold/50 p-5`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-gold-light text-[11px] uppercase tracking-wide font-semibold">Step {idx + 1} of {DEMO_STEPS.length}</span>
-        <div className="flex items-center gap-1.5">
-          {DEMO_STEPS.map((_, i) => (
-            <span key={i} className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-5 bg-gold' : 'w-1.5 bg-white/25'}`} />
-          ))}
+    <div ref={ref} style={style} className={`${base} bg-gold text-navy shadow-2xl ring-2 ring-navy/20`}>
+      {mobile && <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-navy/25" />}
+      <div className="p-5">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[11px] uppercase tracking-wide font-bold text-navy/70">Step {screenNumber(idx)} of {SCREEN_STEP_COUNT}</span>
+          <button onClick={onSkip} className="text-[11px] font-semibold text-navy/70 hover:text-navy underline">Skip Tour</button>
         </div>
-      </div>
-      <div className="text-gold font-bold text-base">{step.title}</div>
-      <p className="text-white/85 text-sm leading-relaxed mt-1.5">{step.text}</p>
-
-      <div className="flex items-center gap-2 mt-4">
-        <button onClick={onPrev} disabled={idx === 0}
-          className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm disabled:opacity-30 disabled:cursor-not-allowed">⏮ Prev</button>
-        <button onClick={onNext}
-          className="flex-1 px-3 py-2 rounded-lg bg-gold text-navy font-semibold text-sm hover:bg-gold-light">Next ⏭</button>
-      </div>
-      <div className="flex items-center justify-between mt-3 text-[11px] text-white/55">
-        <div className="flex items-center gap-3">
-          <button onClick={onToggleAuto} className={auto ? 'text-gold' : 'hover:text-white'}>{auto ? '⏸ Auto-play on' : '▶ Auto-play'}</button>
-          <button onClick={onToggleMute} className="hover:text-white">{muted ? '🔇 Muted' : '🔊 Sound'}</button>
+        <div className="font-extrabold text-lg leading-tight">{step.title}</div>
+        {/* dark scrim behind text for guaranteed contrast */}
+        <div className="mt-2 rounded-lg bg-navy text-white/95 p-3 text-[15px] sm:text-sm leading-relaxed" style={{ fontSize: mobile ? 16 : undefined }}>
+          {step.caption}
         </div>
-        <button onClick={onSkip} className="hover:text-white underline">Skip tour</button>
+        <div className="mt-3 h-1.5 bg-navy/15 rounded-full overflow-hidden">
+          <div className="h-full bg-navy rounded-full" style={{ width: `${progress}%`, transition: `width ${progressSecs}s linear` }} />
+        </div>
+        <div className="flex items-center gap-2 mt-3">
+          <button onClick={onPrev} disabled={idx === 0}
+            className="px-3 py-2 rounded-lg bg-navy/10 hover:bg-navy/20 text-sm font-semibold disabled:opacity-30">⏮ Prev</button>
+          <button onClick={onNext} className="flex-1 px-3 py-2 rounded-lg bg-navy text-white font-semibold text-sm hover:bg-navy-light">Next ⏭</button>
+          <button onClick={onMute} aria-label="Mute" className="px-3 py-2 rounded-lg bg-navy/10 hover:bg-navy/20 text-sm">{muted ? '🔇' : '🔊'}</button>
+        </div>
       </div>
     </div>
   )
 }
 
-// ── Closing CTA (step 7) ──────────────────────────────────────────────────────
-function ClosingCard({ onExplore, onPrev, exitDemo }) {
-  const tiers = [
-    { name: 'Starter', price: '$399' },
-    { name: 'Professional', price: '$699', popular: true },
-    { name: 'Enterprise', price: '$1,200' },
-    { name: 'Premium', price: '$2,400' },
-    { name: 'Founding Member', price: 'FREE', sub: '6 months, then $699/mo' },
-  ]
+// ── Step 0 — Opening (founder intro) ──────────────────────────────────────────
+function Opening({ onSkip, onNext, muted, onMute, progress, progressSecs }) {
   return (
     <div className="fixed inset-0 z-[60] overflow-y-auto"
-         style={{ background: 'radial-gradient(circle at 50% 12%, #14385f, #061629)' }}>
-      <div className="min-h-full flex flex-col items-center justify-center text-center px-6 py-12">
+      style={{ background: 'radial-gradient(circle at 50% 15%, #14385f, #061629)' }}>
+      <button onClick={onSkip} className="absolute top-3 right-4 z-10 text-white/70 hover:text-white text-sm underline">Skip Tour →</button>
+      <div className="min-h-full flex flex-col items-center justify-center px-6 py-14 text-center">
         <div className="text-gold font-extrabold tracking-tight text-3xl sm:text-4xl">INNtelligence</div>
-        <div className="text-gold-light text-xs uppercase tracking-[0.3em] mt-2">by The Gracious Collection</div>
-        <h1 className="text-white text-2xl sm:text-3xl font-bold mt-6 max-w-2xl">Real pricing intelligence for boutique inns.</h1>
-        <p className="text-white/70 mt-3 max-w-xl">Starting at $399/month. A limited number of Founding Member slots are available — free for your first 6 months.</p>
+        <div className="grid sm:grid-cols-[auto_1fr] items-center gap-6 mt-10 max-w-2xl text-left">
+          <div className="w-28 h-28 rounded-full bg-gold text-navy flex items-center justify-center text-4xl font-extrabold mx-auto shadow-lg shadow-gold/30">JW</div>
+          <div>
+            <div className="text-white text-2xl font-bold">Jim Williams</div>
+            <div className="text-gold mt-0.5">Director of Pricing, Cox Communications</div>
+            <div className="text-white/60 text-sm mt-2">11 Years Enterprise Pricing Strategy</div>
+            <div className="text-white/60 text-sm">MBA, University of South Florida</div>
+            <div className="text-white/60 text-sm">BA Economics, Duke University</div>
+          </div>
+        </div>
+        <div className="w-40 h-px bg-gold/60 my-9" />
+        <div className="text-white/90 text-lg font-semibold">Demonstrating with The Bay Street Inn</div>
+        <div className="text-gold-light text-sm mt-1">Beaufort, South Carolina — Waterfront Boutique Inn</div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mt-8 w-full max-w-3xl">
-          {tiers.map((t) => (
-            <div key={t.name} className={`rounded-xl p-3 border ${t.popular ? 'border-gold bg-gold/10' : 'border-white/15 bg-navy/50'}`}>
-              <div className="text-gold-light text-[11px] font-semibold uppercase tracking-wide">{t.name}</div>
-              <div className="mt-1 text-white"><span className="text-xl font-extrabold">{t.price}</span>{t.price !== 'FREE' && <span className="text-white/40 text-xs">/mo</span>}</div>
-              {t.sub && <div className="text-[10px] text-gold-light mt-0.5">{t.sub}</div>}
+        <div className="w-[min(90vw,360px)] mt-10">
+          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div className="h-full bg-gold rounded-full" style={{ width: `${progress}%`, transition: `width ${progressSecs}s linear` }} />
+          </div>
+          <div className="flex items-center justify-center gap-3 mt-5">
+            <button onClick={onMute} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm text-white">{muted ? '🔇 Muted' : '🔊 Sound'}</button>
+            <button onClick={onNext} className="px-6 py-2 rounded-lg bg-gold text-navy font-bold text-sm hover:bg-gold-light">Begin →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Closing — full screen CTA ─────────────────────────────────────────────────
+function Closing({ onReplay, onExplore, exitDemo }) {
+  const cards = [
+    { t: 'Founding Member Program', lines: ['3–5 Founding Member Slots Available', 'Professional Tier — FREE for 6 months', '$699/month after founding period', 'You shape what INNtelligence becomes'] },
+    { t: 'The ROI Math', lines: ['$699/month Professional subscription', '$1,244 average monthly revenue lift', '$545 net monthly benefit', '7.1× annual return on investment'] },
+    { t: 'What We Ask', lines: ['Connect your PMS', 'Monthly 30-minute feedback calls', 'Honest testimonial at 90 days', 'Help shape the product roadmap'] },
+    { t: 'Where INNtelligence Works', lines: [GEO_LIST.join(' · '), 'PMS: ' + PMS_LIST.join(' · '), 'OTAs: ' + OTA_LIST.join(' · ')] },
+    { t: `Contact ${DEMO_CONTACT.name}`, lines: [DEMO_CONTACT.phone, DEMO_CONTACT.email, 'Jim Williams, Founder', 'The Gracious Collection / INNtelligence'], big: true },
+  ]
+  return (
+    <div className="fixed inset-0 z-[60] overflow-y-auto" style={{ background: 'radial-gradient(circle at 50% 10%, #14385f, #061629)' }}>
+      <div className="min-h-full flex flex-col items-center px-6 py-12 text-center">
+        <div className="text-gold font-extrabold tracking-tight text-3xl sm:text-4xl">INNtelligence</div>
+        <div className="text-gold-light text-sm mt-1">Boutique Hospitality Intelligence</div>
+        <div className="text-white/50 text-xs">by The Gracious Collection</div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-8 w-full max-w-5xl text-left">
+          {cards.map((c) => (
+            <div key={c.t} className="rounded-2xl border border-gold/30 bg-navy/50 p-4">
+              <div className="text-gold-light text-xs font-bold uppercase tracking-wide">{c.t}</div>
+              <div className="mt-2 space-y-1">
+                {c.lines.map((l, i) => (
+                  <div key={i} className={c.big && i === 0 ? 'text-white text-2xl font-extrabold' : 'text-white/75 text-[13px]'}>{l}</div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
 
-        <a href={`mailto:${DEMO_CONTACT_EMAIL}?subject=INNtelligence%20Founding%20Member%20Access&body=I%20just%20viewed%20the%20INNtelligence%20demo%20and%20would%20like%20to%20request%20Founding%20Member%20access%20for%20my%20inn.`}
-           className="mt-9 inline-block px-9 py-4 rounded-xl bg-gold text-navy font-bold text-lg hover:bg-gold-light transition-colors shadow-lg shadow-gold/20">
+        <a href={DEMO_MAILTO}
+          className="mt-9 inline-block px-9 py-4 rounded-xl bg-gold text-navy font-bold text-lg hover:bg-gold-light transition-colors shadow-lg shadow-gold/20">
           Request Founding Member Access
         </a>
-        <div className="text-white/50 text-sm mt-3">{DEMO_CONTACT_EMAIL}</div>
+        <div className="text-white/50 text-sm mt-3">I personally respond to every request within 24 hours — Jim Williams</div>
 
         <div className="flex items-center justify-center gap-3 mt-8 flex-wrap">
-          <button onClick={onPrev} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm text-white/80">⏮ Back</button>
           <button onClick={onExplore} className="px-5 py-2 rounded-lg bg-white/15 hover:bg-white/25 text-sm text-white font-semibold">Explore the dashboard →</button>
+          <button onClick={onReplay} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm text-white/80">↺ Replay tour</button>
           <Link to="/login" onClick={exitDemo} className="px-4 py-2 rounded-lg text-sm text-white/60 hover:text-white underline">Sign in</Link>
         </div>
       </div>

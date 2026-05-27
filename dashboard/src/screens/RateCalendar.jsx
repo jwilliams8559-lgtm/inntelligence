@@ -23,6 +23,7 @@ const TIER_LABELS = {
   carriage_house: 'Carriage House', signature_suite: 'Signature', grand_parlor: 'Grand Parlor',
 }
 const TIER_ORDER = ['waterfront', 'water_view', 'garden', 'carriage_house', 'signature_suite', 'grand_parlor']
+const OTAS = ['Booking.com', 'Expedia', 'Airbnb', 'VRBO', 'Hotels.com', 'Trip.com', 'Agoda']
 
 const fmtDay = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 const fmtFull = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
@@ -43,8 +44,11 @@ export default function RateCalendar() {
   const [detail, setDetail] = useState(null)
   const [detailErr, setDetailErr] = useState(null)
   const [decisions, setDecisions] = useState({}) // key -> {action:'accepted'|'override', rate}
-  const [published, setPublished] = useState(null) // {count} after Approve All
+  const [pub, setPub] = useState(null)   // null | { phase: 'publishing' | 'done' }
+  const [otaN, setOtaN] = useState(0)
+  const [barW, setBarW] = useState(0)
   const focusedRef = useRef(false)
+  const isDemo = (() => { try { return sessionStorage.getItem('inn_demo') === '1' } catch { return false } })()
 
   useEffect(() => {
     let live = true
@@ -71,6 +75,29 @@ export default function RateCalendar() {
     const best = pool.reduce((m, c) => (c.rate > (m?.rate ?? -1) ? c : m), null)
     if (best) { focusedRef.current = true; setSel({ roomId: best.roomId, roomName: best.roomName, date: best.date }) }
   }, [focus, data])
+
+  // Approve All animation: fill the bar + reveal 7 OTA checkmarks over 2.26s,
+  // hold the success state 3s, then (in demo) signal the tour to advance.
+  useEffect(() => {
+    if (pub?.phase !== 'publishing') return undefined
+    setBarW(0)
+    requestAnimationFrame(() => requestAnimationFrame(() => setBarW(100)))
+    let i = 0
+    const tick = setInterval(() => {
+      i += 1; setOtaN(i)
+      if (i >= OTAS.length) { clearInterval(tick); setPub({ phase: 'done' }) }
+    }, 2260 / OTAS.length)
+    return () => clearInterval(tick)
+  }, [pub?.phase])
+
+  useEffect(() => {
+    if (pub?.phase !== 'done') return undefined
+    const t = setTimeout(() => {
+      setPub(null)
+      if (isDemo) { try { window.dispatchEvent(new CustomEvent('inn-demo-approve-done')) } catch { /* ignore */ } }
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [pub?.phase, isDemo])
 
   useEffect(() => {
     if (!sel) return
@@ -127,12 +154,12 @@ export default function RateCalendar() {
     : null
 
   const recCount = data.rooms.reduce((n, r) => n + r.days.length, 0)
-  const OTAS = ['Booking.com', 'Expedia', 'Airbnb', 'VRBO', 'Hotels.com', 'Trip.com', 'Agoda']
+  const publishedCount = isDemo ? 360 : recCount
   const onApproveAll = () => {
     const next = {}
     data.rooms.forEach((r) => r.days.forEach((d) => { next[`${r.room_id}|${d.date}`] = { action: 'accepted', rate: d.rate } }))
     setDecisions(next)
-    setPublished({ count: recCount })
+    setOtaN(0); setPub({ phase: 'publishing' })
   }
 
   return (
@@ -262,22 +289,29 @@ export default function RateCalendar() {
         />
       )}
 
-      {published && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={() => setPublished(null)}>
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-center" onClick={(e) => e.stopPropagation()}>
-            <div className="text-4xl mb-2">✅</div>
-            <div className="text-xl font-extrabold text-navy">{published.count} rates approved &amp; publishing</div>
-            <p className="text-sm text-gray-600 mt-1">Your recommended rates are going live across every connected channel simultaneously.</p>
-            <div className="grid grid-cols-2 gap-2 mt-4 text-left">
-              {OTAS.map((o) => (
-                <div key={o} className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-800">
-                  <span>✓</span><span className="font-medium">{o}</span>
-                </div>
-              ))}
+      {pub && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-center">
+            <div className="text-xl font-extrabold text-navy">
+              {pub.phase === 'done' ? '✅ Rates published' : 'Publishing rates…'}
             </div>
-            <button onClick={() => setPublished(null)}
-              className="mt-5 w-full bg-navy text-white font-semibold py-2.5 rounded-lg hover:bg-navy-light transition-colors">Done</button>
+            <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-gold rounded-full" style={{ width: `${barW}%`, transition: 'width 2.26s linear' }} />
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-4 text-left">
+              {OTAS.map((o, i) => {
+                const on = i < otaN
+                return (
+                  <div key={o} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm border transition-all duration-200 ${on ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-gray-50 border-gray-200 text-gray-300'}`}>
+                    <span>{on ? '✓' : '○'}</span><span className="font-medium">{o}</span>
+                  </div>
+                )
+              })}
+            </div>
+            {pub.phase === 'done' && (
+              <div className="mt-4 text-emerald-700 font-bold">{publishedCount} rates published to 7 OTAs in 2.26 seconds</div>
+            )}
           </div>
         </div>
       )}
