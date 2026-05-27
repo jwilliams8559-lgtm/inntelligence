@@ -185,7 +185,9 @@ export default function DemoOverlay() {
     const kickoff = () => {
       if (!isClosing) setBarReady(true)
       if (!mutedRef.current) {
-        const a = new Audio(`/api/demo/audio/${step.id}`)
+        // Serve the committed MP3 directly as a static asset (Vite public/ → dist/),
+        // bypassing Flask + ElevenLabs entirely. Instant playback, zero generation.
+        const a = new Audio(`/audio/demo/${step.id}.mp3`)
         audioRef.current = a
         a.muted = mutedRef.current
         a.addEventListener('loadedmetadata', () => {
