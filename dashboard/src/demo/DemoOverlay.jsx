@@ -185,21 +185,28 @@ export default function DemoOverlay() {
     const kickoff = () => {
       if (!isClosing) setBarReady(true)
       if (!mutedRef.current) {
-        // Serve the committed MP3 directly as a static asset (Vite public/ → dist/),
-        // bypassing Flask + ElevenLabs entirely. Instant playback, zero generation.
-        const a = new Audio(`/audio/demo/${step.id}.mp3`)
-        audioRef.current = a
+        // CRITICAL: reuse ONE persistent Audio element for the whole tour. A
+        // freshly-created element each step must re-pass the browser autoplay
+        // gate, which fails on the timer-driven plays for steps 1+ (only Step 0
+        // would sound). Re-pointing the SAME element that already played keeps
+        // audio unlocked for every subsequent step. Source is the committed MP3
+        // served statically (Vite public/ → dist/) — no Flask, no generation.
+        if (!audioRef.current) audioRef.current = new Audio()
+        const a = audioRef.current
+        a.onloadedmetadata = null; a.onended = null
+        a.src = `/audio/demo/${step.id}.mp3`
         a.muted = mutedRef.current
-        a.addEventListener('loadedmetadata', () => {
+        try { a.currentTime = 0 } catch { /* ignore */ }
+        a.onloadedmetadata = () => {
           if (isFinite(a.duration) && a.duration > 1 && !isClosing && !isSeq) {
             secs = a.duration + 2; setStepSecs(secs); setRemaining(secs)  // advance only after audio + buffer
           }
-        })
+        }
         // Advance precisely 2s after the audio ends (never mid-sentence). The
         // ticker is only a fallback if 'ended' never fires. Sequence/closing steps
         // are excluded (they keep their full window / never auto-advance).
         if (!isClosing && !isSeq) {
-          a.addEventListener('ended', () => { endedTimer = window.setTimeout(advance, 2000) })
+          a.onended = () => { endedTimer = window.setTimeout(advance, 2000) }
         }
         a.play().catch(() => {
           fetch(`/api/demo/narration/${step.id}`)
@@ -215,9 +222,8 @@ export default function DemoOverlay() {
 
     return () => {
       clearTimeout(kickTimer); clearInterval(ticker); clearTimeout(endedTimer)
-      const a = audioRef.current
-      if (a) { try { a.pause() } catch { /* ignore */ } }
-      audioRef.current = null
+      const a = audioRef.current   // pause but KEEP the element (reuse keeps it unlocked)
+      if (a) { try { a.pause() } catch { /* ignore */ } a.onended = null; a.onloadedmetadata = null }
       stopSpeak()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
