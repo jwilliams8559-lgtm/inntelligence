@@ -22,13 +22,13 @@ export const DEMO_MAILTO =
 
 export const DEMO_STEPS = [
   {
-    id: 'step_00', kind: 'opening', route: '/', target: null, timer: 30,
+    id: 'step_00', kind: 'opening', route: '/', target: null, timer: 120,
     title: 'INNtelligence',
   },
   {
     id: 'step_01', kind: 'screen', route: '/', target: null,
-    selectors: ['main .grid', 'main h1'], timer: 25, title: 'Tuesday Morning',
-    caption: "Tuesday at The Bay Street Inn. INNtelligence is mobile-first — every feature works identically on iPhone, Android, iPad, or any tablet. It ran all night: 39 properties watched, booking pace checked. Water Festival in 52 days: peak demand. Nothing changes until Sarah approves.",
+    selectors: ['main .grid', 'main h1'], timer: 25, title: 'Early Morning',
+    caption: "Early morning at The Bay Street Inn. INNtelligence is mobile-first — every feature works identically on iPhone, Android, iPad, or any tablet. It ran all night: 39 properties watched, booking pace checked. Water Festival in 52 days: peak demand. Nothing changes until Sarah approves.",
     badge: 'Works on iPhone · Android · iPad · Any tablet',
   },
   {
@@ -58,12 +58,12 @@ export const DEMO_STEPS = [
   },
   {
     id: 'step_07', kind: 'screen', route: '/private-events', target: null,
-    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 45, title: 'Private Events, Packages & Gift Shop',
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 65, title: 'Private Events, Packages & Gift Shop',
     caption: "Private Events manages buyouts, corporate retreats, and group bookings with the same revenue intelligence as weddings.",
     sequence: [
       { route: '/private-events', at: 0, caption: "Private Events manages buyouts, corporate retreats, and group bookings with the same revenue intelligence as weddings — conflict detection, exclusivity premium, and comparison to displaced individual room revenue." },
-      { route: '/packages', at: 15000, caption: "INNtelligence includes 25 pre-built packages used by top boutique inns nationwide — romance, anniversary, culinary, birding, and more. Turn any on or off instantly. Each is pre-priced and integrated with your rate calendar for total RevPAR optimization." },
-      { route: '/gift-shop', at: 30000, caption: "Gift shop and retail revenue — tracked alongside room revenue for a complete picture of every dollar your property generates." },
+      { route: '/packages', at: 18000, caption: "INNtelligence includes 25 pre-built packages used by top boutique inns nationwide — romance, anniversary, culinary, birding, and more. Turn any on or off instantly. Each is pre-priced and integrated with your rate calendar for total RevPAR optimization." },
+      { route: '/gift-shop', at: 36000, caption: "Gift shop and retail revenue — tracked alongside room revenue for a complete picture of every dollar your property generates." },
     ],
   },
   {

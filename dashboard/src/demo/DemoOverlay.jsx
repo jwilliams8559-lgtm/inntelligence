@@ -156,16 +156,17 @@ export default function DemoOverlay() {
     setPaused(false)
     setBarReady(false)
     const isClosing = step.kind === 'closing'   // plays narration but never auto-advances
-    const isSeq = !!step.sequence                // Step 7: sub-screens on their own 15s timers
-    // Advance = audio end + 2s buffer (ticker reaches 0 at audio.duration + 2, set
-    // on loadedmetadata). Sequence steps run a fixed window so each sub-screen gets
-    // its full 15s regardless of audio length. Fallback uses the generous step timer.
+    const isSeq = !!step.sequence                // Step 7: sub-screens on their own timers
+    // Advance = audio end + 2s (precise, via 'ended'), with the ticker as a fallback
+    // that also never fires before audio.duration + 2 (set on loadedmetadata).
+    // Sequence steps run the full fixed window so each sub-screen gets its time.
     let secs = isSeq
-      ? (Math.max(...step.sequence.map((s) => s.at)) / 1000 + 15)   // last sub-screen + 15s
+      ? (step.timer || 65)                       // fixed window covering all sub-screens
       : (step.timer || 25) + 2
     if (!isClosing) { setStepSecs(secs); setRemaining(secs) }
     let ticker = 0
     let last = 0
+    let endedTimer = 0
 
     const startTicker = () => {
       last = Date.now()
@@ -192,8 +193,12 @@ export default function DemoOverlay() {
             secs = a.duration + 2; setStepSecs(secs); setRemaining(secs)  // advance only after audio + buffer
           }
         })
-        // No 'ended' advance — the ticker advances at audio end + 2s so a step
-        // never cuts off mid-sentence, and sequence steps keep their full window.
+        // Advance precisely 2s after the audio ends (never mid-sentence). The
+        // ticker is only a fallback if 'ended' never fires. Sequence/closing steps
+        // are excluded (they keep their full window / never auto-advance).
+        if (!isClosing && !isSeq) {
+          a.addEventListener('ended', () => { endedTimer = window.setTimeout(advance, 2000) })
+        }
         a.play().catch(() => {
           fetch(`/api/demo/narration/${step.id}`)
             .then((r) => r.json()).then((d) => { if (!mutedRef.current && !pausedRef.current) speak(d.text) })
@@ -207,9 +212,9 @@ export default function DemoOverlay() {
     const kickTimer = window.setTimeout(kickoff, startDelay)
 
     return () => {
-      clearTimeout(kickTimer); clearInterval(ticker)
+      clearTimeout(kickTimer); clearInterval(ticker); clearTimeout(endedTimer)
       const a = audioRef.current
-      if (a) { try { a.pause() } catch { /* ignore */ } a.removeEventListener('ended', advance) }
+      if (a) { try { a.pause() } catch { /* ignore */ } }
       audioRef.current = null
       stopSpeak()
     }
