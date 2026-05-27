@@ -38,16 +38,20 @@ export default function ROIPerformance() {
     <div>
       <ScreenHeader title="ROI Performance" subtitle={`Documented monthly value · ${d.period}`} right={<LastUpdated at={lastUpdated} />} />
 
-      <div className="rounded-2xl bg-navy text-white p-6 mb-6 flex flex-col sm:flex-row items-center justify-between gap-6">
-        <div>
-          <div className="text-gold-light text-sm uppercase tracking-wide font-semibold">Total return on subscription</div>
-          <div className="text-6xl font-extrabold text-gold mt-1">{roi.roi_multiple}×</div>
-          <div className="text-white/70 text-sm mt-1">{roi.roi_subtitle || 'Across all revenue streams'}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        {/* Peak-season ROI */}
+        <div className="rounded-2xl border-2 border-gold bg-gold/10 p-6">
+          <div className="text-gold-dark text-xs uppercase tracking-wide font-semibold">Peak season return</div>
+          <div className="text-5xl font-extrabold text-gold-dark mt-1">{roi.peak_roi ?? 64}×</div>
+          <div className="text-sm text-navy/80 mt-2">Water Festival month: <span className="font-bold">{usd(roi.peak_monthly_lift ?? 45000)}</span> room lift</div>
+          <div className="text-sm text-navy/70">on a {usd(roi.subscription_cost)} subscription</div>
         </div>
-        <div className="grid grid-cols-3 gap-6 text-center">
-          <div><div className="text-2xl font-bold">{usd(roi.total_annual_lift ?? roi.total_value)}</div><div className="text-xs text-gold-light">total annual lift</div></div>
-          <div><div className="text-2xl font-bold">{usd(roi.annual_subscription ?? roi.subscription_cost)}</div><div className="text-xs text-gold-light">annual subscription</div></div>
-          <div><div className="text-2xl font-bold text-emerald-400">{usd(roi.net_annual_benefit ?? 0)}</div><div className="text-xs text-gold-light">net annual benefit</div></div>
+        {/* Annual total-property ROI */}
+        <div className="rounded-2xl bg-navy text-white p-6">
+          <div className="text-gold-light text-xs uppercase tracking-wide font-semibold">Annual return</div>
+          <div className="text-5xl font-extrabold text-gold mt-1">{roi.roi_multiple}×</div>
+          <div className="text-sm text-white/80 mt-2">{usd(roi.total_annual_lift ?? roi.total_value)} total annual lift across all streams</div>
+          <div className="text-xs text-white/60 mt-1">{usd(roi.annual_subscription ?? roi.subscription_cost)} annual subscription · <span className="text-emerald-400 font-semibold">{usd(roi.net_annual_benefit ?? 0)} net benefit</span></div>
         </div>
       </div>
 

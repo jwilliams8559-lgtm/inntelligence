@@ -39,7 +39,7 @@ export const DEMO_STEPS = [
   {
     id: 'step_03', kind: 'screen', route: '/rate-calendar?days=90&focus=wf', target: 'rate-drawer',
     timer: 25, title: 'Why This Rate?', dynamicRate: true,
-    caption: "On a Water Festival night, see the full reasoning — demand 90/100, competitor compression, booking pace +47%. The direct rate nets more than the OTA, with a 3-night minimum on peak dates.",
+    caption: "On a peak Water Festival night, see the full reasoning — competitor compression, booking pace +47%, and a 3-night minimum on peak dates. The direct rate nets more than the OTA.",
   },
   {
     id: 'step_04', kind: 'screen', route: '/competitive-intel?tier=waterfront&days=90&room=waterfront', target: 'comp-cuthbert',
@@ -53,17 +53,17 @@ export const DEMO_STEPS = [
   },
   {
     id: 'step_06', kind: 'screen', route: '/weddings', target: 'wedding-calc',
-    selectors: ['main .rounded-2xl', 'main .rounded-xl', 'main .grid'], timer: 20, title: 'Weddings & Private Events',
-    caption: "A wedding inquiry: 40 guests, full buyout, 2 nights → $37,300, a clear accept. Move it onto Water Festival dates and the conflict alert fires — festival pricing beats the buyout. The AI flags it; Sarah decides.",
+    selectors: ['main .rounded-2xl', 'main .rounded-xl', 'main .grid'], timer: 24, title: 'Weddings & Private Events',
+    caption: "A wedding inquiry — Margaret & Thomas, 40 guests, full buyout, 2 nights → $37,300, a clear accept. Watch what happens when the date moves onto Water Festival weekend.",
   },
   {
     id: 'step_07', kind: 'screen', route: '/private-events', target: null,
-    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 26, title: 'Private Events, Packages & Gift Shop',
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 34, title: 'Private Events, Packages & Gift Shop',
     caption: "Private Events manages buyouts, corporate retreats, and group bookings with the same revenue intelligence as weddings.",
     sequence: [
       { route: '/private-events', at: 0, caption: "Private Events manages buyouts, corporate retreats, and group bookings with the same revenue intelligence as weddings — conflict detection, exclusivity premium, and comparison to displaced individual room revenue." },
-      { route: '/packages', at: 8000, caption: "INNtelligence includes 25 pre-built packages used by top boutique inns nationwide — romance, anniversary, culinary, birding, and more. Turn any on or off instantly. Each is pre-priced and integrated with your rate calendar for total RevPAR optimization." },
-      { route: '/gift-shop', at: 18000, caption: "Gift shop and retail revenue — tracked alongside room revenue for a complete picture of every dollar your property generates." },
+      { route: '/packages', at: 12000, caption: "INNtelligence includes 25 pre-built packages used by top boutique inns nationwide — romance, anniversary, culinary, birding, and more. Turn any on or off instantly. Each is pre-priced and integrated with your rate calendar for total RevPAR optimization." },
+      { route: '/gift-shop', at: 24000, caption: "Gift shop and retail revenue — tracked alongside room revenue for a complete picture of every dollar your property generates." },
     ],
   },
   {
@@ -78,12 +78,12 @@ export const DEMO_STEPS = [
   },
   {
     id: 'step_10', kind: 'screen', route: '/roi-performance', target: null,
-    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 20, title: 'ROI Performance',
-    caption: "This month vs last year: occupancy +9%, ADR +16%, RevPAR +26%. $699/mo subscription, $1,244 avg lift, $545 net benefit — 1.8× monthly, 7.1× annual ROI. Conservative. Auditable. Real.",
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 22, title: 'ROI Performance',
+    caption: "Occupancy +9%, ADR +16%, RevPAR +26% vs last year. During Water Festival month, room lift alone is ~$45k on a $699 subscription — a 64× month. Annualized across every revenue stream: $93,500 lift, 11.1× return. Conservative. Auditable. Real.",
   },
   {
     id: 'step_11', kind: 'screen', route: '/rate-calendar?days=90', target: 'approve-all',
-    timer: 22, title: 'Approve All & Publish',
+    timer: 55, title: 'Approve All & Publish',
     caption: "55 minutes reviewed. Sarah taps Approve All — and in 2.26 seconds rates publish to all 7 OTAs at once. The AI works all night so the innkeeper works smarter in the morning.",
   },
   {

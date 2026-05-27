@@ -66,15 +66,20 @@ export default function RateCalendar() {
       roomId: r.room_id, roomName: r.room_name, tier: r.tier, date: d.date, rate: d.rate,
       event: !!(d.active_events && d.active_events.length),
       wf: (d.active_events || []).some((e) => /water festival/i.test(e)),
+      ev: Number(d.event_multiplier) || 1,
     })))
     let best
     if (focus === 'wf') {
-      // A Water Festival waterfront recommendation in the $550–650 band,
-      // closest to $599 — keeps the guided story coherent and credible.
+      // Open the genuine PEAK Water Festival waterfront night — the cell with the
+      // highest event multiplier — so the drawer's demand gauge reads Peak (90+).
+      // Tie-break toward the higher rate. The tooltip then reads the live score.
       const wfWater = cells.filter((c) => c.wf && c.tier === 'waterfront')
-      const inRange = wfWater.filter((c) => c.rate >= 550 && c.rate <= 650)
-      const pickFrom = inRange.length ? inRange : (wfWater.length ? wfWater : cells.filter((c) => c.wf))
-      best = pickFrom.reduce((m, c) => (Math.abs(c.rate - 599) < Math.abs((m?.rate ?? -9999) - 599) ? c : m), null)
+      const pickFrom = wfWater.length ? wfWater : cells.filter((c) => c.wf)
+      best = pickFrom.reduce((m, c) => {
+        if (!m) return c
+        if (c.ev !== m.ev) return c.ev > m.ev ? c : m
+        return c.rate > m.rate ? c : m
+      }, null)
     } else {
       // focus=peak: prefer WF cells, then any event night, then overall top rate.
       const wfCells = cells.filter((c) => c.wf)
@@ -442,7 +447,7 @@ function DemandGauge({ score, label, drivers }) {
             strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 66 66)" />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-4xl font-extrabold" style={{ color }}>{s}</div>
+          <div data-demo-demand={s} className="text-4xl font-extrabold" style={{ color }}>{s}</div>
           <div className="text-[10px] text-gray-400">out of 100</div>
         </div>
       </div>

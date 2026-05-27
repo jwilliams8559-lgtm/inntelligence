@@ -174,6 +174,9 @@ def get_report(property_config: dict[str, Any] | None = None, tier: str = "profe
     net_annual_benefit  = total_annual_lift - annual_subscription
     roi_multiple = round(total_annual_lift / annual_subscription, 1) if annual_subscription else 0.0
     roi_pct      = round((total_annual_lift - annual_subscription) / annual_subscription * 100) if annual_subscription else 0
+    # Peak-season month (Water Festival): 12 rooms × $125 lift × 30 nights.
+    peak_monthly_lift = 45000
+    peak_roi          = round(peak_monthly_lift / subscription_cost) if subscription_cost else 0  # ≈64×
 
     return {
         "period":             period,
@@ -217,5 +220,7 @@ def get_report(property_config: dict[str, Any] | None = None, tier: str = "profe
             "annual_subscription":         annual_subscription,
             "net_annual_benefit":          net_annual_benefit,
             "breakdown":                   roi_breakdown,
+            "peak_monthly_lift":           peak_monthly_lift,
+            "peak_roi":                    peak_roi,
         },
     }

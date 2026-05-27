@@ -209,7 +209,10 @@ function DemoWeddingCalc() {
   const [conflict, setConflict] = useState(false)
   const [dateLabel, setDateLabel] = useState('September 13, 2026')
   useEffect(() => {
-    const t = setTimeout(() => { setDateLabel('July 19, 2026 — Water Festival'); setConflict(true) }, 8000)
+    const t = setTimeout(() => {
+      setDateLabel('July 19, 2026 — Water Festival'); setConflict(true)
+      try { window.dispatchEvent(new CustomEvent('inn-demo-wedding-conflict')) } catch { /* ignore */ }
+    }, 12000)
     return () => clearTimeout(t)
   }, [])
 

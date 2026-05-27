@@ -31,13 +31,19 @@ export default function DemoOverlay() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [active, setActive] = useState(false)
+  // Bulletproof Step 0: the guided tour always begins at the founder intro the
+  // moment the overlay mounts in demo mode — no sessionStorage/flag handshake
+  // (that was the root cause: React.StrictMode double-mounting consumed the flag
+  // before render). On any /demo load or hard refresh, idx starts at 0 and the
+  // full-screen opening renders before any dashboard navigation.
+  const [active, setActive] = useState(true)
   const [idx, setIdx] = useState(0)
   const [rect, setRect] = useState(null)
   const [muted, setMuted] = useState(false)
   const [bannerOff, setBannerOff] = useState(false)
   const [openingFade, setOpeningFade] = useState(false)   // crossfade Step 0 → 1
   const [liveRate, setLiveRate] = useState('')            // dynamic rate read from the drawer
+  const [liveDemand, setLiveDemand] = useState('')        // dynamic demand score from the drawer
   const [subCaption, setSubCaption] = useState('')        // FIX 7: per-screen caption in a multi-screen step
   const [paused, setPaused] = useState(false)
   const [remaining, setRemaining] = useState(0)           // seconds left on this step
@@ -56,31 +62,18 @@ export default function DemoOverlay() {
 
   const goNext = useCallback(() => setIdx((i) => Math.min(i + 1, LAST_INDEX)), [])
   const goPrev = useCallback(() => setIdx((i) => Math.max(i - 1, 0)), [])
-  const clearStartFlag = () => { try { sessionStorage.removeItem('inn_demo_tour') } catch { /* ignore */ } }
-  const skip = useCallback(() => { stopSpeak(); clearStartFlag(); setActive(false); setRect(null) }, [])
+  const skip = useCallback(() => { stopSpeak(); setActive(false); setRect(null) }, [])
   const replay = useCallback(() => { setIdx(0); setActive(true) }, [])
   const advance = useCallback(() => {
     if (advancedRef.current === idx) return
     advancedRef.current = idx
     if (idx === 0) {                       // crossfade the opening out before Step 1
-      clearStartFlag()                     // past the intro — don't re-trigger on remount
       setOpeningFade(true)
       setTimeout(() => { setOpeningFade(false); goNext() }, 500)
       return
     }
     goNext()
   }, [idx, goNext])
-
-  // Auto-start the guided tour at Step 0 if /demo flagged it. We do NOT clear the
-  // flag here — React.StrictMode double-invokes effects in dev, and consuming the
-  // flag on the first pass made the second mount skip the intro (landing on Home).
-  // The flag is cleared when the user leaves Step 0 (advance) or skips the tour.
-  useEffect(() => {
-    if (!demoMode) return
-    let pending = false
-    try { pending = sessionStorage.getItem('inn_demo_tour') === '1' } catch { /* ignore */ }
-    if (pending) { setActive(true); setIdx(0) }
-  }, [demoMode])
 
   // Navigate to the step's screen when the active step changes. Steps with a
   // `sequence` (FIX 7) walk through several screens on timers, updating the
@@ -157,13 +150,14 @@ export default function DemoOverlay() {
   // The closing step does not auto-advance. Step 1 + the opening hold briefly so
   // their content is visible before the bar/narration begin (FIX 1 / FIX 9).
   useEffect(() => {
-    if (!active || step.kind === 'closing') { setBarReady(false); return undefined }
+    if (!active) { setBarReady(false); return undefined }
     stopSpeak()
     advancedRef.current = -1
     setPaused(false)
     setBarReady(false)
-    let secs = step.timer || 18
-    setStepSecs(secs); setRemaining(secs)
+    const isClosing = step.kind === 'closing'   // plays narration but never auto-advances
+    let secs = (step.timer || 18) + 2            // +2s buffer so audio never gets cut mid-sentence
+    if (!isClosing) { setStepSecs(secs); setRemaining(secs) }
     let ticker = 0
     let last = 0
 
@@ -182,24 +176,24 @@ export default function DemoOverlay() {
     }
 
     const kickoff = () => {
-      setBarReady(true)
+      if (!isClosing) setBarReady(true)
       if (!mutedRef.current) {
         const a = new Audio(`/api/demo/audio/${step.id}`)
         audioRef.current = a
         a.muted = mutedRef.current
         a.addEventListener('loadedmetadata', () => {
-          if (isFinite(a.duration) && a.duration > 1) {
-            secs = a.duration + 0.6; setStepSecs(secs); setRemaining(secs)
+          if (isFinite(a.duration) && a.duration > 1 && !isClosing) {
+            secs = a.duration + 2; setStepSecs(secs); setRemaining(secs)  // advance only after audio + buffer
           }
         })
-        a.addEventListener('ended', advance)
+        if (!isClosing) a.addEventListener('ended', advance)
         a.play().catch(() => {
           fetch(`/api/demo/narration/${step.id}`)
             .then((r) => r.json()).then((d) => { if (!mutedRef.current && !pausedRef.current) speak(d.text) })
             .catch(() => {})
         })
       }
-      startTicker()
+      if (!isClosing) startTicker()
     }
 
     const startDelay = idx === 1 ? 600 : idx === 0 ? 300 : 200  // let content mount first
@@ -223,17 +217,21 @@ export default function DemoOverlay() {
     else if (!mutedRef.current) { a.play().catch(() => {}) }
   }, [paused])
 
-  // FIX 3b: read the recommended rate live from the open drawer so the Step 3
-  // tooltip always matches the screen (no hardcoded dollar amount).
+  // Read the recommended rate AND demand score live from the open drawer so the
+  // Step 3 tooltip always matches the screen exactly (no hardcoded numbers).
   useEffect(() => {
-    if (!active || !step.dynamicRate) { setLiveRate(''); return undefined }
+    if (!active || !step.dynamicRate) { setLiveRate(''); setLiveDemand(''); return undefined }
     let stop = false, t = 0, tries = 0
     const poll = () => {
       if (stop) return
-      const el = document.querySelector('[data-demo-rate]')
-      const txt = el && el.textContent && el.textContent.trim()
-      if (txt) { setLiveRate(txt); return }
-      if (tries++ > 40) return
+      const rateEl = document.querySelector('[data-demo-rate]')
+      const demEl = document.querySelector('[data-demo-demand]')
+      const rate = rateEl && rateEl.textContent && rateEl.textContent.trim()
+      const dem = demEl && demEl.textContent && demEl.textContent.trim()
+      if (rate) setLiveRate(rate)
+      if (dem) setLiveDemand(dem)
+      if (rate && dem) return
+      if (tries++ > 50) return
       t = window.setTimeout(poll, 200)
     }
     poll()
@@ -246,17 +244,27 @@ export default function DemoOverlay() {
     if (muted) stopSpeak()
   }, [muted])
 
-  // Step 11: auto-trigger the Approve All animation, then advance to closing
-  // when it signals completion.
+  // Step 11: auto-trigger the Approve All publish animation as a visual climax,
+  // ~30s in (near "she taps Approve All"). It does NOT advance the step — the
+  // step advances only when the full narration finishes, so it never cuts off.
   useEffect(() => {
     if (!active || step.target !== 'approve-all') return undefined
-    const onDone = () => advance()
-    window.addEventListener('inn-demo-approve-done', onDone)
     const t = window.setTimeout(() => {
       const btn = document.querySelector('[data-tour="approve-all"]')
       if (btn) btn.click()
-    }, 8000)
-    return () => { window.removeEventListener('inn-demo-approve-done', onDone); clearTimeout(t) }
+    }, 30000)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, idx])
+
+  // Step 6: when the wedding calculator's conflict alert fires, update the
+  // tooltip so the narration and screen agree.
+  useEffect(() => {
+    if (!active) return undefined
+    const onConflict = () => setSubCaption(
+      'Water Festival rates exceed the wedding value — INNtelligence recommends declining or negotiating above festival pricing.')
+    window.addEventListener('inn-demo-wedding-conflict', onConflict)
+    return () => window.removeEventListener('inn-demo-wedding-conflict', onConflict)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, idx])
 
@@ -302,7 +310,7 @@ export default function DemoOverlay() {
       {banner}
       <Spotlight rect={rect} />
       <Coachmark
-        step={step} idx={idx} rect={rect} muted={muted} liveRate={liveRate} caption={subCaption || step.caption}
+        step={step} idx={idx} rect={rect} muted={muted} liveRate={liveRate} liveDemand={liveDemand} caption={subCaption || step.caption}
         onNext={advance} onPrev={goPrev} onSkip={skip} onMute={() => setMuted((m) => !m)} />
       {bottomBar}
     </>
@@ -341,7 +349,7 @@ function Spotlight({ rect }) {
 }
 
 // ── Coachmark tooltip (gold card, navy text) ──────────────────────────────────
-function Coachmark({ step, idx, rect, muted, liveRate, caption, onNext, onPrev, onSkip, onMute }) {
+function Coachmark({ step, idx, rect, muted, liveRate, liveDemand, caption, onNext, onPrev, onSkip, onMute }) {
   const ref = useRef(null)
   const [pos, setPos] = useState(null)
   const mobile = isMobile()
@@ -376,7 +384,9 @@ function Coachmark({ step, idx, rect, muted, liveRate, caption, onNext, onPrev, 
         {/* dark scrim behind text for guaranteed contrast */}
         <div className="mt-2 rounded-lg bg-navy text-white/95 p-3 text-[15px] sm:text-sm leading-relaxed" style={{ fontSize: mobile ? 16 : undefined }}>
           {step.dynamicRate && liveRate && (
-            <span className="block font-bold text-gold mb-1">INNtelligence is recommending {liveRate}</span>
+            <span className="block font-bold text-gold mb-1">
+              Inn-telligence is recommending {liveRate}{liveDemand ? ` at a demand score of ${liveDemand} out of 100` : ''}
+            </span>
           )}
           {caption}
           {step.badge && (
