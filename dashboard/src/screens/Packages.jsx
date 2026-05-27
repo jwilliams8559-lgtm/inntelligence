@@ -12,7 +12,12 @@ export default function Packages() {
   const { lastUpdated } = usePrices()
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
-  const [tab, setTab] = useState('active')
+  // In the /demo, open on the Available tab so prospects see the full catalog of
+  // 25+ pre-built packages (abundance) rather than just the active set. Evaluated
+  // per-render (not at module load) so it sees the demo flag set by startDemo().
+  const [tab, setTab] = useState(() => {
+    try { return sessionStorage.getItem('inn_demo') === '1' ? 'available' : 'active' } catch { return 'active' }
+  })
   const [busyId, setBusyId] = useState(null)
 
   const load = () => getPackages().then(setData).catch((e) => setErr(e.message))

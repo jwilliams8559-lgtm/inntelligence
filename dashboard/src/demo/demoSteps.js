@@ -52,7 +52,7 @@ export const DEMO_STEPS = [
     caption: "Every Beaufort demand driver, by horizon. Parris Island graduations every Friday, the Gullah Festival, Water Festival, the Film Festival — months of revenue intelligence with time to prepare. No surprises.",
   },
   {
-    id: 'step_06', kind: 'screen', route: '/weddings', target: null,
+    id: 'step_06', kind: 'screen', route: '/weddings', target: 'wedding-calc',
     selectors: ['main .rounded-2xl', 'main .rounded-xl', 'main .grid'], timer: 20, title: 'Weddings & Private Events',
     caption: "A wedding inquiry: 40 guests, full buyout, 2 nights → $37,300, a clear accept. Move it onto Water Festival dates and the conflict alert fires — festival pricing beats the buyout. The AI flags it; Sarah decides.",
   },

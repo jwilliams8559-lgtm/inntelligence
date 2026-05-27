@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePrices } from '../context/PriceContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorBanner from '../components/ErrorBanner'
@@ -57,12 +57,16 @@ export default function Weddings() {
   const { property, loading, error } = usePrices()
   const name = property?.name || 'The Bay Street Inn'
   const [openFaq, setOpenFaq] = useState(0)
+  const isDemo = (() => { try { return sessionStorage.getItem('inn_demo') === '1' } catch { return false } })()
 
   if (error) return <ErrorBanner message={error} />
   if (loading && !property) return <LoadingSpinner label="Loading…" />
 
   return (
     <div className="-m-6">
+      {isDemo && (
+        <div className="px-6 pt-6 max-w-6xl mx-auto"><DemoWeddingCalc /></div>
+      )}
       {/* HERO */}
       <section className="relative text-center text-white px-6 py-20 overflow-hidden"
                style={{ background: 'radial-gradient(circle at 50% 20%, #14385f 0%, #0a2342 55%, #061629 100%)' }}>
@@ -196,6 +200,73 @@ export default function Weddings() {
         </section>
       </div>
     </div>
+  )
+}
+
+// Demo-only automated wedding quote: pre-populated inquiry with instant
+// results, then a Water Festival date conflict fires after 8 seconds (FIX 6).
+function DemoWeddingCalc() {
+  const [conflict, setConflict] = useState(false)
+  const [dateLabel, setDateLabel] = useState('September 13, 2026')
+  useEffect(() => {
+    const t = setTimeout(() => { setDateLabel('July 19, 2026 — Water Festival'); setConflict(true) }, 8000)
+    return () => clearTimeout(t)
+  }, [])
+
+  const lines = [
+    ['Room block — 19 rooms × 2 nights', 22800],
+    ['Event space rental', 3500],
+    ['Food & beverage — 40 guests', 7200],
+    ['Setup & breakdown', 1200],
+    ['Exclusivity premium', 2600],
+  ]
+  const total = 37300, individual = 16800, premium = total - individual
+  const usd = (n) => '$' + n.toLocaleString('en-US')
+
+  return (
+    <section data-tour="wedding-calc" className="rounded-2xl border border-gold/40 bg-white shadow-sm overflow-hidden">
+      <style>{`@keyframes wedSlide{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}`}</style>
+      {conflict && (
+        <div style={{ animation: 'wedSlide .4s ease-out' }}
+          className="bg-rose-600 text-white px-5 py-3 font-semibold flex items-center gap-2">
+          <span className="text-lg">⚠</span>
+          CONFLICT: Water Festival rates exceed wedding buyout value — Recommend declining or negotiating
+        </div>
+      )}
+      <div className="bg-navy text-white px-6 py-4">
+        <div className="text-gold-light text-[11px] uppercase tracking-wide">Wedding Inquiry · Auto-calculated</div>
+        <div className="flex items-baseline justify-between flex-wrap gap-2 mt-1">
+          <div className="text-xl font-bold">Margaret &amp; Thomas</div>
+          <div className={`text-sm font-semibold ${conflict ? 'text-rose-300' : 'text-gold'}`}>{dateLabel}</div>
+        </div>
+        <div className="text-white/60 text-xs mt-0.5">40 guests · full property buyout · 2 nights</div>
+      </div>
+      <div className="p-6">
+        <div className="space-y-1.5">
+          {lines.map(([label, val]) => (
+            <div key={label} className="flex justify-between text-sm border-b border-gray-100 py-1.5">
+              <span className="text-gray-600">{label}</span>
+              <span className="font-semibold text-navy">{usd(val)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-between mt-3">
+          <span className="font-bold text-navy">Total wedding package</span>
+          <span className="text-2xl font-extrabold text-gold">{usd(total)}</span>
+        </div>
+        {!conflict ? (
+          <div className="mt-4 rounded-lg bg-emerald-50 border border-emerald-200 p-3 flex items-center justify-between">
+            <span className="text-sm text-emerald-800">vs individual bookings {usd(individual)} · wedding premium <span className="font-bold">+{usd(premium)}</span></span>
+            <span className="text-xs font-bold bg-emerald-600 text-white px-3 py-1 rounded-full">ACCEPT</span>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-lg bg-rose-50 border border-rose-200 p-3 flex items-center justify-between">
+            <span className="text-sm text-rose-800">Water Festival individual pricing exceeds this buyout on these dates.</span>
+            <span className="text-xs font-bold bg-rose-600 text-white px-3 py-1 rounded-full">DECLINE / NEGOTIATE</span>
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
 
