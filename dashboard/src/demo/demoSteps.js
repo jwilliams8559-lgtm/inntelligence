@@ -58,7 +58,7 @@ export const DEMO_STEPS = [
   },
   {
     id: 'step_07', kind: 'screen', route: '/private-events', target: null,
-    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 65, title: 'Private Events, Packages & Gift Shop',
+    selectors: ['main .grid', 'main .rounded-2xl', 'main .rounded-xl'], timer: 90, title: 'Private Events, Packages & Gift Shop',
     caption: "Private Events manages buyouts, corporate retreats, and group bookings with the same revenue intelligence as weddings.",
     sequence: [
       { route: '/private-events', at: 0, caption: "Private Events manages buyouts, corporate retreats, and group bookings with the same revenue intelligence as weddings — conflict detection, exclusivity premium, and comparison to displaced individual room revenue." },

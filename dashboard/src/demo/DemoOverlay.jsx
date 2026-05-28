@@ -171,13 +171,12 @@ export default function DemoOverlay() {
     setPaused(false)
     setBarReady(false)
     const isClosing = step.kind === 'closing'   // plays narration but never auto-advances
-    const isSeq = !!step.sequence                // Step 7: sub-screens on their own timers
     // Advance = audio end + 2s (precise, via 'ended'), with the ticker as a fallback
     // that also never fires before audio.duration + 2 (set on loadedmetadata).
-    // Sequence steps run the full fixed window so each sub-screen gets its time.
-    let secs = isSeq
-      ? (step.timer || 65)                       // fixed window covering all sub-screens
-      : (step.timer || 25) + 2
+    // Sequence steps (Step 7) also advance on audio end — sub-screen navigation
+    // is driven by independent setTimeouts in the navigation effect, while the
+    // step itself only advances when the narration is genuinely finished.
+    let secs = (step.timer || 25) + 2
     if (!isClosing) { setStepSecs(secs); setRemaining(secs) }
     let ticker = 0
     let last = 0
@@ -217,14 +216,14 @@ export default function DemoOverlay() {
           try { a.currentTime = 0 } catch { /* ignore */ }
         }
         a.onloadedmetadata = () => {
-          if (isFinite(a.duration) && a.duration > 1 && !isClosing && !isSeq) {
+          if (isFinite(a.duration) && a.duration > 1 && !isClosing) {
             secs = a.duration + 2; setStepSecs(secs); setRemaining(secs)  // advance only after audio + buffer
           }
         }
         // Advance precisely 2s after the audio ends (never mid-sentence). The
-        // ticker is only a fallback if 'ended' never fires. Sequence/closing steps
-        // are excluded (they keep their full window / never auto-advance).
-        if (!isClosing && !isSeq) {
+        // ticker is only a fallback if 'ended' never fires. Closing alone never
+        // auto-advances (it stays visible until the visitor acts).
+        if (!isClosing) {
           a.onended = () => { endedTimer = window.setTimeout(advance, 2000) }
         }
         if (idx !== 0) a.play().catch(() => {
