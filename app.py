@@ -2361,10 +2361,18 @@ def api_admin_analytics():
     from datetime import datetime, timezone, timedelta
 
     # ── Section 1 — demo analytics (real, from demo_analytics) ──────────────
-    demo_rows = _sb_rest_get("demo_analytics",
-                             {"select": "visited_at,ip_address,completed_demo,country,region,city,referrer",
-                              "order": "visited_at.desc", "limit": "5000"})
-    section_1 = _bucket_demo_rows(demo_rows or [])
+    # Tolerant: if migrations/001_demo_analytics.sql hasn't been applied yet,
+    # _sb_rest_get returns [] and _bucket_demo_rows([]) returns all zeros. The
+    # outer try/except handles any other transient failure the same way.
+    try:
+        demo_rows = _sb_rest_get("demo_analytics", {
+            "select": "visited_at,ip_address,completed_demo,country,region,city,referrer",
+            "order":  "visited_at.desc", "limit": "5000",
+        })
+        section_1 = _bucket_demo_rows(demo_rows or [])
+    except Exception as e:  # noqa: BLE001
+        logger.warning("demo_analytics aggregation failed (table missing?): %s", e)
+        section_1 = _bucket_demo_rows([])
 
     # ── Section 2 — customer health ────────────────────────────────────────
     tenants = _sb_rest_get("tenants",

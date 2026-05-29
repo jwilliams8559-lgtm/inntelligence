@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { adminAnalytics } from '../api/client'
 import { ScreenHeader, Card, StatCard, Pill, LastUpdated, usd } from '../components/ui'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorBanner from '../components/ErrorBanner'
@@ -21,9 +22,7 @@ export default function AdminAnalytics() {
   const [d, setD] = useState(null)
   const [err, setErr] = useState(null)
   useEffect(() => {
-    fetch('/api/admin/analytics', { headers: { Accept: 'application/json' } })
-      .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-      .then(setD).catch((e) => setErr(e.message))
+    adminAnalytics().then(setD).catch((e) => setErr(e.message))
   }, [])
 
   if (err) return <ErrorBanner message={err} />

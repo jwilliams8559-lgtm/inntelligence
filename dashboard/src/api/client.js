@@ -35,6 +35,7 @@ export function authLogin(email, password) { return _post('/api/auth/login', { e
 export function authLogout() { return _post('/api/auth/logout').catch(() => ({})) }
 export function authResetPassword(email) { return _post('/api/auth/reset-password', { email }) }
 export function adminTenants() { return _get('/api/admin/tenants') }
+export function adminAnalytics() { return _get('/api/admin/analytics') }
 export function adminProvisionTenant(body) { return _post('/api/admin/provision-tenant', body) }
 export function onboardingComplete(body) { return _post('/api/onboarding/complete', body) }
 
