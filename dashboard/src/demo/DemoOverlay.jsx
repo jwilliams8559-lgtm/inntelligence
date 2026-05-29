@@ -306,6 +306,19 @@ export default function DemoOverlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, idx])
 
+  // Mark this /demo visit completed once the closing screen renders.
+  useEffect(() => {
+    if (!active || step.kind !== 'closing') return undefined
+    let vid = ''
+    try { vid = sessionStorage.getItem('inn_demo_visit') || '' } catch { /* ignore */ }
+    if (!vid) return undefined
+    fetch(`/api/demo/log/${vid}/complete`, { method: 'POST' })
+      .catch(() => {})
+      .finally(() => { try { sessionStorage.removeItem('inn_demo_visit') } catch { /* ignore */ } })
+    return undefined
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, idx])
+
   if (!demoMode) return null
 
   const banner = !bannerOff && (

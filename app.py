@@ -976,13 +976,20 @@ def _tenant_context(tenant_id: Optional[str], user: Optional[dict]) -> dict:
         "plan_tier": app_md.get("plan_tier") or usr_md.get("plan_tier") or "professional",
         "owner_name": usr_md.get("owner_name") or usr_md.get("full_name") or "",
         "pending_onboarding": False,
+        # Billing fields populated from tenants once migrations/002_stripe_billing.sql
+        # is applied. Until then these stay null (frontend handles gracefully).
+        "plan_status": "active",
+        "plan_renews_at": None,
+        "founding_member_end": None,
     }
     if not tenant_id:
         return ctx
 
     # tenants → plan_tier, name, onboarding_complete
-    rows = _sb_rest_get("tenants", {"id": f"eq.{tenant_id}",
-                                    "select": "name,plan_tier,onboarding_complete,active"})
+    rows = _sb_rest_get("tenants", {
+        "id": f"eq.{tenant_id}",
+        "select": "name,plan_tier,onboarding_complete,active,plan_status,plan_renews_at,founding_member_end",
+    })
     if rows:
         t = rows[0]
         ctx["plan_tier"] = t.get("plan_tier") or ctx["plan_tier"]
@@ -991,6 +998,10 @@ def _tenant_context(tenant_id: Optional[str], user: Optional[dict]) -> dict:
         # Force onboarding only when the column explicitly says it's incomplete.
         if t.get("onboarding_complete") is False:
             ctx["pending_onboarding"] = True
+        # Billing fields (silently absent until migrations/002 is applied).
+        if t.get("plan_status"):         ctx["plan_status"]         = t["plan_status"]
+        if t.get("plan_renews_at"):      ctx["plan_renews_at"]      = t["plan_renews_at"]
+        if t.get("founding_member_end"): ctx["founding_member_end"] = t["founding_member_end"]
 
     # properties → first property's name (preferred display name)
     props = _sb_rest_get("properties", {"tenant_id": f"eq.{tenant_id}",
@@ -2190,6 +2201,273 @@ def _format_optimizations(raw: Dict[str, Any]) -> Dict[str, Any]:
         "total_package_opportunities": raw.get("total_package_opportunities", 0),
         "estimated_total_uplift":      raw.get("estimated_total_uplift", 0),
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Demo visitor analytics + admin analytics dashboard
+#  Requires migrations/001_demo_analytics.sql applied to Supabase. All access is
+#  through PostgREST with the service key (server-side only).
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _sb_rest_post(path: str, body, prefer: str = "return=representation") -> tuple[bool, object]:
+    """Service-key REST POST against Supabase PostgREST. Returns (ok, parsed_json)."""
+    if not (_SUPABASE_URL and _SUPABASE_SERVICE):
+        return False, {"error": "Supabase service key not configured"}
+    try:
+        import requests
+        r = requests.post(f"{_SUPABASE_URL}/rest/v1/{path}",
+                          headers={"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+                                   "Content-Type": "application/json", "Prefer": prefer},
+                          json=body, timeout=15)
+        if r.ok:
+            return True, (r.json() if r.text else {})
+        return False, {"status": r.status_code, "body": r.text[:300]}
+    except Exception as e:  # noqa: BLE001
+        return False, {"error": str(e)}
+
+
+def _sb_rest_patch(path: str, body) -> bool:
+    if not (_SUPABASE_URL and _SUPABASE_SERVICE):
+        return False
+    try:
+        import requests
+        r = requests.patch(f"{_SUPABASE_URL}/rest/v1/{path}",
+                           headers={"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+                                    "Content-Type": "application/json", "Prefer": "return=minimal"},
+                           json=body, timeout=15)
+        return r.ok
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _client_ip() -> str:
+    """Best-effort client IP, honouring x-forwarded-for (Railway sets it)."""
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.remote_addr or ""
+
+
+def _ipapi_lookup(ip: str) -> dict:
+    """ipapi.co free tier (1k/day, no key). Returns {country, region, city} or {}."""
+    if not ip or ip.startswith(("127.", "10.", "192.168.", "::1")):
+        return {}
+    try:
+        import requests
+        r = requests.get(f"https://ipapi.co/{ip}/json/",
+                         headers={"User-Agent": "INNtelligence/1.0"}, timeout=6)
+        if r.ok:
+            d = r.json()
+            return {"country": d.get("country_name") or d.get("country"),
+                    "region":  d.get("region"),
+                    "city":    d.get("city")}
+    except Exception:  # noqa: BLE001
+        pass
+    return {}
+
+
+@app.route("/api/demo/log", methods=["POST"])
+def api_demo_log():
+    """Log a /demo visit. Returns {visit_id} so the frontend can mark completion."""
+    ip = _client_ip()
+    geo = _ipapi_lookup(ip)
+    row = {
+        "ip_address": ip[:45] if ip else None,
+        "user_agent": (request.headers.get("User-Agent") or "")[:1000] or None,
+        "referrer":   (request.headers.get("Referer") or "") or None,
+        **geo,
+    }
+    ok, res = _sb_rest_post("demo_analytics", row)
+    if ok and isinstance(res, list) and res:
+        return jsonify({"visit_id": res[0].get("visit_id")})
+    # Schema not yet migrated, or REST error — return ok with no id so the
+    # frontend doesn't gate the tour on logging.
+    logger.warning("demo_analytics insert failed (migration pending?): %s", res)
+    return jsonify({"visit_id": None, "logged": False}), 202
+
+
+@app.route("/api/demo/log/<visit_id>/complete", methods=["POST"])
+def api_demo_log_complete(visit_id: str):
+    """Mark a visit as completed (reached the closing screen)."""
+    if not visit_id:
+        return jsonify({"ok": False}), 400
+    ok = _sb_rest_patch(f"demo_analytics?visit_id=eq.{visit_id}", {"completed_demo": True})
+    return jsonify({"ok": bool(ok)})
+
+
+# Plan price catalog (cents/month) — kept in code as the source of truth for MRR
+# rollups; mirrored into stripe_prices when Stripe goes live.
+_PLAN_PRICES_MONTHLY_CENTS = {
+    "starter": 39900, "professional": 69900, "enterprise": 120000, "premium": 240000,
+    "founding_member": 0,   # comp'd for the founding period
+}
+
+
+def _bucket_demo_rows(rows: list) -> dict:
+    """Aggregate demo_analytics rows into the shape Section 1 needs."""
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    week_ago  = now - timedelta(days=7)
+    month_ago = now - timedelta(days=30)
+
+    def _ts(r):
+        v = r.get("visited_at") or ""
+        try: return datetime.fromisoformat(v.replace("Z", "+00:00"))
+        except Exception: return now
+
+    visits_week = visits_month = 0
+    completed_week = completed_total = 0
+    ips = set()
+    geo = {}      # (country, region, city) → count
+    referrers = {}
+
+    for r in rows:
+        t = _ts(r)
+        if t >= week_ago:  visits_week  += 1
+        if t >= month_ago: visits_month += 1
+        if r.get("ip_address"): ips.add(r["ip_address"])
+        if r.get("completed_demo"):
+            completed_total += 1
+            if t >= week_ago: completed_week += 1
+        k = (r.get("country") or "—", r.get("region") or "—", r.get("city") or "—")
+        geo[k] = geo.get(k, 0) + 1
+        src = (r.get("referrer") or "Direct").split("?")[0][:80] or "Direct"
+        referrers[src] = referrers.get(src, 0) + 1
+
+    total = len(rows)
+    geo_rows = [{"country": k[0], "region": k[1], "city": k[2], "count": v}
+                for k, v in sorted(geo.items(), key=lambda x: -x[1])][:50]
+    total_ref = sum(referrers.values()) or 1
+    ref_rows = [{"source": s, "count": c, "pct": round(c / total_ref * 100, 1)}
+                for s, c in sorted(referrers.items(), key=lambda x: -x[1])][:20]
+
+    return {
+        "visits_week":       visits_week,
+        "visits_month":      visits_month,
+        "visits_all_time":   total,
+        "unique_visitors":   len(ips),
+        "completion_rate":   round((completed_total / total * 100) if total else 0.0, 1),
+        "completed_week":    completed_week,
+        "geo":               geo_rows,
+        "referrers":         ref_rows,
+    }
+
+
+@app.route("/api/admin/analytics")
+def api_admin_analytics():
+    """Aggregated analytics for the tgc_admin dashboard. tgc_admin only."""
+    _user, err = _require_admin()
+    if err: return err
+    from datetime import datetime, timezone, timedelta
+
+    # ── Section 1 — demo analytics (real, from demo_analytics) ──────────────
+    demo_rows = _sb_rest_get("demo_analytics",
+                             {"select": "visited_at,ip_address,completed_demo,country,region,city,referrer",
+                              "order": "visited_at.desc", "limit": "5000"})
+    section_1 = _bucket_demo_rows(demo_rows or [])
+
+    # ── Section 2 — customer health ────────────────────────────────────────
+    tenants = _sb_rest_get("tenants",
+                           {"select": "id,name,plan_tier,active,plan_status,founding_member_end",
+                            "active": "eq.true"}) or []
+    customers = []
+    for t in tenants:
+        if (t.get("plan_status") or "active") == "cancelled":
+            continue
+        if (t.get("plan_tier") or "").endswith("-demo") or "demo" in (t.get("name") or "").lower():
+            continue
+        customers.append({
+            "tenant_id":   t.get("id"),
+            "name":        t.get("name") or "—",
+            "plan_tier":   t.get("plan_tier") or "—",
+            "founding_member_end": t.get("founding_member_end"),
+            # Real signals — surfaced as null until each is instrumented end-to-end.
+            "days_since_last_login":      None,
+            "rate_approval_rate":         None,
+            "pending_recommendations":    None,
+            "autopilot_enabled":          None,
+            "health":                     "unknown",
+            "instrumented": False,
+        })
+
+    # ── Section 3 — business metrics ───────────────────────────────────────
+    all_tenants = _sb_rest_get("tenants",
+                               {"select": "plan_tier,active,plan_status,created_at,founding_member_end"}) or []
+    tier_counts = {"starter": 0, "professional": 0, "enterprise": 0, "premium": 0, "founding_member": 0}
+    mrr_cents = 0
+    new_this_month = 0
+    fm_active = 0
+    month_start = datetime.now(timezone.utc) - timedelta(days=30)
+    for t in all_tenants:
+        if t.get("active") is False: continue
+        tier = (t.get("plan_tier") or "").lower()
+        if tier in tier_counts: tier_counts[tier] += 1
+        mrr_cents += _PLAN_PRICES_MONTHLY_CENTS.get(tier, 0)
+        c = t.get("created_at") or ""
+        try:
+            if datetime.fromisoformat(c.replace("Z", "+00:00")) >= month_start:
+                new_this_month += 1
+        except Exception: pass
+        if tier == "founding_member" and t.get("founding_member_end"):
+            try:
+                from datetime import date as _date
+                end = _date.fromisoformat(t["founding_member_end"])
+                if end >= _date.today(): fm_active += 1
+            except Exception: pass
+
+    section_3 = {
+        "mrr_cents":          mrr_cents,
+        "mrr_usd":            round(mrr_cents / 100, 2),
+        "tier_counts":        tier_counts,
+        "new_this_month":     new_this_month,
+        "founding_members_active": fm_active,
+        "demo_views_week":    section_1["visits_week"],
+        "demo_completion_rate_week": (
+            round(section_1["completed_week"] / section_1["visits_week"] * 100, 1)
+            if section_1["visits_week"] else 0.0
+        ),
+    }
+
+    # ── Section 4 — platform usage ─────────────────────────────────────────
+    rec_total = _sb_rest_get("rate_recommendations",
+                             {"select": "id", "limit": "1"})
+    section_4 = {
+        # rate_recommendations has been observed in the schema; the counts below
+        # are approximate (PostgREST doesn't return totals without `Prefer: count`).
+        "recommendations_total":    None if rec_total is None else "instrumented",
+        "recommendations_approved": None,
+        "approval_rate_pct":        None,
+        "most_recently_active":     None,
+        "instrumented": False,
+    }
+    # Use `Prefer: count=exact` for real counts.
+    try:
+        import requests
+        h = {"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+             "Prefer": "count=exact"}
+        rt = requests.get(f"{_SUPABASE_URL}/rest/v1/rate_recommendations",
+                          params={"select": "id"}, headers=h, timeout=15)
+        if rt.ok:
+            cr = rt.headers.get("content-range", "")
+            tot = int(cr.split("/")[-1]) if "/" in cr else None
+            ra = requests.get(f"{_SUPABASE_URL}/rest/v1/rate_recommendations",
+                              params={"select": "id", "status": "eq.approved"},
+                              headers=h, timeout=15)
+            appr = int(ra.headers.get("content-range", "0/0").split("/")[-1]) if ra.ok else None
+            section_4["recommendations_total"]    = tot
+            section_4["recommendations_approved"] = appr
+            if tot and appr is not None:
+                section_4["approval_rate_pct"] = round(appr / tot * 100, 1)
+                section_4["instrumented"] = True
+    except Exception:  # noqa: BLE001
+        pass
+
+    return jsonify({
+        "section_1_demo":     section_1,
+        "section_2_health":   customers,
+        "section_3_business": section_3,
+        "section_4_usage":    section_4,
+    })
 
 
 # ─────────────────────────────────────────────────────────────────────────────

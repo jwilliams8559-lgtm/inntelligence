@@ -1,9 +1,30 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { SCREENS } from '../routes'
 import { useAuth } from '../context/AuthContext'
+import { usePlanFeatures } from '../hooks/usePlanFeatures'
+import UpgradeModal from './UpgradeModal'
 
 const linkBase = 'flex items-center gap-3 px-4 py-2.5 text-sm rounded-lg transition-colors'
-const ADMIN_ONLY = new Set(['/management-console'])
+const ADMIN_ONLY = new Set(['/management-console', '/admin/analytics'])
+
+// Map sidebar route → feature flag. Admin-only paths are gated separately.
+const PATH_FEATURE = {
+  '/rate-calendar':     'rateCalendar',
+  '/competitive-intel': 'competitiveIntel',
+  '/events':            'events',
+  '/reputation':        'reputation',
+  '/weather':           'weather',
+  '/historical':        'historical',
+  '/roi-performance':   'roiPerformance',
+  '/guest-crm':         'guestCrm',
+  '/weddings':          'weddings',
+  '/private-events':    'privateEvents',
+  '/packages':          'packages',
+  '/gift-shop':         'giftShop',
+  '/fnb-yield':         'fbYield',
+  '/gap-night':         'revenueIntelligence',
+}
 
 function itemClass({ isActive }) {
   return isActive
@@ -19,10 +40,23 @@ const PLAN_LABEL = {
 export default function Sidebar() {
   const navigate = useNavigate()
   const { user, role, openMode, logout } = useAuth()
+  const features = usePlanFeatures()
   const isAdmin = openMode || role === 'tgc_admin'
   const screens = SCREENS.filter((s) => isAdmin || !ADMIN_ONLY.has(s.path))
+  const [upgrade, setUpgrade] = useState({ open: false, feature: null })
 
   const onLogout = async () => { await logout(); navigate('/login') }
+
+  // Lock evaluation per nav item — admin overrides any feature lock.
+  const isLocked = (path) => {
+    if (isAdmin) return false
+    const f = PATH_FEATURE[path]
+    return f ? !features.has(f) : false
+  }
+  const onLockedClick = (path) => (e) => {
+    e.preventDefault()
+    setUpgrade({ open: true, feature: PATH_FEATURE[path] })
+  }
 
   return (
     <aside className="w-60 shrink-0 bg-navy text-white flex flex-col">
@@ -36,19 +70,34 @@ export default function Sidebar() {
         <NavLink to="/" end className={itemClass}>
           <span aria-hidden>🏠</span> Home
         </NavLink>
-        {screens.map((s) => (
-          s.highlight ? (
+        {screens.map((s) => {
+          const locked = isLocked(s.path)
+          if (locked) {
+            return (
+              <button key={s.path} onClick={onLockedClick(s.path)}
+                className={`${linkBase} w-full text-left text-white/80 hover:bg-navy-light opacity-40 cursor-pointer`}
+                aria-label={`${s.name} (locked)`}>
+                <span aria-hidden>{s.icon}</span>
+                <span className="flex-1">{s.name}</span>
+                <span className="text-gold text-[13px]" aria-hidden>🔒</span>
+              </button>
+            )
+          }
+          if (s.highlight) return (
             <NavLink key={s.path} to={s.path}
               className={({ isActive }) => `${linkBase} mt-2 font-semibold border ${isActive ? 'bg-gold text-navy border-gold' : 'bg-gold/15 text-gold border-gold/50 hover:bg-gold/25'}`}>
               <span aria-hidden>{s.icon}</span> {s.name}
             </NavLink>
-          ) : (
+          )
+          return (
             <NavLink key={s.path} to={s.path} className={itemClass}>
               <span aria-hidden>{s.icon}</span> {s.name}
             </NavLink>
           )
-        ))}
+        })}
       </nav>
+      <UpgradeModal open={upgrade.open} feature={upgrade.feature}
+        onClose={() => setUpgrade({ open: false, feature: null })} />
 
       {/* User / session footer */}
       <div className="border-t border-white/10 p-3">

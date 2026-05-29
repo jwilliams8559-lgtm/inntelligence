@@ -22,13 +22,28 @@ import GiftShop from './screens/GiftShop'
 import PrivateEvents from './screens/PrivateEvents'
 import Weddings from './screens/Weddings'
 import ManagementConsole from './screens/ManagementConsole'
+import AdminAnalytics from './screens/AdminAnalytics'
 import Login from './screens/Login'
 import Onboarding from './screens/Onboarding'
 import Pricing from './screens/Pricing'
 
 function DemoEntry() {
   const { startDemo } = useAuth()
-  useEffect(() => { startDemo() }, [startDemo])
+  useEffect(() => {
+    startDemo()
+    // Log this /demo visit once; store visit_id so the overlay can mark
+    // completion when the closing screen renders.
+    try {
+      if (!sessionStorage.getItem('inn_demo_visit')) {
+        fetch('/api/demo/log', { method: 'POST' })
+          .then((r) => r.json()).then((d) => {
+            if (d && d.visit_id) {
+              try { sessionStorage.setItem('inn_demo_visit', d.visit_id) } catch { /* ignore */ }
+            }
+          }).catch(() => {})
+      }
+    } catch { /* ignore */ }
+  }, [startDemo])
   return <Navigate to="/" replace />
 }
 
@@ -48,9 +63,10 @@ const BUILT = {
   '/private-events': PrivateEvents,
   '/weddings': Weddings,
   '/management-console': ManagementConsole,
+  '/admin/analytics': AdminAnalytics,
 }
 // Screens only tgc_admin may see.
-const ADMIN_ONLY = new Set(['/management-console'])
+const ADMIN_ONLY = new Set(['/management-console', '/admin/analytics'])
 
 function FullScreenSpinner() {
   return (
