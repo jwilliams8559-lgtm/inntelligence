@@ -6,11 +6,6 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorBanner from '../components/ErrorBanner'
 
 const PLAN_MRR = { starter: 399, professional: 699, enterprise: 1200, premium: 2400, founding_member: 0 }
-const ENGAGEMENTS = [
-  { client: 'Lowcountry Hospitality Group', type: 'Pricing strategy', value: 45000, stage: 'Proposal', tone: 'gold' },
-  { client: 'Coastal Inns Collective', type: 'Market positioning', value: 28000, stage: 'Discovery', tone: 'navy' },
-  { client: 'Heritage Inn Partners', type: 'Revenue transformation', value: 62000, stage: 'Active', tone: 'emerald' },
-]
 
 export default function ManagementConsole() {
   const [data, setData] = useState(null)
@@ -33,7 +28,7 @@ export default function ManagementConsole() {
     pending: t.pending_count ?? t.pending_approvals ?? 0,
   }))
   const mrr = tenants.reduce((s, t) => s + t.mrr, 0)
-  const pipeline = ENGAGEMENTS.reduce((s, e) => s + e.value, 0)
+  const foundingMembers = tenants.filter((t) => t.plan === 'founding_member')
 
   return (
     <div>
@@ -43,11 +38,13 @@ export default function ManagementConsole() {
         right={<button onClick={() => setShowAdd(true)} className="bg-navy text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-navy-light">+ Onboard New Property</button>}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
         <StatCard label="Total MRR" value={usd(mrr)} sub={`${usd(mrr * 12)} ARR`} accent />
         <StatCard label="Paying Clients" value={tenants.length} sub="active properties" />
-        <StatCard label="Founding Members" value="2 / 5" sub="recruiting" />
-        <StatCard label="INNsight Pipeline" value={usd(pipeline)} sub={`${ENGAGEMENTS.length} engagements`} />
+        <StatCard
+          label="Founding Members"
+          value={`${foundingMembers.length} / 5`}
+          sub={foundingMembers.length < 5 ? 'recruiting' : 'full'} />
       </div>
 
       <Card title="Portfolio" className="mb-6">
@@ -73,27 +70,24 @@ export default function ManagementConsole() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card title="INNsight Engagements">
-          <div className="space-y-2">
-            {ENGAGEMENTS.map((e) => (
-              <div key={e.client} className="flex items-center justify-between rounded-lg border border-gray-200 p-3">
-                <div><div className="font-semibold text-navy text-sm">{e.client}</div><div className="text-[11px] text-gray-500">{e.type}</div></div>
-                <div className="text-right"><div className="font-bold text-navy">{usd(e.value)}</div><Pill tone={e.tone}>{e.stage}</Pill></div>
+      <Card title={`Founding Members · ${foundingMembers.length} of 5`}>
+        {foundingMembers.length === 0 ? (
+          <p className="text-sm text-gray-400">No founding members onboarded yet.</p>
+        ) : (
+          <div className="space-y-2 text-sm">
+            {foundingMembers.map((t, i) => (
+              <div key={i} className="flex items-center justify-between rounded-lg border border-gray-200 p-3">
+                <div>
+                  <div className="font-semibold text-navy">{t.name}</div>
+                  {t.loc && t.loc !== '—' && <div className="text-[11px] text-gray-500">{t.loc}</div>}
+                </div>
+                <Pill tone="gold">Founding Member</Pill>
               </div>
             ))}
           </div>
-          <div className="text-[11px] text-gray-400 mt-3">INNsight Advisory · $25,000–$80,000 per engagement</div>
-        </Card>
-        <Card title="Founding Members · 2 of 5">
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center justify-between rounded-lg border border-gray-200 p-3"><div><div className="font-semibold text-navy">Bay Street Inn</div><div className="text-[11px] text-gray-500">Beaufort, SC · 4 mo in</div></div><Pill tone="gold">Testimonial pending</Pill></div>
-            <div className="flex items-center justify-between rounded-lg border border-gray-200 p-3"><div><div className="font-semibold text-navy">Magnolia Springs Inn</div><div className="text-[11px] text-gray-500">Charleston, SC · 2 mo in</div></div><Pill tone="gold">Onboarding</Pill></div>
-            <div className="flex items-center justify-between rounded-lg border border-gray-200 p-3"><div className="text-gray-400 italic">— open slot —</div><Pill tone="gray">Recruiting</Pill></div>
-          </div>
-          <Link to="/onboarding" className="mt-3 inline-block text-xs font-semibold text-navy hover:text-gold">+ Onboard a founding member →</Link>
-        </Card>
-      </div>
+        )}
+        <Link to="/onboarding" className="mt-3 inline-block text-xs font-semibold text-navy hover:text-gold">+ Onboard a founding member →</Link>
+      </Card>
 
       {showAdd && <AddClientModal onClose={() => setShowAdd(false)} onDone={load} />}
     </div>
