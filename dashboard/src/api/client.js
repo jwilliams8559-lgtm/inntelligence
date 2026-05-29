@@ -35,7 +35,38 @@ export function authLogin(email, password) { return _post('/api/auth/login', { e
 export function authLogout() { return _post('/api/auth/logout').catch(() => ({})) }
 export function authResetPassword(email) { return _post('/api/auth/reset-password', { email }) }
 export function adminTenants() { return _get('/api/admin/tenants') }
-export function adminAnalytics() { return _get('/api/admin/analytics') }
+export function adminAnalytics() {
+  // Verbose debug — leave on until /admin/analytics 401 is resolved.
+  const url = '/api/admin/analytics'
+  const tok = getToken()
+  const headers = { Accept: 'application/json', ..._authHdrs() }
+  /* eslint-disable no-console */
+  console.log('[adminAnalytics] →', url)
+  console.log('[adminAnalytics] localStorage token len:', tok.length, 'prefix:', tok ? tok.slice(0, 18) + '…' : '(empty)')
+  console.log('[adminAnalytics] request headers:', headers)
+  console.log('[adminAnalytics] Authorization header sent:', 'Authorization' in headers)
+  return fetch(url, { headers }).then(async (r) => {
+    console.log('[adminAnalytics] response status:', r.status, r.statusText)
+    let body = null
+    try { body = await r.clone().json() } catch { body = await r.clone().text() }
+    console.log('[adminAnalytics] response body:', body)
+    /* eslint-enable no-console */
+    if (!r.ok) throw new Error(`API ${url} → HTTP ${r.status}`)
+    return body
+  })
+}
+export function adminAnalyticsTest() {
+  // No-auth diagnostic: hit /api/admin/analytics-test and dump what Flask sees.
+  const headers = { Accept: 'application/json', ..._authHdrs() }
+  /* eslint-disable no-console */
+  console.log('[adminAnalyticsTest] headers:', headers)
+  return fetch('/api/admin/analytics-test', { headers }).then(async (r) => {
+    const b = await r.clone().json().catch(() => r.text())
+    console.log('[adminAnalyticsTest] status:', r.status, 'body:', b)
+    return b
+    /* eslint-enable no-console */
+  })
+}
 export function adminProvisionTenant(body) { return _post('/api/admin/provision-tenant', body) }
 export function onboardingComplete(body) { return _post('/api/onboarding/complete', body) }
 

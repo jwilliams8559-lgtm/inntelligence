@@ -2353,11 +2353,56 @@ def _bucket_demo_rows(rows: list) -> dict:
     }
 
 
+@app.route("/api/admin/analytics-test")
+def api_admin_analytics_test():
+    """Diagnostic-only sibling of /api/admin/analytics — NO auth check.
+    Returns whatever Flask receives so we can pinpoint exactly where the 401
+    comes from when /api/admin/analytics fails. Safe to leave: it never reveals
+    the bearer token itself (only its length + prefix)."""
+    token = _bearer_token()
+    has_auth_header = "Authorization" in request.headers
+    user = _sb_user(token) if token else None
+    role, tenant_id = (_role_and_tenant(user) if user else (None, None))
+    return jsonify({
+        "status":               "ok",
+        "auth_configured":      _auth_configured(),
+        "auth_header_present":  has_auth_header,
+        "bearer_token_len":     len(token or ""),
+        "bearer_token_prefix":  (token[:18] + "…") if token else "",
+        "user_resolved":        user is not None,
+        "email":                (user or {}).get("email"),
+        "role":                 role,
+        "tenant_id":            tenant_id,
+        "is_admin_email":       (((user or {}).get("email") or "").lower() in _ADMIN_EMAILS),
+        "admin_emails":         sorted(_ADMIN_EMAILS),
+    })
+
+
 @app.route("/api/admin/analytics")
 def api_admin_analytics():
     """Aggregated analytics for the tgc_admin dashboard. tgc_admin only."""
+    # Aggressive diagnostic logging (Railway → Deployments → Logs)
+    _hdrs = dict(request.headers)
+    if "Authorization" in _hdrs:
+        _av = _hdrs["Authorization"]
+        _hdrs["Authorization"] = f"{_av[:18]}… (len {len(_av)})"   # mask token body
+    print(f"ANALYTICS: headers={_hdrs}", flush=True)
+    print(f"ANALYTICS: auth header present: {'Authorization' in request.headers}", flush=True)
+    _tok = _bearer_token()
+    print(f"ANALYTICS: bearer token len: {len(_tok or '')}", flush=True)
+    _u = _sb_user(_tok) if _tok else None
+    print(f"ANALYTICS: user resolved: {_u is not None}  email={(_u or {}).get('email')}", flush=True)
+    if _u:
+        _r, _t = _role_and_tenant(_u)
+        print(f"ANALYTICS: role={_r}  tenant={_t}", flush=True)
+    logger.info("ANALYTICS request: auth_header=%s token_len=%s user=%s",
+                "Authorization" in request.headers, len(_tok or ""),
+                (_u or {}).get("email"))
+
     _user, err = _require_admin()
-    if err: return err
+    if err:
+        print(f"ANALYTICS: _require_admin returned 401/403", flush=True)
+        return err
     from datetime import datetime, timezone, timedelta
 
     # ── Section 1 — demo analytics (real, from demo_analytics) ──────────────

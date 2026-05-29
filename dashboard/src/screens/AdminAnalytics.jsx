@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { adminAnalytics } from '../api/client'
+import { adminAnalytics, adminAnalyticsTest } from '../api/client'
 import { ScreenHeader, Card, StatCard, Pill, LastUpdated, usd } from '../components/ui'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorBanner from '../components/ErrorBanner'
@@ -18,6 +18,25 @@ const HealthDot = ({ kind }) => {
 const NumberOrDash = ({ v, suffix = '' }) =>
   v == null ? <NotInstrumented /> : <span>{v}{suffix}</span>
 
+function DebugPanel({ err }) {
+  const [t, setT] = useState(null)
+  useEffect(() => { adminAnalyticsTest().then(setT).catch((e) => setT({ error: String(e) })) }, [])
+  return (
+    <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-4 mb-4 text-xs text-navy">
+      <div className="font-bold text-amber-700 mb-2">🔍 Diagnostic — /api/admin/analytics-test (no auth check)</div>
+      {err && <div className="mb-2 text-rose-700"><b>/api/admin/analytics:</b> {err}</div>}
+      <pre className="whitespace-pre-wrap break-words font-mono text-[11px] bg-white p-2 rounded border border-amber-200">
+        {t == null ? 'calling…' : JSON.stringify(t, null, 2)}
+      </pre>
+      <div className="mt-2 text-[10px] text-amber-700">
+        If <code>auth_header_present: false</code> → frontend isn't sending the Bearer token (likely a stale build cached by the browser; hard-refresh).
+        If <code>user_resolved: false</code> with a token → token expired or invalid; sign out + back in.
+        If <code>user_resolved: true</code> but <code>role !== "tgc_admin"</code> → email isn't in the admin allowlist.
+      </div>
+    </div>
+  )
+}
+
 export default function AdminAnalytics() {
   const [d, setD] = useState(null)
   const [err, setErr] = useState(null)
@@ -25,7 +44,13 @@ export default function AdminAnalytics() {
     adminAnalytics().then(setD).catch((e) => setErr(e.message))
   }, [])
 
-  if (err) return <ErrorBanner message={err} />
+  if (err) return (
+    <div>
+      <ScreenHeader title="Analytics" subtitle="Admin · diagnostic mode" />
+      <DebugPanel err={err} />
+      <ErrorBanner message={err} />
+    </div>
+  )
   if (!d) return <LoadingSpinner label="Loading analytics…" />
 
   const s1 = d.section_1_demo, s2 = d.section_2_health, s3 = d.section_3_business, s4 = d.section_4_usage
