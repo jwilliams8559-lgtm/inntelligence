@@ -1,7 +1,7 @@
 -- Part 3: Reconcile billing catalog to the 4 INNtelligence tiers.
 -- Replaces the legacy starter/professional/enterprise/premium catalog with
 -- inn / boutique / signature / collection. Apply in Supabase SQL editor.
--- Idempotent: safe to re-run.
+-- Fully idempotent: safe to re-run from scratch.
 
 -- ── 1. Widen the plan_tier CHECK constraint FIRST ────────────────────────────
 -- The legacy constraint only permits the old tier names, so it must be relaxed
@@ -24,13 +24,44 @@ UPDATE public.tenants SET plan_tier = 'signature'  WHERE plan_tier = 'enterprise
 UPDATE public.tenants SET plan_tier = 'collection' WHERE plan_tier = 'premium';
 -- founding_member and cancelled are unchanged.
 
--- ── 3. Reseed stripe_prices with the live monthly tiers ──────────────────────
--- Remove the obsolete legacy rows.
+-- ── 3. Repair stripe_prices: dedupe → add UNIQUE → reseed ────────────────────
+-- The live table accumulated duplicate (plan_tier, interval) rows and never had
+-- a unique constraint (so the original ON CONFLICT reseed had no target).
+
+-- 3a. Collapse duplicates, keeping the lowest id per (plan_tier, interval).
+DELETE FROM public.stripe_prices a
+      USING public.stripe_prices b
+ WHERE a.id > b.id
+   AND a.plan_tier = b.plan_tier
+   AND a.interval  = b.interval;
+
+-- 3b. Add the UNIQUE constraint if an equivalent one isn't already present
+--     (matched by column set, not name, so it's robust to prior naming).
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint c
+         WHERE c.conrelid = 'public.stripe_prices'::regclass
+           AND c.contype  = 'u'
+           AND (
+                SELECT array_agg(a.attname::text ORDER BY a.attname::text)
+                  FROM unnest(c.conkey) k
+                  JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
+           ) = ARRAY['interval', 'plan_tier']
+    ) THEN
+        ALTER TABLE public.stripe_prices
+            ADD CONSTRAINT stripe_prices_plan_tier_interval_key UNIQUE (plan_tier, interval);
+    END IF;
+END $$;
+
+-- 3c. Remove the obsolete legacy catalog rows.
 DELETE FROM public.stripe_prices
  WHERE plan_tier IN ('starter', 'professional', 'enterprise', 'premium');
 
--- Insert the new tiers. stripe_price_id values mirror the live TEST-mode prices
--- created by scripts/setup_stripe_tiers.py (also stored in .env as STRIPE_PRICE_*).
+-- 3d. Upsert the live monthly tiers. The ON CONFLICT target now exists.
+--     stripe_price_id values mirror the live TEST-mode prices created by
+--     scripts/setup_stripe_tiers.py (also stored in .env as STRIPE_PRICE_*).
 INSERT INTO public.stripe_prices (plan_tier, interval, stripe_price_id, amount_cents) VALUES
     ('inn',        'month', 'price_1UVBwRHc6m4LmUs8CJG4HnTY',  14900),
     ('boutique',   'month', 'price_1UVBwSHc6m4LmUs8Mdx2kqXA',  39900),
