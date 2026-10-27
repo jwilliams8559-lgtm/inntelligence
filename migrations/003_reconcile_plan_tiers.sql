@@ -3,7 +3,20 @@
 -- inn / boutique / signature / collection. Apply in Supabase SQL editor.
 -- Idempotent: safe to re-run.
 
--- ── 1. Migrate existing tenants off legacy tier keys ─────────────────────────
+-- ── 1. Widen the plan_tier CHECK constraint FIRST ────────────────────────────
+-- The legacy constraint only permits the old tier names, so it must be relaxed
+-- before any row can be migrated to a new tier (and before the webhook can
+-- write plan_tier='boutique' etc.). We allow the new tiers, founding_member,
+-- cancelled, plus the legacy names during the transition window.
+ALTER TABLE public.tenants DROP CONSTRAINT IF EXISTS tenants_plan_tier_check;
+ALTER TABLE public.tenants ADD CONSTRAINT tenants_plan_tier_check
+    CHECK (plan_tier IN (
+        'inn', 'boutique', 'signature', 'collection',   -- current tiers
+        'founding_member', 'cancelled',                  -- special states
+        'starter', 'professional', 'enterprise', 'premium'  -- legacy (transitional)
+    ));
+
+-- ── 2. Migrate existing tenants off legacy tier keys ─────────────────────────
 -- Map by position in the old ladder → new ladder.
 UPDATE public.tenants SET plan_tier = 'inn'        WHERE plan_tier = 'starter';
 UPDATE public.tenants SET plan_tier = 'boutique'   WHERE plan_tier = 'professional';
@@ -11,7 +24,7 @@ UPDATE public.tenants SET plan_tier = 'signature'  WHERE plan_tier = 'enterprise
 UPDATE public.tenants SET plan_tier = 'collection' WHERE plan_tier = 'premium';
 -- founding_member and cancelled are unchanged.
 
--- ── 2. Reseed stripe_prices with the live monthly tiers ──────────────────────
+-- ── 3. Reseed stripe_prices with the live monthly tiers ──────────────────────
 -- Remove the obsolete legacy rows.
 DELETE FROM public.stripe_prices
  WHERE plan_tier IN ('starter', 'professional', 'enterprise', 'premium');
@@ -26,3 +39,7 @@ INSERT INTO public.stripe_prices (plan_tier, interval, stripe_price_id, amount_c
 ON CONFLICT (plan_tier, interval) DO UPDATE
     SET stripe_price_id = EXCLUDED.stripe_price_id,
         amount_cents    = EXCLUDED.amount_cents;
+
+-- ── 4. (Optional) Tighten later ──────────────────────────────────────────────
+-- Once all tenants are confirmed migrated and no legacy writers remain, the
+-- legacy names can be dropped from the CHECK constraint in a follow-up migration.

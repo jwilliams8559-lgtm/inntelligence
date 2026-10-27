@@ -567,16 +567,18 @@ def process_webhook(payload: bytes, signature: str) -> dict:
     else:
         _stripe_init()
         try:
-            event = _stripe.Webhook.construct_event(payload, signature, secret)
+            # construct_event verifies the signature; we then operate on the raw
+            # JSON as a plain dict so all handling below is uniform (the Stripe
+            # object returned here is not dict-compatible in stripe-python v15).
+            _stripe.Webhook.construct_event(payload, signature, secret)
         except Exception as exc:
             return {"error": f"signature verification failed: {exc}", "status": 400}
+        event = json.loads(payload)
         event_id   = event["id"]
         event_type = event["type"]
 
     # Resolve tenant — every event we care about has a customer
-    customer_id = (event.get("data", {}).get("object", {}).get("customer")
-                   if isinstance(event, dict)
-                   else event["data"]["object"].get("customer", None))
+    customer_id = event.get("data", {}).get("object", {}).get("customer")
     tenant_id: Optional[str] = None
     if customer_id:
         rows = _sb_get("tenants", {"stripe_customer_id": f"eq.{customer_id}",
@@ -589,7 +591,7 @@ def process_webhook(payload: bytes, signature: str) -> dict:
         "tenant_id":       tenant_id,
         "stripe_event_id": event_id,
         "event_type":      event_type,
-        "payload":         event if isinstance(event, dict) else dict(event),
+        "payload":         event,
     }, prefer="return=minimal")
 
     # Dispatch
@@ -599,7 +601,7 @@ def process_webhook(payload: bytes, signature: str) -> dict:
         # any tenant row), so resolve the tenant from client_reference_id /
         # metadata rather than the customer lookup above, and persist the
         # Stripe customer + subscription ids onto the tenant.
-        obj = event["data"]["object"] if not isinstance(event, dict) else event.get("data", {}).get("object", {})
+        obj = event.get("data", {}).get("object", {})
         md = obj.get("metadata") or {}
         t_id = obj.get("client_reference_id") or md.get("tenant_id") or tenant_id
         cust = obj.get("customer")
@@ -615,7 +617,7 @@ def process_webhook(payload: bytes, signature: str) -> dict:
             handled = True
 
     elif event_type == "customer.subscription.updated" and tenant_id:
-        obj = event["data"]["object"] if not isinstance(event, dict) else event.get("data", {}).get("object", {})
+        obj = event.get("data", {}).get("object", {})
         items = obj.get("items", {}).get("data", [])
         new_plan = None
         for it in items:
