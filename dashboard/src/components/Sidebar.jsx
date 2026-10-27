@@ -1,30 +1,12 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { SCREENS } from '../routes'
+import { SCREENS, PATH_FEATURE } from '../routes'
 import { useAuth } from '../context/AuthContext'
 import { usePlanFeatures } from '../hooks/usePlanFeatures'
 import UpgradeModal from './UpgradeModal'
 
 const linkBase = 'flex items-center gap-3 px-4 py-2.5 text-sm rounded-lg transition-colors'
 const ADMIN_ONLY = new Set(['/management-console', '/admin/analytics'])
-
-// Map sidebar route → feature flag. Admin-only paths are gated separately.
-const PATH_FEATURE = {
-  '/rate-calendar':     'rateCalendar',
-  '/competitive-intel': 'competitiveIntel',
-  '/events':            'events',
-  '/reputation':        'reputation',
-  '/weather':           'weather',
-  '/historical':        'historical',
-  '/roi-performance':   'roiPerformance',
-  '/guest-crm':         'guestCrm',
-  '/weddings':          'weddings',
-  '/private-events':    'privateEvents',
-  '/packages':          'packages',
-  '/gift-shop':         'giftShop',
-  '/fnb-yield':         'fbYield',
-  '/gap-night':         'revenueIntelligence',
-}
 
 function itemClass({ isActive }) {
   return isActive

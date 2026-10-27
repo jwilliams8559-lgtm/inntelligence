@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { PriceProvider } from './context/PriceContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { FeatureAccessProvider } from './context/FeatureAccessContext'
 import Layout from './components/Layout'
 import Home from './screens/Home'
 import ScreenPlaceholder from './screens/ScreenPlaceholder'
@@ -132,9 +133,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <PriceProvider>
-        <AppRoutes />
-      </PriceProvider>
+      <FeatureAccessProvider>
+        <PriceProvider>
+          <AppRoutes />
+        </PriceProvider>
+      </FeatureAccessProvider>
     </AuthProvider>
   )
 }

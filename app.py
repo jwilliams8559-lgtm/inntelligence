@@ -1239,6 +1239,51 @@ def api_billing_webhook():
     return jsonify(res), 200
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  Feature gating + per-feature trials
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/features/access")
+def api_features_access():
+    """Authoritative per-feature access + trial state for the current tenant.
+    Drives the sidebar locks, UpgradeModal, and in-feature trial banners."""
+    if not _auth_configured():
+        return jsonify({"error": "Auth not configured"}), 503
+    user = _sb_user(_bearer_token())
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+    role, tenant_id = _role_and_tenant(user)
+    is_admin = role == "tgc_admin"
+    plan_tier = None
+    if tenant_id:
+        rows = _sb_rest_get("tenants", {"id": f"eq.{tenant_id}", "select": "plan_tier"})
+        plan_tier = rows[0]["plan_tier"] if rows else None
+    from engine import features
+    return jsonify(features.feature_access_snapshot(tenant_id, plan_tier, is_admin=is_admin))
+
+
+@app.route("/api/features/trial", methods=["POST"])
+def api_features_trial():
+    """Start a 14-day trial for a single feature. Enforces once-per-feature and
+    a max of 2 active trials per tenant (server-side)."""
+    user, tenant_id, err = _require_tenant_user()
+    if err:
+        return err
+    d = request.get_json(silent=True) or {}
+    feature_key = (d.get("feature_key") or "").strip()
+    if not feature_key:
+        return jsonify({"error": "feature_key required"}), 400
+    rows = _sb_rest_get("tenants", {"id": f"eq.{tenant_id}", "select": "plan_tier"})
+    plan_tier = rows[0]["plan_tier"] if rows else None
+    from engine import features
+    res = features.start_trial(tenant_id, feature_key, plan_tier)
+    if res.get("error"):
+        # 409 for business-rule refusals (already trialed / limit / included)
+        code = 400 if res["error"] in ("unknown_feature",) else 409
+        return jsonify(res), code
+    return jsonify(res)
+
+
 def _slugify(s: str) -> str:
     return "".join(c if (c.isalnum() or c == "-") else "-" for c in (s or "").lower()).strip("-")[:48] or "inn"
 

@@ -80,6 +80,17 @@ export function createPortalSession(opts = {}) {
   return _post('/api/billing/create-portal-session', opts)
 }
 
+// ── Feature gating + per-feature trials ──────────────────────────────────────
+// Authoritative access snapshot: { features: {key: {...}}, active_trial_count, ... }
+export function getFeatureAccess() {
+  return _get('/api/features/access')
+}
+// Start a 14-day trial for one feature. Rejects (409) if already trialed /
+// 2 active / already included.
+export function startFeatureTrial(featureKey) {
+  return _post('/api/features/trial', { feature_key: featureKey })
+}
+
 function _today() {
   return new Date().toISOString().slice(0, 10)
 }

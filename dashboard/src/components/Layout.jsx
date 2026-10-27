@@ -3,6 +3,7 @@ import Sidebar from './Sidebar'
 import Header from './Header'
 import DemoOverlay from '../demo/DemoOverlay'
 import FoundingMemberBanner from './FoundingMemberBanner'
+import TrialBanner from './TrialBanner'
 
 export default function Layout() {
   return (
@@ -10,6 +11,7 @@ export default function Layout() {
       <Sidebar />
       <div className="flex flex-1 flex-col min-w-0">
         <FoundingMemberBanner />
+        <TrialBanner />
         <Header />
         <main className="flex-1 overflow-y-auto p-6">
           <Outlet />
