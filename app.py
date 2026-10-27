@@ -973,7 +973,7 @@ def _tenant_context(tenant_id: Optional[str], user: Optional[dict]) -> dict:
     app_md = (user or {}).get("app_metadata") or {}
     ctx = {
         "property_name": usr_md.get("property_name") or "",
-        "plan_tier": app_md.get("plan_tier") or usr_md.get("plan_tier") or "professional",
+        "plan_tier": app_md.get("plan_tier") or usr_md.get("plan_tier") or "boutique",
         "owner_name": usr_md.get("owner_name") or usr_md.get("full_name") or "",
         "pending_onboarding": False,
         # Billing fields populated from tenants once migrations/002_stripe_billing.sql
@@ -1152,6 +1152,93 @@ def api_auth_reset_password():
     return jsonify({"ok": True})
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  Billing — Phase 2: Stripe Checkout + Billing Portal
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _require_tenant_user() -> tuple[Optional[dict], Optional[str], Optional[tuple]]:
+    """Returns (user, tenant_id, None) for an authenticated tenant user,
+    else (None, None, error_response)."""
+    if not _auth_configured():
+        return None, None, (jsonify({"error": "Auth not configured"}), 503)
+    user = _sb_user(_bearer_token())
+    if not user:
+        return None, None, (jsonify({"error": "Unauthorized"}), 401)
+    _role, tenant_id = _role_and_tenant(user)
+    if not tenant_id:
+        return None, None, (jsonify({"error": "No tenant associated with this account"}), 400)
+    return user, tenant_id, None
+
+
+def _app_base_url() -> str:
+    """Base URL to redirect back to after Checkout/Portal — prefer the caller's
+    Origin (so local dev lands on the dev server), else the configured public URL."""
+    from urllib.parse import urlparse
+    origin = request.headers.get("Origin") or request.headers.get("Referer") or ""
+    p = urlparse(origin)
+    if p.scheme and p.netloc:
+        return f"{p.scheme}://{p.netloc}"
+    return _APP_PUBLIC_URL
+
+
+@app.route("/api/billing/create-checkout-session", methods=["POST"])
+def api_billing_create_checkout():
+    user, tenant_id, err = _require_tenant_user()
+    if err:
+        return err
+    d = request.get_json(silent=True) or {}
+    tier = (d.get("tier") or "").strip().lower()
+    from engine import billing
+    if tier not in billing.CHECKOUT_TIERS:
+        return jsonify({"error": f"Invalid tier {tier!r}. "
+                                 f"Expected one of {billing.CHECKOUT_TIERS}."}), 400
+    base = _app_base_url()
+    success_url = d.get("success_url") or f"{base}/settings?checkout=success&session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url  = d.get("cancel_url")  or f"{base}/settings?checkout=cancelled"
+    try:
+        res = billing.create_checkout_session(
+            tenant_id, tier,
+            success_url=success_url, cancel_url=cancel_url,
+            billing_email=user.get("email"))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("create_checkout_session failed: %s", e)
+        return jsonify({"error": str(e)}), 502
+    return jsonify(res)
+
+
+@app.route("/api/billing/create-portal-session", methods=["POST"])
+def api_billing_create_portal():
+    _user, tenant_id, err = _require_tenant_user()
+    if err:
+        return err
+    d = request.get_json(silent=True) or {}
+    return_url = d.get("return_url") or f"{_app_base_url()}/settings"
+    from engine import billing
+    try:
+        res = billing.create_portal_session(tenant_id, return_url=return_url)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("create_portal_session failed: %s", e)
+        return jsonify({"error": str(e)}), 502
+    if not res.get("url"):
+        return jsonify({"error": "No active billing account yet — subscribe first."}), 409
+    return jsonify(res)
+
+
+@app.route("/api/billing/webhook", methods=["POST"])
+def api_billing_webhook():
+    """Stripe webhook receiver. Verifies the signature (when STRIPE_WEBHOOK_SECRET
+    is set) and dispatches via engine.billing.process_webhook. On
+    checkout.session.completed the tenant's stripe_customer_id /
+    stripe_subscription_id are persisted."""
+    from engine import billing
+    payload = request.get_data()
+    signature = request.headers.get("Stripe-Signature", "")
+    res = billing.process_webhook(payload, signature)
+    if res.get("status") == 400:
+        return jsonify(res), 400
+    return jsonify(res), 200
+
+
 def _slugify(s: str) -> str:
     return "".join(c if (c.isalnum() or c == "-") else "-" for c in (s or "").lower()).strip("-")[:48] or "inn"
 
@@ -1168,7 +1255,7 @@ def api_admin_provision_tenant():
     email = d.get("owner_email", "")
     if not email:
         return jsonify({"error": "owner_email required"}), 400
-    plan = d.get("plan_tier", "professional")
+    plan = d.get("plan_tier", "boutique")
     name = d.get("property_name", "")
     svc_hdr = {"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
                "Content-Type": "application/json"}
@@ -1271,11 +1358,11 @@ def api_admin_tenants():
             logger.warning("admin/tenants query failed: %s", e)
     # Demo fallback so the console renders before the tenants table is populated.
     return jsonify({"source": "demo", "tenants": [
-        {"name": "Bay Street Inn", "location": "Beaufort, SC", "plan_tier": "professional",
+        {"name": "Bay Street Inn", "location": "Beaufort, SC", "plan_tier": "boutique",
          "last_login": "2026-05-25", "sync_status": "synced", "pending_count": 6},
-        {"name": "Cuthbert House Inn", "location": "Beaufort, SC", "plan_tier": "starter",
+        {"name": "Cuthbert House Inn", "location": "Beaufort, SC", "plan_tier": "inn",
          "last_login": "2026-05-24", "sync_status": "synced", "pending_count": 3},
-        {"name": "Palmetto Bluff Cottages", "location": "Bluffton, SC", "plan_tier": "premium",
+        {"name": "Palmetto Bluff Cottages", "location": "Bluffton, SC", "plan_tier": "collection",
          "last_login": "2026-05-26", "sync_status": "syncing", "pending_count": 2},
     ]})
 
@@ -2298,7 +2385,7 @@ def api_demo_log_complete(visit_id: str):
 # Plan price catalog (cents/month) — kept in code as the source of truth for MRR
 # rollups; mirrored into stripe_prices when Stripe goes live.
 _PLAN_PRICES_MONTHLY_CENTS = {
-    "starter": 39900, "professional": 69900, "enterprise": 120000, "premium": 240000,
+    "inn": 14900, "boutique": 39900, "signature": 79900, "collection": 149900,
     "founding_member": 0,   # comp'd for the founding period
 }
 
@@ -2446,7 +2533,7 @@ def api_admin_analytics():
     # ── Section 3 — business metrics ───────────────────────────────────────
     all_tenants = _sb_rest_get("tenants",
                                {"select": "plan_tier,active,plan_status,created_at,founding_member_end"}) or []
-    tier_counts = {"starter": 0, "professional": 0, "enterprise": 0, "premium": 0, "founding_member": 0}
+    tier_counts = {"inn": 0, "boutique": 0, "signature": 0, "collection": 0, "founding_member": 0}
     mrr_cents = 0
     new_this_month = 0
     fm_active = 0

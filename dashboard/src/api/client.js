@@ -70,6 +70,16 @@ export function adminAnalyticsTest() {
 export function adminProvisionTenant(body) { return _post('/api/admin/provision-tenant', body) }
 export function onboardingComplete(body) { return _post('/api/onboarding/complete', body) }
 
+// ── Billing (Stripe Checkout + Portal) ───────────────────────────────────────
+// create-checkout-session returns { url, session_id, ... }; the caller redirects
+// the browser to `url` (hosted Stripe Checkout).
+export function createCheckoutSession(tier, opts = {}) {
+  return _post('/api/billing/create-checkout-session', { tier, ...opts })
+}
+export function createPortalSession(opts = {}) {
+  return _post('/api/billing/create-portal-session', opts)
+}
+
 function _today() {
   return new Date().toISOString().slice(0, 10)
 }

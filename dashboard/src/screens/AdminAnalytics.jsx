@@ -173,10 +173,10 @@ export default function AdminAnalytics() {
         <StatCard label="Demo views (week)" value={s3.demo_views_week} sub={`${fmtPct(s3.demo_completion_rate_week)} completion`} />
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
-        <StatCard label="Starter" value={s3.tier_counts.starter || 0} sub="$399 / mo" />
-        <StatCard label="Professional" value={s3.tier_counts.professional || 0} sub="$699 / mo" />
-        <StatCard label="Enterprise" value={s3.tier_counts.enterprise || 0} sub="$1,200 / mo" />
-        <StatCard label="Premium" value={s3.tier_counts.premium || 0} sub="$2,400 / mo" />
+        <StatCard label="Inn" value={s3.tier_counts.inn || 0} sub="$149 / mo" />
+        <StatCard label="Boutique" value={s3.tier_counts.boutique || 0} sub="$399 / mo" />
+        <StatCard label="Signature" value={s3.tier_counts.signature || 0} sub="$799 / mo" />
+        <StatCard label="Collection" value={s3.tier_counts.collection || 0} sub="$1,499 / mo" />
         <StatCard label="Founding members" value={s3.tier_counts.founding_member || 0} sub="6-mo comp" />
       </div>
 

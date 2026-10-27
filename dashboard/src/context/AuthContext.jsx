@@ -18,7 +18,7 @@ const DEMO_USER = {
   authenticated: true, demo: true,
   email: 'demo@graciouscollection.com', owner_name: 'Demo Viewer',
   role: 'inn_owner', tenant_id: 'bay-street-inn-demo',
-  plan_tier: 'professional', property_name: 'The Bay Street Inn',
+  plan_tier: 'boutique', property_name: 'The Bay Street Inn',
   pending_onboarding: false,
 }
 

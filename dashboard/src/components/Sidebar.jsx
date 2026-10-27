@@ -33,8 +33,8 @@ function itemClass({ isActive }) {
 }
 
 const PLAN_LABEL = {
-  starter: 'Starter', professional: 'Professional', enterprise: 'Enterprise',
-  premium: 'Premium', founding_member: 'Founding Member',
+  inn: 'Inn', boutique: 'Boutique', signature: 'Signature',
+  collection: 'Collection', founding_member: 'Founding Member',
 }
 
 export default function Sidebar() {

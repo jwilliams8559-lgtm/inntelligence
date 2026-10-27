@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { usePlanFeatures } from '../hooks/usePlanFeatures'
+import { createCheckoutSession } from '../api/client'
 
 const MAILTO = 'mailto:jwilliams8559@gmail.com'
   + '?subject=' + encodeURIComponent('INNtelligence Upgrade Request')
@@ -9,11 +11,32 @@ const MAILTO = 'mailto:jwilliams8559@gmail.com'
 export default function UpgradeModal({ open, feature, onClose }) {
   const { tier, tierLabel, requiredTierFor, requiredTierLabel, requiredTierPrice,
           newFeaturesAtTier, featureLabel } = usePlanFeatures()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   if (!open) return null
-  const required = feature ? requiredTierFor(feature) : null
-  const requiredLabel = feature ? requiredTierLabel(feature) : ''
-  const requiredPrice = feature ? requiredTierPrice(feature) : ''
-  const unlockedList  = required ? newFeaturesAtTier(required) : []
+  // The tier the user needs. Falls back to Boutique (first paid-up tier) when
+  // the modal is opened without a specific locked feature.
+  const required = (feature ? requiredTierFor(feature) : null) || 'boutique'
+  const requiredLabel = (feature ? requiredTierLabel(feature) : '') || 'Boutique'
+  const requiredPrice = (feature ? requiredTierPrice(feature) : '') || '$399/mo'
+  const unlockedList  = newFeaturesAtTier(required)
+
+  async function handleUpgrade() {
+    setError('')
+    setLoading(true)
+    try {
+      const res = await createCheckoutSession(required)
+      if (res && res.url) {
+        window.location.href = res.url   // → hosted Stripe Checkout
+        return
+      }
+      setError('Could not start checkout. Please try again.')
+    } catch (e) {
+      setError(e.message || 'Could not start checkout.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" onClick={onClose}>
@@ -53,18 +76,22 @@ export default function UpgradeModal({ open, feature, onClose }) {
           </div>
         )}
 
+        {error && (
+          <p className="text-red-300 text-xs text-center mt-4" role="alert">{error}</p>
+        )}
+
         <div className="grid grid-cols-2 gap-3 mt-5">
-          <button onClick={onClose}
-            className="px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm font-semibold">
+          <button onClick={onClose} disabled={loading}
+            className="px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm font-semibold disabled:opacity-50">
             Close
           </button>
-          <a href={MAILTO}
-            className="px-4 py-2.5 rounded-lg bg-gold text-navy text-sm font-bold text-center hover:bg-gold-light">
-            Upgrade Plan
-          </a>
+          <button onClick={handleUpgrade} disabled={loading}
+            className="px-4 py-2.5 rounded-lg bg-gold text-navy text-sm font-bold text-center hover:bg-gold-light disabled:opacity-60">
+            {loading ? 'Starting checkout…' : `Upgrade to ${requiredLabel}`}
+          </button>
         </div>
         <p className="text-[10px] text-white/40 text-center mt-3">
-          Stripe checkout coming soon · for now your request goes straight to Jim
+          Secure checkout via Stripe · cancel anytime from billing settings
         </p>
       </div>
     </div>

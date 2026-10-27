@@ -5,7 +5,7 @@ import { ScreenHeader, Card, StatCard, Pill, usd } from '../components/ui'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorBanner from '../components/ErrorBanner'
 
-const PLAN_MRR = { starter: 399, professional: 699, enterprise: 1200, premium: 2400, founding_member: 0 }
+const PLAN_MRR = { inn: 149, boutique: 399, signature: 799, collection: 1499, founding_member: 0 }
 
 export default function ManagementConsole() {
   const [data, setData] = useState(null)
@@ -21,8 +21,8 @@ export default function ManagementConsole() {
   const tenants = (data.tenants || []).map((t) => ({
     name: t.property_name || t.name || '—',
     loc: t.location || [t.city, t.state].filter(Boolean).join(', ') || '—',
-    plan: t.plan_tier || 'professional',
-    mrr: PLAN_MRR[t.plan_tier] ?? 699,
+    plan: t.plan_tier || 'boutique',
+    mrr: PLAN_MRR[t.plan_tier] ?? 399,
     last_login: t.last_login || t.first_login_at || '—',
     sync: t.sync_status || 'unknown',
     pending: t.pending_count ?? t.pending_approvals ?? 0,
@@ -58,7 +58,7 @@ export default function ManagementConsole() {
                 <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
                   <td className="py-2 font-medium text-navy">{t.name}</td>
                   <td className="text-gray-600">{t.loc}</td>
-                  <td><Pill tone={t.plan === 'premium' ? 'gold' : t.plan === 'professional' ? 'navy' : 'gray'}>{t.plan}</Pill></td>
+                  <td><Pill tone={t.plan === 'collection' ? 'gold' : t.plan === 'boutique' ? 'navy' : 'gray'}>{t.plan}</Pill></td>
                   <td className="text-right font-semibold text-navy">{usd(t.mrr)}</td>
                   <td className="pl-3 text-gray-500">{t.last_login}</td>
                   <td className="text-center"><Pill tone={t.sync === 'synced' ? 'emerald' : t.sync === 'syncing' ? 'gold' : 'gray'}>{t.sync}</Pill></td>
@@ -95,7 +95,7 @@ export default function ManagementConsole() {
 }
 
 function AddClientModal({ onClose, onDone }) {
-  const [f, setF] = useState({ property_name: '', owner_name: '', owner_email: '', plan_tier: 'professional', city: '', state: '' })
+  const [f, setF] = useState({ property_name: '', owner_name: '', owner_email: '', plan_tier: 'boutique', city: '', state: '' })
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState(null)
   const [err, setErr] = useState(null)
@@ -137,7 +137,7 @@ function AddClientModal({ onClose, onDone }) {
             </div>
             <Field l="Plan tier">
               <select className={cls} value={f.plan_tier} onChange={set('plan_tier')}>
-                {['starter', 'professional', 'enterprise', 'premium', 'founding_member'].map((p) => <option key={p} value={p}>{p}</option>)}
+                {['inn', 'boutique', 'signature', 'collection', 'founding_member'].map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </Field>
             {err && <div className="text-xs bg-rose-50 border border-rose-200 text-rose-700 rounded p-2">{err}</div>}

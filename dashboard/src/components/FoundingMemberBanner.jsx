@@ -27,12 +27,12 @@ export default function FoundingMemberBanner() {
           {ending ? (
             <>
               <span className="font-bold">Your founding period ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.</span>{' '}
-              <span className="hidden sm:inline">Upgrade to Professional to continue uninterrupted access.</span>
+              <span className="hidden sm:inline">Upgrade to Boutique to continue uninterrupted access.</span>
             </>
           ) : (
             <>
               <span className="font-bold">Founding Member</span>
-              <span className="hidden sm:inline"> — Professional tier access free until {endText}</span>
+              <span className="hidden sm:inline"> — Boutique tier access free until {endText}</span>
               <span className="hidden sm:inline"> · {daysLeft} day{daysLeft === 1 ? '' : 's'} remaining</span>
             </>
           )}

@@ -4,11 +4,21 @@ Stripe billing integration for The Gracious Collection.
 
 Public API:
     setup_stripe_products() -> dict
-        Idempotently creates the 5 INNtelligence plan products in Stripe.
+        Idempotently creates the INNtelligence plan products in Stripe.
         Re-running is safe — fetches by lookup_key and only creates missing ones.
 
+    price_id_for_tier(tier) -> str | None
+        Resolve the live Stripe price id for a tier (STRIPE_PRICE_* env var,
+        falling back to a lookup_key search).
+
+    create_checkout_session(tenant_id, tier, success_url, cancel_url, email) -> dict
+        Creates a Stripe Checkout Session (subscription mode) for a tier.
+
+    create_portal_session(tenant_id, return_url) -> dict
+        Creates a Stripe Billing Portal session for managing/canceling a sub.
+
     create_subscription(tenant_id, plan_tier, billing_email, trial_days=0) -> dict
-        Creates a Stripe customer + subscription for a tenant.
+        Creates a Stripe customer + subscription for a tenant (server-side).
 
     cancel_subscription(tenant_id, *, immediate=False) -> dict
         Cancels the tenant's active subscription.
@@ -57,87 +67,99 @@ except ImportError:
 #  Plan catalog
 # ─────────────────────────────────────────────────────────────────────────────
 
+# The four INNtelligence subscription tiers — single source of truth.
+# `env` names the STRIPE_PRICE_* variable holding the live price id (created by
+# scripts/setup_stripe_tiers.py); `lookup_key` is the Stripe-side idempotency
+# anchor used as a fallback when the env var is unset.
 _PLAN_CATALOG = {
-    "founding_member": {
-        "name":        "Founding Member",
-        "lookup_key":  "tgc_founding_member",
-        "amount_cents": 0,
-        # After the 6-month free period the subscription rolls to Professional.
-        "rollover_amount_cents": 699_00,
-        "currency":    "usd",
-        "interval":    "month",
-        "description": "Professional tier free for 6 months, then $699/month — "
-                       "in exchange for data access and a testimonial.",
-        "features": [
-            "Everything in Professional",
-            "6 months free, then $699/month",
-            "Direct line to founding team",
-            "First in line for advisory hours",
-        ],
-    },
-    "starter": {
-        "name":        "Starter",
-        "lookup_key":  "tgc_starter_monthly",
-        "amount_cents": 399_00,
+    "inn": {
+        "name":        "Inn",
+        "env":         "STRIPE_PRICE_INN",
+        "lookup_key":  "inntelligence_inn_monthly",
+        "amount_cents": 149_00,
         "currency":    "usd",
         "interval":    "month",
         "description": "Rate recommendations, dashboard, 1 PMS, email support.",
         "features": [
             "90-day rate calendar with daily recommendations",
             "Single PMS integration (ResNexus or Cloudbeds)",
+            "Competitor intelligence (up to 5 competitors)",
             "Email support · 48-hour response SLA",
-            "Up to 30 room types",
         ],
     },
-    "professional": {
-        "name":        "Professional",
-        "lookup_key":  "tgc_professional_monthly",
-        "amount_cents": 699_00,
+    "boutique": {
+        "name":        "Boutique",
+        "env":         "STRIPE_PRICE_BOUTIQUE",
+        "lookup_key":  "inntelligence_boutique_monthly",
+        "amount_cents": 399_00,
         "currency":    "usd",
         "interval":    "month",
-        "description": "All Starter plus autopilot, competitor intel, guest CRM, "
-                       "channel publishing, demand alerts.",
+        "description": "All Inn plus autopilot, guest CRM, channel publishing, "
+                       "packages & gift shop, demand alerts.",
         "features": [
-            "Everything in Starter",
+            "Everything in Inn",
             "Autopilot rate publishing to 7 OTAs via SiteMinder",
-            "Competitor intelligence + automated discovery",
             "Guest CRM with demand-triggered campaigns",
+            "Packages, gift shop, weddings & private events",
             "Demand alerts (surge / competitor / festival / gap)",
         ],
     },
-    "enterprise": {
-        "name":        "Enterprise",
-        "lookup_key":  "tgc_enterprise_monthly",
-        "amount_cents": 1200_00,
+    "signature": {
+        "name":        "Signature",
+        "env":         "STRIPE_PRICE_SIGNATURE",
+        "lookup_key":  "inntelligence_signature_monthly",
+        "amount_cents": 799_00,
         "currency":    "usd",
         "interval":    "month",
-        "description": "All Professional plus multi-property console, dedicated "
-                       "onboarding, 2 advisory hours/month.",
+        "description": "All Boutique plus multi-property console, revenue "
+                       "intelligence, advanced analytics, advisory hours.",
         "features": [
-            "Everything in Professional",
+            "Everything in Boutique",
             "Multi-property management console",
-            "Dedicated onboarding specialist",
+            "Revenue intelligence (gap-night recovery)",
+            "Advanced analytics",
             "2 advisory hours / month with Jim Williams",
-            "Custom integrations (Mews, Little Hotelier, ThinkReservations)",
         ],
     },
-    "premium": {
-        "name":        "Premium",
-        "lookup_key":  "tgc_premium_monthly",
-        "amount_cents": 2400_00,
+    "collection": {
+        "name":        "Collection",
+        "env":         "STRIPE_PRICE_COLLECTION",
+        "lookup_key":  "inntelligence_collection_monthly",
+        "amount_cents": 1499_00,
         "currency":    "usd",
         "interval":    "month",
-        "description": "All Enterprise plus white-label, priority support, and a "
-                       "dedicated account manager for portfolios.",
+        "description": "All Signature plus white-label, priority support, a "
+                       "dedicated account manager, and API access.",
         "features": [
-            "Everything in Enterprise",
+            "Everything in Signature",
             "White-label option",
             "Priority support · same-day response",
             "Dedicated account manager",
-            "Up to 5 properties",
+            "API access",
+        ],
+    },
+    "founding_member": {
+        "name":        "Founding Member",
+        "lookup_key":  "inntelligence_founding_member",
+        "amount_cents": 0,
+        # After the 6-month free period the subscription rolls to Boutique.
+        "rollover_tier":         "boutique",
+        "rollover_amount_cents": 399_00,
+        "currency":    "usd",
+        "interval":    "month",
+        "description": "Boutique tier free for 6 months, then $399/month — "
+                       "in exchange for data access and a testimonial.",
+        "features": [
+            "Everything in Boutique",
+            "6 months free, then $399/month",
+            "Direct line to founding team",
+            "First in line for advisory hours",
         ],
     },
 }
+
+# Tiers a customer can self-serve checkout into (founding_member is admin-provisioned).
+CHECKOUT_TIERS = ["inn", "boutique", "signature", "collection"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -167,6 +189,31 @@ def _is_mock() -> bool:
 def _stripe_init() -> None:
     if _stripe is not None:
         _stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+
+
+def price_id_for_tier(tier: str) -> Optional[str]:
+    """Resolve the live Stripe price id for *tier*.
+
+    Order of resolution:
+      1. founding_member → its rollover tier's price (free period runs via a
+         Checkout trial; the billed price is Boutique).
+      2. the STRIPE_PRICE_* env var named in the catalog.
+      3. a Stripe lookup_keys search (strongly consistent) as a fallback.
+    """
+    plan = _PLAN_CATALOG.get(tier)
+    if not plan:
+        return None
+    if plan.get("rollover_tier"):
+        return price_id_for_tier(plan["rollover_tier"])
+    env = plan.get("env")
+    if env and os.getenv(env):
+        return os.getenv(env)
+    if _stripe is not None and not _is_mock():
+        _stripe_init()
+        res = _stripe.Price.list(lookup_keys=[plan["lookup_key"]], limit=1)
+        if res.data:
+            return res.data[0].id
+    return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -211,7 +258,7 @@ def _sb_patch(table: str, params: dict, body: dict) -> bool:
 
 def setup_stripe_products() -> dict:
     """
-    Idempotently create / update the 5 plan products in Stripe.
+    Idempotently create / update the plan products in Stripe.
     Returns {plan_key: {product_id, price_id}, ...}.
     """
     if _is_mock():
@@ -257,6 +304,86 @@ def setup_stripe_products() -> dict:
                        "amount":     plan["amount_cents"]/100,
                        "name":       plan["name"]}
     return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Checkout + Billing Portal (Phase 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def create_checkout_session(
+    tenant_id:     str,
+    tier:          str,
+    *,
+    success_url:   str,
+    cancel_url:    str,
+    billing_email: Optional[str] = None,
+    trial_days:    int = 0,
+) -> dict:
+    """Create a Stripe Checkout Session (subscription mode) for *tier*.
+
+    The session carries client_reference_id=tenant_id and metadata so the
+    checkout.session.completed webhook can attach the resulting customer +
+    subscription to the tenant. Returns {url, session_id, ...}.
+    """
+    if tier not in CHECKOUT_TIERS:
+        raise ValueError(f"tier {tier!r} is not a self-serve checkout tier")
+    tenant = _get_tenant(tenant_id)
+    price_id = price_id_for_tier(tier)
+
+    if _is_mock() or not price_id:
+        # No Stripe (or price) configured → return a deterministic stub so the
+        # frontend wiring is testable; redirect lands back on success_url.
+        return {"mock": True, "tenant_id": tenant_id, "tier": tier,
+                "session_id": f"cs_mock_{tenant_id[:8]}",
+                "url": success_url, "price_id": price_id}
+
+    _stripe_init()
+    params: dict[str, Any] = {
+        "mode":                 "subscription",
+        "line_items":           [{"price": price_id, "quantity": 1}],
+        "success_url":          success_url,
+        "cancel_url":           cancel_url,
+        "client_reference_id":  tenant_id,
+        "metadata":             {"tenant_id": tenant_id, "plan_tier": tier},
+        "subscription_data":    {"metadata": {"tenant_id": tenant_id, "plan_tier": tier}},
+        "allow_promotion_codes": True,
+    }
+    # Reuse an existing customer if we have one, else let Checkout create one
+    # (prefilled with the billing email when available).
+    customer_id = tenant.get("stripe_customer_id")
+    if customer_id:
+        params["customer"] = customer_id
+    else:
+        email = billing_email or tenant.get("billing_email")
+        if email:
+            params["customer_email"] = email
+    if trial_days > 0:
+        params["subscription_data"]["trial_period_days"] = trial_days
+
+    session = _stripe.checkout.Session.create(**params)
+    return {"mock": False, "tenant_id": tenant_id, "tier": tier,
+            "session_id": session.id, "url": session.url, "price_id": price_id}
+
+
+def create_portal_session(tenant_id: str, *, return_url: str) -> dict:
+    """Create a Stripe Billing Portal session so a tenant can manage/cancel."""
+    tenant = _get_tenant(tenant_id)
+    customer_id = tenant.get("stripe_customer_id")
+
+    if _is_mock():
+        # No Stripe configured — stub url so frontend wiring is testable.
+        return {"mock": True, "tenant_id": tenant_id,
+                "url": return_url, "customer_id": customer_id}
+    if not customer_id:
+        # Live mode but the tenant has never checked out — nothing to manage.
+        return {"mock": False, "tenant_id": tenant_id,
+                "url": None, "customer_id": None, "error": "no_customer"}
+
+    _stripe_init()
+    session = _stripe.billing_portal.Session.create(
+        customer=customer_id, return_url=return_url)
+    return {"mock": False, "tenant_id": tenant_id,
+            "url": session.url, "customer_id": customer_id}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -311,8 +438,9 @@ def create_subscription(
         }
 
     _stripe_init()
-    products = setup_stripe_products()
-    price_id = products[plan_tier]["price_id"]
+    price_id = price_id_for_tier(plan_tier)
+    if not price_id:
+        raise ValueError(f"no Stripe price configured for tier {plan_tier!r}")
 
     # Customer
     customer_id = tenant.get("stripe_customer_id")
@@ -466,7 +594,27 @@ def process_webhook(payload: bytes, signature: str) -> dict:
 
     # Dispatch
     handled = False
-    if event_type == "customer.subscription.updated" and tenant_id:
+    if event_type == "checkout.session.completed":
+        # A hosted Checkout finished. The customer may be brand-new (not yet on
+        # any tenant row), so resolve the tenant from client_reference_id /
+        # metadata rather than the customer lookup above, and persist the
+        # Stripe customer + subscription ids onto the tenant.
+        obj = event["data"]["object"] if not isinstance(event, dict) else event.get("data", {}).get("object", {})
+        md = obj.get("metadata") or {}
+        t_id = obj.get("client_reference_id") or md.get("tenant_id") or tenant_id
+        cust = obj.get("customer")
+        sub  = obj.get("subscription")
+        plan = md.get("plan_tier")
+        if t_id and (cust or sub):
+            patch: dict[str, Any] = {"subscription_status": "active"}
+            if cust: patch["stripe_customer_id"]     = cust
+            if sub:  patch["stripe_subscription_id"] = sub
+            if plan in _PLAN_CATALOG: patch["plan_tier"] = plan
+            _sb_patch("tenants", {"id": f"eq.{t_id}"}, patch)
+            tenant_id = t_id
+            handled = True
+
+    elif event_type == "customer.subscription.updated" and tenant_id:
         obj = event["data"]["object"] if not isinstance(event, dict) else event.get("data", {}).get("object", {})
         items = obj.get("items", {}).get("data", [])
         new_plan = None
@@ -505,6 +653,7 @@ def process_webhook(payload: bytes, signature: str) -> dict:
             "tenant_id": tenant_id, "handled": handled}
 
 
-__all__ = ["setup_stripe_products", "create_subscription",
-           "cancel_subscription", "list_invoices", "process_webhook",
-           "_PLAN_CATALOG"]
+__all__ = ["setup_stripe_products", "price_id_for_tier",
+           "create_checkout_session", "create_portal_session",
+           "create_subscription", "cancel_subscription", "list_invoices",
+           "process_webhook", "_PLAN_CATALOG", "CHECKOUT_TIERS"]

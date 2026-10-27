@@ -2,14 +2,14 @@ import { Link } from 'react-router-dom'
 
 // Correct tier pricing — matches engine/billing.py plan catalog.
 const TIERS = [
-  { id: 'starter', name: 'Starter', price: '$399', tagline: '5–10 rooms · first-time revenue management',
+  { id: 'inn', name: 'Inn', price: '$149', tagline: '5–10 rooms · first-time revenue management',
     feats: ['90-day rate calendar', 'AI recommendations', '5 competitors monitored', 'Manual rate approval', '1 PMS integration', 'Email support'] },
-  { id: 'professional', name: 'Professional', price: '$699', popular: true, tagline: '10–20 rooms · serious revenue growth',
-    feats: ['Everything in Starter', 'Autopilot rate publishing', 'OTA publishing (7 channels)', 'Guest CRM + campaigns', 'Packages & gift shop', 'Monthly strategy call'] },
-  { id: 'enterprise', name: 'Enterprise', price: '$1,200', tagline: '20+ rooms · multi-property',
-    feats: ['Everything in Professional', 'Multi-property console', '2 advisory hours / month', 'Custom integrations'] },
-  { id: 'premium', name: 'Premium', price: '$2,400', tagline: 'Portfolio operators',
-    feats: ['Everything in Enterprise', 'Unlimited properties', 'White-label option', 'Dedicated account manager'] },
+  { id: 'boutique', name: 'Boutique', price: '$399', popular: true, tagline: '10–20 rooms · serious revenue growth',
+    feats: ['Everything in Inn', 'Autopilot rate publishing', 'OTA publishing (7 channels)', 'Guest CRM + campaigns', 'Packages & gift shop', 'Monthly strategy call'] },
+  { id: 'signature', name: 'Signature', price: '$799', tagline: '20+ rooms · multi-property',
+    feats: ['Everything in Boutique', 'Multi-property console', 'Revenue intelligence', '2 advisory hours / month', 'Custom integrations'] },
+  { id: 'collection', name: 'Collection', price: '$1,499', tagline: 'Portfolio operators',
+    feats: ['Everything in Signature', 'White-label option', 'Dedicated account manager', 'API access', 'Priority support'] },
 ]
 
 export default function Pricing() {
@@ -46,7 +46,7 @@ export default function Pricing() {
         <div className="mt-10 rounded-2xl p-6 flex items-center justify-between flex-wrap gap-4 border-2 border-gold" style={{ background: 'linear-gradient(135deg, rgba(201,168,76,0.15), rgba(201,168,76,0.05))' }}>
           <div>
             <div className="text-[10px] uppercase tracking-[3px] text-gold-dark font-bold">⭐ Founding Member</div>
-            <h2 className="font-bold text-navy text-xl mt-1">Free for 6 months, then $699/month (Professional)</h2>
+            <h2 className="font-bold text-navy text-xl mt-1">Free for 6 months, then $399/month (Boutique)</h2>
             <p className="text-sm text-gray-600 mt-1 max-w-xl">In exchange: PMS connection, monthly calls, a testimonial, and a case study. We're looking for 3–5 founding members.</p>
           </div>
           <a href="mailto:hello@inntelligence.app?subject=Founding%20Member%20Application" className="bg-gold text-navy font-bold px-6 py-3 rounded-lg hover:bg-gold-light whitespace-nowrap">Apply Now →</a>

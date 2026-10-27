@@ -1,32 +1,33 @@
 import { useAuth } from '../context/AuthContext'
 
-// Feature flags per plan_tier. founding_member intentionally mirrors professional.
-const TIERS = ['starter', 'professional', 'enterprise', 'premium']
+// Feature flags per plan_tier. founding_member intentionally mirrors boutique.
+// Tier ladder: inn ($149) → boutique ($399) → signature ($799) → collection ($1499).
+const TIERS = ['inn', 'boutique', 'signature', 'collection']
 
-const PRO_ADDS = [
+const BOUTIQUE_ADDS = [
   'guestCrm', 'weddings', 'privateEvents', 'packages', 'giftShop', 'fbYield', 'autopilot',
 ]
-const ENT_ADDS = ['revenueIntelligence', 'multiProperty', 'advancedAnalytics']
-const PREM_ADDS = ['whiteLabel', 'dedicatedSupport', 'apiAccess']
+const SIGNATURE_ADDS = ['revenueIntelligence', 'multiProperty', 'advancedAnalytics']
+const COLLECTION_ADDS = ['whiteLabel', 'dedicatedSupport', 'apiAccess']
 
-const STARTER_BASE = [
+const INN_BASE = [
   'rateCalendar', 'competitiveIntel', 'events', 'otaPublishing',
   'reputation', 'weather', 'historical', 'roiPerformance',
 ]
 
 const FEATURES_BY_TIER = {
-  starter:        new Set(STARTER_BASE),
-  professional:   new Set([...STARTER_BASE, ...PRO_ADDS]),
-  enterprise:     new Set([...STARTER_BASE, ...PRO_ADDS, ...ENT_ADDS]),
-  premium:        new Set([...STARTER_BASE, ...PRO_ADDS, ...ENT_ADDS, ...PREM_ADDS]),
-  founding_member: new Set([...STARTER_BASE, ...PRO_ADDS]),   // same as professional
+  inn:         new Set(INN_BASE),
+  boutique:    new Set([...INN_BASE, ...BOUTIQUE_ADDS]),
+  signature:   new Set([...INN_BASE, ...BOUTIQUE_ADDS, ...SIGNATURE_ADDS]),
+  collection:  new Set([...INN_BASE, ...BOUTIQUE_ADDS, ...SIGNATURE_ADDS, ...COLLECTION_ADDS]),
+  founding_member: new Set([...INN_BASE, ...BOUTIQUE_ADDS]),   // same as boutique
 }
 
 // Newly-added features at each tier (used by the upgrade modal).
 const NEW_AT_TIER = {
-  professional: PRO_ADDS,
-  enterprise:   ENT_ADDS,
-  premium:      PREM_ADDS,
+  boutique:   BOUTIQUE_ADDS,
+  signature:  SIGNATURE_ADDS,
+  collection: COLLECTION_ADDS,
 }
 
 // Friendly labels for the upgrade modal.
@@ -55,12 +56,12 @@ const FEATURE_LABELS = {
 }
 
 const PLAN_LABEL = {
-  starter: 'Starter', professional: 'Professional',
-  enterprise: 'Enterprise', premium: 'Premium',
+  inn: 'Inn', boutique: 'Boutique',
+  signature: 'Signature', collection: 'Collection',
   founding_member: 'Founding Member',
 }
 
-const PLAN_PRICE = { starter: '$399/mo', professional: '$699/mo', enterprise: '$1,200/mo', premium: '$2,400/mo' }
+const PLAN_PRICE = { inn: '$149/mo', boutique: '$399/mo', signature: '$799/mo', collection: '$1,499/mo' }
 
 // The lowest tier that includes `feature`. Returns null if no paid tier has it.
 function _requiredTierFor(feature) {
@@ -72,8 +73,8 @@ function _requiredTierFor(feature) {
 
 export function usePlanFeatures() {
   const { user } = useAuth() || {}
-  const rawTier = (user && user.plan_tier) || 'starter'
-  const tier = FEATURES_BY_TIER[rawTier] ? rawTier : 'starter'
+  const rawTier = (user && user.plan_tier) || 'inn'
+  const tier = FEATURES_BY_TIER[rawTier] ? rawTier : 'inn'
   const set = FEATURES_BY_TIER[tier]
 
   const has = (feature) => set.has(feature)
