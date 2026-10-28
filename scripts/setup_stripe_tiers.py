@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
 Idempotently create the 4 INNtelligence tier products + monthly recurring
-prices in Stripe TEST mode, and print their product/price IDs.
+prices in Stripe, and print their product/price IDs. Works against TEST
+(sk_test_) or LIVE (sk_live_) depending on the STRIPE_SECRET_KEY in the
+environment. The key is read from the env and never written to disk.
+
+Live run (key passed inline, NOT persisted to .env):
+    STRIPE_SECRET_KEY=sk_live_xxx ./venv/bin/python scripts/setup_stripe_tiers.py
 
 Idempotency model (mirrors engine/billing.py):
   - Each price carries a stable, unique `lookup_key`.
@@ -114,10 +119,16 @@ def main() -> None:
     key = os.getenv("STRIPE_SECRET_KEY", "")
     if not key:
         _fail("STRIPE_SECRET_KEY not set in environment/.env")
-    if not key.startswith("sk_test_"):
-        _fail(f"Refusing to run: STRIPE_SECRET_KEY is not a TEST key "
-              f"(starts with {key[:8]!r}, expected 'sk_test_'). "
-              f"This script is TEST-mode only.")
+    # Accept TEST (sk_test_) or LIVE (sk_live_) secret keys only — never a
+    # publishable/placeholder key. The key is read from the environment and is
+    # never written to disk by this script.
+    if key.startswith("sk_test_"):
+        mode = "TEST"
+    elif key.startswith("sk_live_"):
+        mode = "LIVE"
+    else:
+        _fail(f"Refusing to run: STRIPE_SECRET_KEY is not a secret key "
+              f"(starts with {key[:8]!r}, expected 'sk_test_' or 'sk_live_').")
     stripe.api_key = key
 
     out: dict[str, dict] = {}
@@ -135,10 +146,10 @@ def main() -> None:
         }
 
     if as_json:
-        print(json.dumps(out, indent=2))
+        print(json.dumps({"mode": mode, "tiers": out}, indent=2))
         return
 
-    print("Stripe TEST mode — INNtelligence tiers\n" + "=" * 64)
+    print(f"Stripe {mode} mode — INNtelligence tiers\n" + "=" * 64)
     for env, v in out.items():
         pflag = "created" if v["product_created"] else "reused "
         rflag = "created" if v["price_created"] else "reused "
