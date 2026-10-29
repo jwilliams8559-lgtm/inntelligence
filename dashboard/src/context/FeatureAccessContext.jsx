@@ -13,8 +13,10 @@ export function FeatureAccessProvider({ children }) {
   const [loading, setLoading] = useState(false)
 
   const refresh = useCallback(async () => {
-    // No real backend session (demo / open mode) → skip; hook uses tier fallback.
-    if (openMode || !user || user.demo) { setSnapshot(null); return }
+    // Skip only when there's no backend token to send (open mode / no session).
+    // The public read-only demo DOES have a token → fetch its full-access snapshot.
+    const hasToken = (() => { try { return !!localStorage.getItem('inn_token') } catch { return false } })()
+    if (openMode || !user || !hasToken) { setSnapshot(null); return }
     setLoading(true)
     try {
       setSnapshot(await getFeatureAccess())

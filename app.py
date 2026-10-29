@@ -919,8 +919,15 @@ def _bearer_token() -> str:
 
 
 def _sb_user(token: str) -> Optional[dict]:
-    """Validate a token by asking Supabase for the user it belongs to."""
-    if not (token and _auth_configured()):
+    """Validate a token by asking Supabase for the user it belongs to.
+    A valid demo-session token resolves (without any network call) to the
+    synthetic read-only demo principal."""
+    if not token:
+        return None
+    from engine.demo import verify_demo_token, demo_principal
+    if verify_demo_token(token):
+        return demo_principal()
+    if not _auth_configured():
         return None
     try:
         import requests
@@ -1253,13 +1260,15 @@ def api_features_access():
     if not user:
         return jsonify({"error": "Unauthorized"}), 401
     role, tenant_id = _role_and_tenant(user)
-    is_admin = role == "tgc_admin"
+    # tgc_admin and the read-only demo both get full feature access (every screen
+    # open). The demo's read-only enforcement is handled by the before_request gate.
+    is_full = role in ("tgc_admin", "demo_viewer")
     plan_tier = None
     if tenant_id:
         rows = _sb_rest_get("tenants", {"id": f"eq.{tenant_id}", "select": "plan_tier"})
         plan_tier = rows[0]["plan_tier"] if rows else None
     from engine import features
-    return jsonify(features.feature_access_snapshot(tenant_id, plan_tier, is_admin=is_admin))
+    return jsonify(features.feature_access_snapshot(tenant_id, plan_tier, is_admin=is_full))
 
 
 @app.route("/api/features/trial", methods=["POST"])
@@ -1282,6 +1291,65 @@ def api_features_trial():
         code = 400 if res["error"] in ("unknown_feature",) else 409
         return jsonify(res), code
     return jsonify(res)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Public read-only demo
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.before_request
+def _demo_readonly_gate():
+    """Server-authoritative read-only enforcement for the demo principal:
+    403 on every write (POST/PUT/PATCH/DELETE) and on any billing path. Does not
+    rely on the UI hiding controls. No-op for all other callers.
+
+    Exception: demo-infrastructure writes (/api/demo/* — session mint, visit
+    logging, narration audio) and logout are allowed; they don't mutate tenant
+    data."""
+    from engine.demo import verify_demo_token
+    if not verify_demo_token(_bearer_token()):
+        return None  # not a demo principal → unaffected
+    path = request.path or ""
+    if path.startswith("/api/billing"):
+        return jsonify({"error": "Billing is disabled in the demo.", "demo": True}), 403
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        if path.startswith("/api/demo/") or path == "/api/auth/logout":
+            return None
+        return jsonify({"error": "You're exploring a read-only demo — "
+                                 "start a free trial to make changes.", "demo": True}), 403
+    return None
+
+
+@app.route("/api/demo/session", methods=["POST"])
+def api_demo_session():
+    """Mint a signed, read-only demo session bound to the demo tenant. Public —
+    no login. Shaped like the login response so the frontend can reuse it."""
+    from engine.demo import mint_demo_token, demo_principal, DEMO_TENANT_ID, DEMO_ROLE
+    user = demo_principal()
+    ctx = _tenant_context(DEMO_TENANT_ID, user)
+    return jsonify({
+        "access_token": mint_demo_token(),
+        "demo": True, "read_only": True,
+        "user": {"id": None, "email": user["email"]},
+        "tenant_id": DEMO_TENANT_ID, "role": DEMO_ROLE,
+        **ctx,
+        "plan_tier": "collection",          # display only — full feature access
+        "property_name": "The Bay Street Inn",
+        "owner_name": "Live Demo",
+    })
+
+
+@app.route("/api/admin/demo-reset", methods=["POST"])
+def api_admin_demo_reset():
+    """Re-seed the demo tenant to pristine state. Authorized by the CRON_SECRET
+    header (for the nightly scheduled job) OR a platform admin."""
+    secret = os.getenv("CRON_SECRET", "")
+    if not (secret and request.headers.get("X-Cron-Secret", "") == secret):
+        _user, err = _require_admin()
+        if err:
+            return err
+    from engine.demo import reset_demo
+    return jsonify(reset_demo())
 
 
 def _slugify(s: str) -> str:

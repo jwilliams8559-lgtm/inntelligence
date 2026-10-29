@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { supabase, supabaseConfigured } from '../lib/supabase'
-import { authMe, setToken } from '../api/client'
+import { authMe, setToken, demoSession } from '../api/client'
 
 // Auth for the JSX app.
 //  • Real mode (Supabase configured): supabase-js owns the session (persistence
@@ -10,31 +10,34 @@ import { authMe, setToken } from '../api/client'
 //  • Open mode (no VITE_SUPABASE_* vars): no login wall — local/demo stays usable.
 const AuthCtx = createContext(null)
 
-// Synthetic read-only session for the public /demo experience. No Supabase
-// login: clearing the API token makes the Flask backend serve the Bay Street
-// Inn demo tenant (see modules/auth/auth.py get_current_user fallback), so every
-// real screen renders real demo data. Survives refresh via sessionStorage.
-const DEMO_USER = {
-  authenticated: true, demo: true,
-  email: 'demo@graciouscollection.com', owner_name: 'Demo Viewer',
-  role: 'inn_owner', tenant_id: 'bay-street-inn-demo',
-  plan_tier: 'boutique', property_name: 'The Bay Street Inn',
-  pending_onboarding: false,
-}
-
 export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
   const [demoUser, setDemoUser] = useState(null)
   const openMode = !supabaseConfigured
 
-  const startDemo = useCallback(() => {
-    try { sessionStorage.setItem('inn_demo', '1'); sessionStorage.setItem('inn_demo_tour', '1') } catch { /* ignore */ }
-    setToken('')            // backend falls back to the Bay Street demo tenant
-    setDemoUser(DEMO_USER)
+  // Public read-only demo: mint a signed server session (real token → real API,
+  // full feature access, server-enforced read-only) and enter the live app.
+  const startDemo = useCallback(async () => {
+    try { sessionStorage.setItem('inn_demo', '1') } catch { /* ignore */ }
+    try {
+      const s = await demoSession()                 // POST /api/demo/session
+      setToken(s.access_token || '')
+      setDemoUser({ authenticated: true, ...s })
+      return s
+    } catch {
+      // Fall back to a minimal demo identity so the app still opens.
+      setToken('')
+      const fallback = { authenticated: true, demo: true, read_only: true,
+        role: 'demo_viewer', plan_tier: 'collection',
+        property_name: 'The Bay Street Inn', owner_name: 'Live Demo' }
+      setDemoUser(fallback)
+      return fallback
+    }
   }, [])
   const exitDemo = useCallback(() => {
-    try { sessionStorage.removeItem('inn_demo'); sessionStorage.removeItem('inn_demo_tour') } catch { /* ignore */ }
+    try { sessionStorage.removeItem('inn_demo') } catch { /* ignore */ }
+    setToken('')
     setDemoUser(null)
   }, [])
 
@@ -51,7 +54,7 @@ export function AuthProvider({ children }) {
     // and skips Supabase entirely.
     let isDemo = false
     try { isDemo = sessionStorage.getItem('inn_demo') === '1' } catch { /* ignore */ }
-    if (isDemo) { setToken(''); setDemoUser(DEMO_USER); setLoading(false); return }
+    if (isDemo) { startDemo().finally(() => setLoading(false)); return }
     if (openMode) { setLoading(false); return }
     let active = true
     supabase.auth.getSession().then(async ({ data }) => {
@@ -63,7 +66,7 @@ export function AuthProvider({ children }) {
       loadContext(session?.access_token)
     })
     return () => { active = false; sub?.subscription?.unsubscribe() }
-  }, [openMode, loadContext])
+  }, [openMode, loadContext, startDemo])
 
   const login = useCallback(async (email, password) => {
     exitDemo()  // a real sign-in always supersedes a demo session
@@ -94,7 +97,9 @@ export function AuthProvider({ children }) {
     <AuthCtx.Provider value={{
       loading, openMode, authConfigured: !openMode,
       user: effectiveUser, role, login, logout, resetPassword,
-      demoMode: !!demoUser, startDemo, exitDemo,
+      demoMode: !!demoUser,
+      demoReadOnly: !!(demoUser && (demoUser.read_only || demoUser.demo)),
+      startDemo, exitDemo,
     }}>
       {children}
     </AuthCtx.Provider>

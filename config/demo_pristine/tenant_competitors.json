@@ -1,0 +1,78 @@
+{
+  "property": {
+    "name": "Anchorage 1770 Inn",
+    "address": "1103 Bay Street, Beaufort SC 29902",
+    "lat": 32.4316,
+    "lng": -80.6698,
+    "total_rooms": 14
+  },
+  "search_radius_miles": 10,
+  "competitors": [
+    {
+      "key": "rhett_house",
+      "name": "Rhett House Inn",
+      "address": "1009 Craven Street, Beaufort SC 29902",
+      "distance_miles": 0.4,
+      "estimated_rooms": 10,
+      "rate_range_low": 239,
+      "rate_range_high": 439,
+      "url_hint": "rhethouse.com",
+      "active": true
+    },
+    {
+      "key": "city_loft",
+      "name": "City Loft Hotel",
+      "address": "301 Carteret Street, Beaufort SC 29902",
+      "distance_miles": 0.6,
+      "estimated_rooms": 24,
+      "rate_range_low": 169,
+      "rate_range_high": 295,
+      "url_hint": "citylofthotel.com",
+      "active": true
+    },
+    {
+      "key": "beaufort_inn",
+      "name": "Beaufort Inn",
+      "address": "809 Port Republic Street, Beaufort SC 29902",
+      "distance_miles": 0.5,
+      "estimated_rooms": 21,
+      "rate_range_low": 199,
+      "rate_range_high": 375,
+      "url_hint": "beaufortinn.com",
+      "active": true
+    },
+    {
+      "key": "cuthbert_house",
+      "name": "Cuthbert House Inn",
+      "address": "1203 Bay Street, Beaufort SC 29902",
+      "distance_miles": 0.1,
+      "estimated_rooms": 7,
+      "rate_range_low": 249,
+      "rate_range_high": 425,
+      "url_hint": "cuthberthouseinn.com",
+      "active": true
+    },
+    {
+      "key": "bay_inn_607",
+      "name": "607 Bay Inn",
+      "address": "607 Bay Street, Beaufort SC 29902",
+      "distance_miles": 0.5,
+      "estimated_rooms": 8,
+      "rate_range_low": 189,
+      "rate_range_high": 349,
+      "url_hint": "booking.com",
+      "active": true
+    },
+    {
+      "key": "airbnb_avg",
+      "name": "Airbnb Near Bay Street (avg)",
+      "address": "Bay Street Area, Beaufort SC 29902",
+      "distance_miles": 0.5,
+      "estimated_rooms": null,
+      "rate_range_low": 149,
+      "rate_range_high": 325,
+      "url_hint": "airbnb.com",
+      "active": true
+    }
+  ]
+}

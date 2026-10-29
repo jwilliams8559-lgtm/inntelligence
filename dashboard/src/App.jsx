@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { PriceProvider } from './context/PriceContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -29,22 +29,27 @@ import Onboarding from './screens/Onboarding'
 import Pricing from './screens/Pricing'
 
 function DemoEntry() {
-  const { startDemo } = useAuth()
+  const { startDemo, demoMode } = useAuth()
+  const [ready, setReady] = useState(false)
   useEffect(() => {
-    startDemo()
-    // Log this /demo visit once; store visit_id so the overlay can mark
-    // completion when the closing screen renders.
-    try {
-      if (!sessionStorage.getItem('inn_demo_visit')) {
-        fetch('/api/demo/log', { method: 'POST' })
-          .then((r) => r.json()).then((d) => {
-            if (d && d.visit_id) {
-              try { sessionStorage.setItem('inn_demo_visit', d.visit_id) } catch { /* ignore */ }
-            }
-          }).catch(() => {})
-      }
-    } catch { /* ignore */ }
+    let active = true
+    // Mint the read-only server session FIRST, then enter the live app. This
+    // guarantees the demo token is set before any screen fetches data.
+    startDemo().then(() => {
+      if (active) setReady(true)
+      // Log this /demo visit once (allowed for the demo principal).
+      try {
+        if (!sessionStorage.getItem('inn_demo_visit')) {
+          fetch('/api/demo/log', { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('inn_token') || ''}` } })
+            .then((r) => r.json()).then((d) => {
+              if (d && d.visit_id) { try { sessionStorage.setItem('inn_demo_visit', d.visit_id) } catch { /* ignore */ } }
+            }).catch(() => {})
+        }
+      } catch { /* ignore */ }
+    })
+    return () => { active = false }
   }, [startDemo])
+  if (!ready && !demoMode) return <FullScreenSpinner />
   return <Navigate to="/" replace />
 }
 

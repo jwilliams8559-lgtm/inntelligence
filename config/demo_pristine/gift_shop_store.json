@@ -1,0 +1,396 @@
+{
+  "categories": [
+    {
+      "id": "comphy",
+      "name": "Comphy Bedding Collection",
+      "emoji": "\ud83d\udecf\ufe0f",
+      "fulfillment": "dropship",
+      "supplier": "Comphy Co.",
+      "items": [
+        {
+          "id": "comphy_sheets",
+          "name": "Signature Sheet Set",
+          "description": "Spa-soft microfiber sheet set, queen/king.",
+          "price": 189,
+          "cost": 95,
+          "fulfillment": "dropship",
+          "inventory": 14,
+          "reorder_point": 6,
+          "supplier": "Comphy Co.",
+          "units_sold_month": 9,
+          "units_sold_last_month": 7
+        },
+        {
+          "id": "comphy_pillow",
+          "name": "Pillowcase Pair",
+          "description": "Matching luxe pillowcases.",
+          "price": 49,
+          "cost": 22,
+          "fulfillment": "dropship",
+          "inventory": 30,
+          "reorder_point": 10,
+          "supplier": "Comphy Co.",
+          "units_sold_month": 16,
+          "units_sold_last_month": 12
+        },
+        {
+          "id": "comphy_duvet",
+          "name": "Duvet Cover",
+          "description": "Hotel-weight duvet cover.",
+          "price": 229,
+          "cost": 118,
+          "fulfillment": "dropship",
+          "inventory": 8,
+          "reorder_point": 4,
+          "supplier": "Comphy Co.",
+          "units_sold_month": 4,
+          "units_sold_last_month": 5
+        },
+        {
+          "id": "comphy_robe",
+          "name": "Spa Robe",
+          "description": "The robe guests always ask about.",
+          "price": 119,
+          "cost": 58,
+          "fulfillment": "dropship",
+          "inventory": 22,
+          "reorder_point": 8,
+          "supplier": "Comphy Co.",
+          "units_sold_month": 13,
+          "units_sold_last_month": 9
+        }
+      ]
+    },
+    {
+      "id": "murano",
+      "name": "Murano Glass by Gino Mazzuccato",
+      "emoji": "\ud83c\udf77",
+      "fulfillment": "consignment",
+      "supplier": "Mazzuccato (Italy)",
+      "items": [
+        {
+          "id": "murano_vase",
+          "name": "Hand-Blown Vase",
+          "description": "Signed Murano art vase, imported from Venice.",
+          "price": 385,
+          "cost": 231,
+          "fulfillment": "consignment",
+          "inventory": 5,
+          "reorder_point": 2,
+          "supplier": "Mazzuccato",
+          "units_sold_month": 2,
+          "units_sold_last_month": 1
+        },
+        {
+          "id": "murano_sculpture",
+          "name": "Glass Sculpture",
+          "description": "Limited-edition decorative sculpture.",
+          "price": 620,
+          "cost": 372,
+          "fulfillment": "consignment",
+          "inventory": 3,
+          "reorder_point": 1,
+          "supplier": "Mazzuccato",
+          "units_sold_month": 1,
+          "units_sold_last_month": 2
+        },
+        {
+          "id": "murano_drinkset",
+          "name": "Drinking Glass Set",
+          "description": "Set of 6 Murano tumblers.",
+          "price": 295,
+          "cost": 177,
+          "fulfillment": "dropship",
+          "inventory": 7,
+          "reorder_point": 3,
+          "supplier": "Mazzuccato",
+          "units_sold_month": 3,
+          "units_sold_last_month": 2
+        },
+        {
+          "id": "murano_piece",
+          "name": "Decorative Piece",
+          "description": "Assorted small decorative pieces.",
+          "price": 145,
+          "cost": 87,
+          "fulfillment": "consignment",
+          "inventory": 12,
+          "reorder_point": 4,
+          "supplier": "Mazzuccato",
+          "units_sold_month": 5,
+          "units_sold_last_month": 4
+        }
+      ]
+    },
+    {
+      "id": "local_artists",
+      "name": "Local Beaufort Artists",
+      "emoji": "\ud83c\udfa8",
+      "fulfillment": "consignment",
+      "supplier": "Beaufort Artists Co-op",
+      "items": [
+        {
+          "id": "art_painting",
+          "name": "Lowcountry Painting",
+          "description": "Original marsh & waterfront paintings.",
+          "price": 450,
+          "cost": 270,
+          "fulfillment": "consignment",
+          "inventory": 6,
+          "reorder_point": 2,
+          "supplier": "Local Co-op",
+          "units_sold_month": 2,
+          "units_sold_last_month": 3
+        },
+        {
+          "id": "art_photo",
+          "name": "Framed Photography",
+          "description": "Historic Beaufort photography prints.",
+          "price": 165,
+          "cost": 99,
+          "fulfillment": "consignment",
+          "inventory": 10,
+          "reorder_point": 4,
+          "supplier": "Local Co-op",
+          "units_sold_month": 6,
+          "units_sold_last_month": 4
+        },
+        {
+          "id": "art_pottery",
+          "name": "Handmade Pottery",
+          "description": "Wheel-thrown coastal pottery.",
+          "price": 88,
+          "cost": 53,
+          "fulfillment": "consignment",
+          "inventory": 15,
+          "reorder_point": 5,
+          "supplier": "Local Co-op",
+          "units_sold_month": 8,
+          "units_sold_last_month": 7
+        },
+        {
+          "id": "art_jewelry",
+          "name": "Sea Glass Jewelry",
+          "description": "Locally made sea-glass pieces.",
+          "price": 72,
+          "cost": 43,
+          "fulfillment": "consignment",
+          "inventory": 20,
+          "reorder_point": 8,
+          "supplier": "Local Co-op",
+          "units_sold_month": 11,
+          "units_sold_last_month": 10
+        }
+      ]
+    },
+    {
+      "id": "pantry",
+      "name": "Lowcountry Pantry",
+      "emoji": "\ud83e\uded9",
+      "fulfillment": "in-stock",
+      "supplier": "Regional purveyors",
+      "items": [
+        {
+          "id": "pantry_jam",
+          "name": "Sweetgrass Jam",
+          "description": "Small-batch local preserves.",
+          "price": 14,
+          "cost": 6,
+          "fulfillment": "in-stock",
+          "inventory": 48,
+          "reorder_point": 20,
+          "supplier": "Lady's Island Preserves",
+          "units_sold_month": 34,
+          "units_sold_last_month": 28
+        },
+        {
+          "id": "pantry_hotsauce",
+          "name": "Lowcountry Hot Sauce",
+          "description": "Bottled local pepper sauce.",
+          "price": 11,
+          "cost": 4,
+          "fulfillment": "in-stock",
+          "inventory": 60,
+          "reorder_point": 24,
+          "supplier": "Beaufort Pepper Co.",
+          "units_sold_month": 29,
+          "units_sold_last_month": 25
+        },
+        {
+          "id": "pantry_grits",
+          "name": "Stone-Ground Grits",
+          "description": "Sea Island heirloom grits.",
+          "price": 9,
+          "cost": 4,
+          "fulfillment": "in-stock",
+          "inventory": 40,
+          "reorder_point": 16,
+          "supplier": "Geechie Boy Mill",
+          "units_sold_month": 22,
+          "units_sold_last_month": 24
+        },
+        {
+          "id": "pantry_pralines",
+          "name": "Sea Island Pralines",
+          "description": "Box of fresh pralines.",
+          "price": 16,
+          "cost": 7,
+          "fulfillment": "in-stock",
+          "inventory": 35,
+          "reorder_point": 14,
+          "supplier": "Local Confectioner",
+          "units_sold_month": 31,
+          "units_sold_last_month": 26
+        },
+        {
+          "id": "pantry_soup",
+          "name": "She-Crab Soup Mix",
+          "description": "Lowcountry classic, dry mix.",
+          "price": 13,
+          "cost": 6,
+          "fulfillment": "in-stock",
+          "inventory": 28,
+          "reorder_point": 12,
+          "supplier": "Charleston Specialty",
+          "units_sold_month": 18,
+          "units_sold_last_month": 15
+        },
+        {
+          "id": "pantry_honey",
+          "name": "Local Honey",
+          "description": "Raw Lowcountry wildflower honey.",
+          "price": 12,
+          "cost": 5,
+          "fulfillment": "in-stock",
+          "inventory": 0,
+          "reorder_point": 12,
+          "supplier": "Beaufort Bee Co.",
+          "units_sold_month": 0,
+          "units_sold_last_month": 14
+        }
+      ]
+    },
+    {
+      "id": "branded",
+      "name": "Bay Street Inn Branded",
+      "emoji": "\ud83e\udde2",
+      "fulfillment": "print-on-demand",
+      "supplier": "Printful / in-house",
+      "items": [
+        {
+          "id": "brand_cap",
+          "name": "Embroidered Cap",
+          "description": "Bay Street Inn logo cap.",
+          "price": 28,
+          "cost": 11,
+          "fulfillment": "print-on-demand",
+          "inventory": 25,
+          "reorder_point": 10,
+          "supplier": "Printful",
+          "units_sold_month": 12,
+          "units_sold_last_month": 10
+        },
+        {
+          "id": "brand_mug",
+          "name": "Ceramic Mug",
+          "description": "River-view logo mug.",
+          "price": 18,
+          "cost": 7,
+          "fulfillment": "in-stock",
+          "inventory": 40,
+          "reorder_point": 15,
+          "supplier": "In-house",
+          "units_sold_month": 21,
+          "units_sold_last_month": 18
+        },
+        {
+          "id": "brand_tote",
+          "name": "Canvas Tote",
+          "description": "Heavyweight branded tote bag.",
+          "price": 24,
+          "cost": 9,
+          "fulfillment": "print-on-demand",
+          "inventory": 30,
+          "reorder_point": 12,
+          "supplier": "Printful",
+          "units_sold_month": 15,
+          "units_sold_last_month": 13
+        },
+        {
+          "id": "brand_robe",
+          "name": "Branded Robe",
+          "description": "Logo waffle robe.",
+          "price": 79,
+          "cost": 38,
+          "fulfillment": "in-stock",
+          "inventory": 12,
+          "reorder_point": 5,
+          "supplier": "In-house",
+          "units_sold_month": 6,
+          "units_sold_last_month": 5
+        },
+        {
+          "id": "brand_candle",
+          "name": "Soy Candle",
+          "description": "Lowcountry-scented soy candle.",
+          "price": 26,
+          "cost": 10,
+          "fulfillment": "in-stock",
+          "inventory": 35,
+          "reorder_point": 14,
+          "supplier": "Local Chandler",
+          "units_sold_month": 19,
+          "units_sold_last_month": 16
+        }
+      ]
+    },
+    {
+      "id": "experience_kits",
+      "name": "Inn Experience Kits",
+      "emoji": "\ud83c\udf81",
+      "fulfillment": "in-stock",
+      "supplier": "Assembled in-house",
+      "items": [
+        {
+          "id": "kit_cocktail",
+          "name": "Cocktail Kit",
+          "description": "Lowcountry cocktail kit with recipes.",
+          "price": 65,
+          "cost": 28,
+          "fulfillment": "in-stock",
+          "inventory": 18,
+          "reorder_point": 8,
+          "supplier": "In-house",
+          "units_sold_month": 9,
+          "units_sold_last_month": 6
+        },
+        {
+          "id": "kit_cooking",
+          "name": "Cooking Class Kit",
+          "description": "At-home Lowcountry cooking kit.",
+          "price": 95,
+          "cost": 44,
+          "fulfillment": "in-stock",
+          "inventory": 10,
+          "reorder_point": 4,
+          "supplier": "In-house",
+          "units_sold_month": 4,
+          "units_sold_last_month": 5
+        },
+        {
+          "id": "kit_giftbox",
+          "name": "Curated Gift Box",
+          "description": "Mixed local-favorites gift box.",
+          "price": 120,
+          "cost": 55,
+          "fulfillment": "in-stock",
+          "inventory": 14,
+          "reorder_point": 6,
+          "supplier": "In-house",
+          "units_sold_month": 7,
+          "units_sold_last_month": 8
+        }
+      ]
+    }
+  ]
+}

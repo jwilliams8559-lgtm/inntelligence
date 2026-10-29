@@ -91,6 +91,12 @@ export function startFeatureTrial(featureKey) {
   return _post('/api/features/trial', { feature_key: featureKey })
 }
 
+// ── Public read-only demo ────────────────────────────────────────────────────
+// Mints a signed server session bound to the demo tenant (no login required).
+export function demoSession() {
+  return _post('/api/demo/session')
+}
+
 function _today() {
   return new Date().toISOString().slice(0, 10)
 }
