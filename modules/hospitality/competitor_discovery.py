@@ -242,10 +242,11 @@ def discover_competitors_live(
                                   "hotel", "motel", "resort_hotel", "extended_stay_hotel",
                                   "cottage", "farmstay"],
                 "maxResultCount": 20,
-                # Prominence (the default) returns established, reviewable properties
-                # and demotes obscure individual-room sub-listings; DISTANCE surfaced
-                # every room entry and crowded out real competitors.
-                "rankPreference": "POPULARITY",
+                # Nearest-first so a property's LOCAL competitors win over far-away
+                # chain hotels (which otherwise dominate a popularity ranking across a
+                # 25-mile radius). The room/unit sub-listings this would surface are
+                # stripped by the dedup below.
+                "rankPreference": "DISTANCE",
                 "locationRestriction": {"circle": {
                     "center": {"latitude": lat, "longitude": lng}, "radius": radius_m}},
             }, timeout=20)
