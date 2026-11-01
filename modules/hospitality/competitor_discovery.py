@@ -231,8 +231,12 @@ def discover_competitors_live(
                                      "places.priceLevel,places.rating,places.userRatingCount,places.location"),
             },
             json={
-                "includedTypes": ["lodging"],
+                # Boutique inns / B&Bs are often typed specifically (not "lodging"),
+                # so include the sub-types or they get silently dropped.
+                "includedTypes": ["lodging", "bed_and_breakfast", "inn", "guest_house",
+                                  "hotel", "motel", "resort_hotel", "extended_stay_hotel"],
                 "maxResultCount": 20,
+                "rankPreference": "DISTANCE",   # nearest first → the ones next door always surface
                 "locationRestriction": {"circle": {
                     "center": {"latitude": lat, "longitude": lng}, "radius": radius_m}},
             }, timeout=20)
