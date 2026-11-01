@@ -137,6 +137,16 @@ def competitor_discovery(
 #  Same return shape as competitor_discovery() so callers are unchanged.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Google Places API (New) priceLevel enum → 0–4 bucket used by the tiering logic.
+_PRICE_ENUM = {
+    "PRICE_LEVEL_FREE":           0,
+    "PRICE_LEVEL_INEXPENSIVE":    1,
+    "PRICE_LEVEL_MODERATE":       2,
+    "PRICE_LEVEL_EXPENSIVE":      3,
+    "PRICE_LEVEL_VERY_EXPENSIVE": 4,
+}
+
+
 def _rate_to_price_level(rate_low: float, rate_high: float) -> int:
     """Map a nightly rate band midpoint to a Google price_level bucket (1–4)."""
     mid = (float(rate_low) + float(rate_high)) / 2.0 if (rate_low or rate_high) else 0
@@ -199,6 +209,7 @@ def discover_competitors_live(
         if lat is None or lng is None:
             if not address:
                 return empty
+            # Geocoding API (not retired) → address to lat/lng.
             g = requests.get("https://maps.googleapis.com/maps/api/geocode/json",
                              params={"address": address, "key": api_key}, timeout=15)
             gj = g.json() if g.ok else {}
@@ -208,12 +219,33 @@ def discover_competitors_live(
             loc = results[0]["geometry"]["location"]
             lat, lng = loc["lat"], loc["lng"]
 
-        radius_m = int(min(max(radius_miles, 1), 50) * 1609.34)  # cap at 50mi
-        n = requests.get("https://maps.googleapis.com/maps/api/place/nearbysearch/json",
-                         params={"location": f"{lat},{lng}", "radius": radius_m,
-                                 "type": "lodging", "key": api_key}, timeout=20)
-        nj = n.json() if n.ok else {}
-        places = nj.get("results") or []
+        # Places API (New) — searchNearby. The legacy nearbysearch endpoint is not
+        # available on newer projects, so we use the v1 API (POST + field mask).
+        radius_m = int(min(max(radius_miles, 1), 31) * 1609.34)   # new API caps radius at 50 km (~31 mi)
+        resp = requests.post(
+            "https://places.googleapis.com/v1/places:searchNearby",
+            headers={
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": api_key,
+                "X-Goog-FieldMask": ("places.id,places.displayName,places.formattedAddress,"
+                                     "places.priceLevel,places.rating,places.userRatingCount,places.location"),
+            },
+            json={
+                "includedTypes": ["lodging"],
+                "maxResultCount": 20,
+                "locationRestriction": {"circle": {
+                    "center": {"latitude": lat, "longitude": lng}, "radius": radius_m}},
+            }, timeout=20)
+        rj = resp.json() if resp.ok else {}
+        # Normalize the New API shape to the keys the tiering loop below expects.
+        places = [{
+            "place_id":           p.get("id"),
+            "name":               (p.get("displayName") or {}).get("text"),
+            "vicinity":           p.get("formattedAddress"),
+            "price_level":        _PRICE_ENUM.get(p.get("priceLevel")),
+            "rating":             p.get("rating"),
+            "user_ratings_total": p.get("userRatingCount"),
+        } for p in (rj.get("places") or [])]
     except Exception:  # noqa: BLE001
         return {**empty, "source": "error"}
 
