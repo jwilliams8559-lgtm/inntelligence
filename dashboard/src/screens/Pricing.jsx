@@ -19,7 +19,7 @@ export default function Pricing() {
         <div className="text-center mb-10">
           <div className="text-gold-dark text-[10px] uppercase tracking-[4px] font-bold">INNtelligence by The Gracious Collection</div>
           <h1 className="font-bold text-navy text-4xl mt-1" style={{ fontFamily: 'Georgia, serif' }}>Pricing for boutique inns</h1>
-          <p className="text-gray-600 mt-2 text-sm">Boutique Hospitality Intelligence · 14-day free trial on every plan · no credit card required.</p>
+          <p className="text-gray-600 mt-2 text-sm">Boutique Hospitality Intelligence · 14-day free trial on every plan · cancel anytime before you're charged.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -35,7 +35,7 @@ export default function Pricing() {
               <ul className="mt-4 space-y-1.5 text-xs text-gray-700 flex-1">
                 {t.feats.map((f, i) => <li key={i} className="flex gap-2"><span className="text-gold">✓</span><span>{f}</span></li>)}
               </ul>
-              <Link to="/onboarding" className={`mt-5 w-full text-center font-bold py-2.5 rounded-lg transition-colors ${t.popular ? 'bg-gold text-navy hover:bg-gold-light' : 'bg-navy text-white hover:bg-navy-light'}`}>
+              <Link to={`/signup?plan=${t.id}`} className={`mt-5 w-full text-center font-bold py-2.5 rounded-lg transition-colors ${t.popular ? 'bg-gold text-navy hover:bg-gold-light' : 'bg-navy text-white hover:bg-navy-light'}`}>
                 Start free trial
               </Link>
             </div>
