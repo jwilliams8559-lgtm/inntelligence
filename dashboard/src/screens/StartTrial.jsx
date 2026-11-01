@@ -36,7 +36,16 @@ export default function StartTrial() {
       confirmCheckout(sessionId)
         .then(() => refresh())
         .then(() => navigate('/onboarding', { replace: true }))
-        .catch(() => { setConfirming(false); setError('We could not confirm your card. Please try again.') })
+        .catch(async () => {
+          // Confirm call failed — but the Stripe webhook may have already started
+          // the trial. Re-pull context; if we're no longer awaiting payment, proceed.
+          try {
+            const me = await refresh()
+            if (me && me.needs_payment === false) { navigate('/onboarding', { replace: true }); return }
+          } catch { /* fall through to error */ }
+          setConfirming(false)
+          setError('Almost there — if your card went through, give it a few seconds and refresh this page.')
+        })
     } else if (status === 'cancelled') {
       setError('Checkout was cancelled. Add a card to start your free trial.')
     }
