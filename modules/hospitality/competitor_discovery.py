@@ -239,8 +239,7 @@ def discover_competitors_live(
                 # Boutique inns / B&Bs are often typed specifically (not "lodging"),
                 # so include the sub-types or they get silently dropped.
                 "includedTypes": ["lodging", "bed_and_breakfast", "inn", "guest_house",
-                                  "hotel", "motel", "resort_hotel", "extended_stay_hotel",
-                                  "cottage", "farmstay"],
+                                  "hotel", "motel", "resort_hotel", "extended_stay_hotel"],
                 "maxResultCount": 20,
                 # Nearest-first so a property's LOCAL competitors win over far-away
                 # chain hotels (which otherwise dominate a popularity ranking across a
@@ -263,22 +262,44 @@ def discover_competitors_live(
     except Exception:  # noqa: BLE001
         return {**empty, "source": "error"}
 
-    # Strip individual-room / unit sub-listings (e.g. "The Rhett House Room for Two"
-    # when "The Rhett House" is present). Keep the better-reviewed canonical entry.
+    # Keep lodging ESTABLISHMENTS (inns, B&Bs, hotels). Drop individual room/unit
+    # listings and Airbnb/VRBO-style vacation rentals that clutter the set — those
+    # are the AirDNA-sourced layer we add later, not map-search results.
     import re as _re2
-    _room_hint = _re2.compile(r"\b(room|rooms|suite|unit|apartment|apt|studio)\b|#\s*\d|\bno\.?\s*\d", _re2.I)
+    _UNIT_RE = _re2.compile(
+        r"\b(room|rooms|suite|unit|apt|apartment|studio|loft|getaway|hideaway|"
+        r"retreat|carriage\s+house|bungalow)\b|#\s*\d|\bno\.?\s*\d", _re2.I)
+    _AT_ESTAB_RE = _re2.compile(r"\bat\s+(the\s+)?\S.*\b(inn|hotel|resort|lodge|house)\b", _re2.I)
+    _ADDRESS_RE = _re2.compile(
+        r"\b\d{2,5}\s+\w+(\s+\w+)?\s+(street|st|ave|avenue|road|rd|lane|ln|drive|dr|"
+        r"way|court|ct|place|pl|boulevard|blvd)\b", _re2.I)
+    _DOWNTOWN_RE = _re2.compile(r"\bin\s+(the\s+)?(heart\s+of\s+)?(historic\s+)?(downtown|old\s+town)\b", _re2.I)
+
+    def _norm(s: str) -> str:
+        s = _re2.sub(r"[^a-z0-9 ]", " ", (s or "").strip().lower())
+        s = _re2.sub(r"^the\s+", "", s)
+        s = _re2.sub(r"\s+(sc|south carolina|usa|us)$", "", s)
+        return _re2.sub(r"\s+", " ", s).strip()
+
     places.sort(key=lambda p: (p.get("user_ratings_total") or 0), reverse=True)
-    _deduped: List[Dict[str, Any]] = []
-    _kept_names: List[str] = []
+    _kept: List[Dict[str, Any]] = []
+    _kept_norm: List[str] = []
+    _seen_norm: set = set()
     for p in places:
-        low = (p.get("name") or "").strip().lower()
-        if not low:
+        raw = (p.get("name") or "").strip()
+        n = _norm(raw)
+        if not n or n in _seen_norm:
             continue
-        if any(low != k and low.startswith(k) and _room_hint.search(low[len(k):]) for k in _kept_names):
+        if (_UNIT_RE.search(raw) or _AT_ESTAB_RE.search(raw)
+                or _ADDRESS_RE.search(raw) or _DOWNTOWN_RE.search(raw)):
             continue
-        _deduped.append(p)
-        _kept_names.append(low)
-    places = _deduped
+        # Near-duplicate of an already-kept establishment (substring either way).
+        if any(n != k and (n in k or k in n) for k in _kept_norm):
+            continue
+        _seen_norm.add(n)
+        _kept.append(p)
+        _kept_norm.append(n)
+    places = _kept
 
     subj_level = _rate_to_price_level(rate_low, rate_high)
     excl = (exclude_name or "").strip().lower()
