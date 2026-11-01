@@ -44,9 +44,11 @@ export function AuthProvider({ children }) {
   // Enrich the current session via Flask (role/tenant/property/onboarding).
   const loadContext = useCallback(async (accessToken) => {
     setToken(accessToken || '')
-    if (!accessToken) { setUser(null); return }
+    if (!accessToken) { setUser(null); return null }
     const me = await authMe()
-    setUser(me.authenticated ? me : null)
+    const next = me.authenticated ? me : null
+    setUser(next)
+    return next
   }, [])
 
   useEffect(() => {
@@ -98,9 +100,9 @@ export function AuthProvider({ children }) {
   // gate flips plan_status), so cached flags like needs_payment update without a
   // full reload.
   const refresh = useCallback(async () => {
-    if (openMode) return
+    if (openMode) return null
     const { data } = await supabase.auth.getSession()
-    await loadContext(data.session?.access_token)
+    return await loadContext(data.session?.access_token)
   }, [openMode, loadContext])
 
   const logout = useCallback(async () => {
