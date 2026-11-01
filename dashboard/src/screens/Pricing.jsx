@@ -35,7 +35,7 @@ export default function Pricing() {
               <ul className="mt-4 space-y-1.5 text-xs text-gray-700 flex-1">
                 {t.feats.map((f, i) => <li key={i} className="flex gap-2"><span className="text-gold">✓</span><span>{f}</span></li>)}
               </ul>
-              <Link to="/onboarding" className={`mt-5 w-full text-center font-bold py-2.5 rounded-lg transition-colors ${t.popular ? 'bg-gold text-navy hover:bg-gold-light' : 'bg-navy text-white hover:bg-navy-light'}`}>
+              <Link to={`/signup?plan=${t.id}`} className={`mt-5 w-full text-center font-bold py-2.5 rounded-lg transition-colors ${t.popular ? 'bg-gold text-navy hover:bg-gold-light' : 'bg-navy text-white hover:bg-navy-light'}`}>
                 Start free trial
               </Link>
             </div>

@@ -27,6 +27,7 @@ import AdminAnalytics from './screens/AdminAnalytics'
 import Login from './screens/Login'
 import Onboarding from './screens/Onboarding'
 import Pricing from './screens/Pricing'
+import Signup from './screens/Signup'
 
 function DemoEntry() {
   const { startDemo, demoMode } = useAuth()
@@ -113,6 +114,7 @@ function AppRoutes() {
     <Routes>
       {/* Public — no auth, no dashboard chrome */}
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
       <Route path="/pricing" element={<Pricing />} />
       <Route path="/demo" element={<DemoEntry />} />
       <Route path="/tour" element={<Navigate to="/demo" replace />} />

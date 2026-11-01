@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { supabase, supabaseConfigured } from '../lib/supabase'
-import { authMe, setToken, demoSession } from '../api/client'
+import { authMe, setToken, demoSession, authSignup } from '../api/client'
 
 // Auth for the JSX app.
 //  • Real mode (Supabase configured): supabase-js owns the session (persistence
@@ -78,6 +78,22 @@ export function AuthProvider({ children }) {
     return me.authenticated ? me : { role: 'inn_owner' }
   }, [openMode, loadContext, exitDemo])
 
+  // Self-serve signup. Creates the account + 14-day trial via Flask (service
+  // key provisions tenant/property). If email confirmation is OFF, the server
+  // returns a session → we set it and the owner lands in onboarding. If it's ON,
+  // needs_verification is true and the UI shows "check your email".
+  const signup = useCallback(async (payload) => {
+    exitDemo()
+    const res = await authSignup(payload)
+    if (res.access_token && res.refresh_token && supabase) {
+      try {
+        await supabase.auth.setSession({ access_token: res.access_token, refresh_token: res.refresh_token })
+      } catch { /* fall through to loadContext */ }
+      await loadContext(res.access_token)
+    }
+    return res
+  }, [exitDemo, loadContext])
+
   const logout = useCallback(async () => {
     exitDemo()
     if (!openMode) { try { await supabase.auth.signOut() } catch { /* ignore */ } }
@@ -96,7 +112,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthCtx.Provider value={{
       loading, openMode, authConfigured: !openMode,
-      user: effectiveUser, role, login, logout, resetPassword,
+      user: effectiveUser, role, login, logout, resetPassword, signup,
       demoMode: !!demoUser,
       demoReadOnly: !!(demoUser && (demoUser.read_only || demoUser.demo)),
       startDemo, exitDemo,

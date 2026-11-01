@@ -988,6 +988,7 @@ def _tenant_context(tenant_id: Optional[str], user: Optional[dict]) -> dict:
         "plan_status": "active",
         "plan_renews_at": None,
         "founding_member_end": None,
+        "trial_ends_at": None,
     }
     if not tenant_id:
         return ctx
@@ -1009,6 +1010,12 @@ def _tenant_context(tenant_id: Optional[str], user: Optional[dict]) -> dict:
         if t.get("plan_status"):         ctx["plan_status"]         = t["plan_status"]
         if t.get("plan_renews_at"):      ctx["plan_renews_at"]      = t["plan_renews_at"]
         if t.get("founding_member_end"): ctx["founding_member_end"] = t["founding_member_end"]
+
+    # trial_ends_at — read in isolation so a missing column (migration 006 not
+    # yet applied) can never break the main tenant context above.
+    trial_rows = _sb_rest_get("tenants", {"id": f"eq.{tenant_id}", "select": "trial_ends_at"})
+    if trial_rows and trial_rows[0].get("trial_ends_at"):
+        ctx["trial_ends_at"] = trial_rows[0]["trial_ends_at"]
 
     # properties → first property's name (preferred display name)
     props = _sb_rest_get("properties", {"tenant_id": f"eq.{tenant_id}",
@@ -1082,6 +1089,232 @@ def _send_welcome_email(to_email: str, owner_name: str, temp_password: str, prop
     except Exception as e:  # noqa: BLE001
         logger.warning("SendGrid error: %s", e)
         return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Self-serve signup — abuse controls + tenant provisioning
+#  Layers: email verification (Supabase "confirm email"), disposable-domain
+#  block, per-IP rate limit, optional Cloudflare Turnstile. Expensive operations
+#  (competitor discovery / OTA pulls) are gated elsewhere behind a verified,
+#  onboarded account so an unverified signup can never run up API cost.
+# ─────────────────────────────────────────────────────────────────────────────
+import re as _re
+
+_EMAIL_RE = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# Common throwaway / disposable mail domains. Not exhaustive — a backstop, not
+# the whole defense. Extend freely.
+_DISPOSABLE_EMAIL_DOMAINS = {
+    "mailinator.com", "guerrillamail.com", "guerrillamail.info", "10minutemail.com",
+    "tempmail.com", "temp-mail.org", "throwawaymail.com", "yopmail.com", "trashmail.com",
+    "getnada.com", "dispostable.com", "maildrop.cc", "fakeinbox.com", "sharklasers.com",
+    "grr.la", "spam4.me", "mailnesia.com", "mohmal.com", "emailondeck.com", "mintemail.com",
+    "tempmailo.com", "tmpmail.org", "burnermail.io", "33mail.com", "spamgourmet.com",
+}
+
+# Per-IP signup rate limiting. In-memory → per gunicorn worker, so it's a first
+# layer, not a global guarantee; pair with Turnstile for real bot protection and
+# move to Redis/Supabase if horizontal scale makes per-worker limits too loose.
+_SIGNUP_ATTEMPTS: dict[str, list[float]] = {}
+_SIGNUP_MAX_PER_HOUR = int(os.getenv("SIGNUP_MAX_PER_IP_PER_HOUR", "5"))
+_TURNSTILE_SECRET = os.getenv("TURNSTILE_SECRET_KEY", "")
+
+
+def _client_ip() -> str:
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _signup_rate_ok(ip: str) -> bool:
+    import time
+    now = time.time()
+    window = now - 3600
+    hits = [t for t in _SIGNUP_ATTEMPTS.get(ip, []) if t > window]
+    if len(hits) >= _SIGNUP_MAX_PER_HOUR:
+        _SIGNUP_ATTEMPTS[ip] = hits
+        return False
+    hits.append(now)
+    _SIGNUP_ATTEMPTS[ip] = hits
+    return True
+
+
+def _is_disposable_email(email: str) -> bool:
+    domain = email.rsplit("@", 1)[-1].lower().strip()
+    return domain in _DISPOSABLE_EMAIL_DOMAINS
+
+
+def _verify_turnstile(token: str, ip: str) -> bool:
+    """Cloudflare Turnstile verification. No-op (passes) when TURNSTILE_SECRET_KEY
+    isn't set, so local/testing isn't blocked. Set the secret to enforce."""
+    if not _TURNSTILE_SECRET:
+        return True
+    if not token:
+        return False
+    try:
+        import requests
+        r = requests.post("https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                          data={"secret": _TURNSTILE_SECRET, "response": token, "remoteip": ip},
+                          timeout=10)
+        return bool(r.ok and (r.json() or {}).get("success"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _create_tenant_records(user_id: Optional[str], name: str, plan: str,
+                           owner_name: str, trial_days: int = 14,
+                           signup_source: str = "self_serve") -> tuple[Optional[str], Optional[str], list]:
+    """Create tenant + property + user_profile and mirror JWT claims. Shared by
+    admin provisioning and self-serve signup. Returns (tenant_id, property_id,
+    warnings). Never raises."""
+    import requests
+    svc_hdr = {"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+               "Content-Type": "application/json"}
+    rep_hdr = {**svc_hdr, "Prefer": "return=representation"}
+    warnings: list = []
+    tenant_id = property_id = None
+
+    trial_ends = (datetime.now(timezone.utc) + timedelta(days=trial_days)).isoformat()
+    # Base tenant row. trial_ends_at/signup_source require migration 006; if that
+    # hasn't been applied the insert 400s, so fall back to a minimal insert so
+    # signup still works (the trial banner just stays dark until 006 is applied).
+    tenant_body = {
+        "name": name, "slug": _slugify(name), "plan_tier": plan,
+        "active": True, "onboarding_complete": False,
+        "plan_status": "trialing", "trial_ends_at": trial_ends, "signup_source": signup_source,
+    }
+    try:
+        tr = requests.post(f"{_SUPABASE_URL}/rest/v1/tenants", headers=rep_hdr, json=tenant_body, timeout=20)
+        if not tr.ok:
+            # Retry without the migration-006 columns.
+            tr = requests.post(f"{_SUPABASE_URL}/rest/v1/tenants", headers=rep_hdr, json={
+                "name": name, "slug": _slugify(name), "plan_tier": plan,
+                "active": True, "onboarding_complete": False, "plan_status": "trialing",
+            }, timeout=20)
+            warnings.append("tenant: trial columns absent — apply migration 006")
+        if tr.ok and tr.text:
+            row = tr.json()
+            tenant_id = (row[0] if isinstance(row, list) else row).get("id")
+        else:
+            warnings.append(f"tenant insert: {tr.text[:120]}")
+    except Exception as e:  # noqa: BLE001
+        warnings.append(f"tenant insert: {e}")
+
+    if tenant_id:
+        try:
+            pr = requests.post(f"{_SUPABASE_URL}/rest/v1/properties", headers=rep_hdr, json={
+                "tenant_id": tenant_id, "name": name,
+            }, timeout=20)
+            if pr.ok and pr.text:
+                row = pr.json()
+                property_id = (row[0] if isinstance(row, list) else row).get("id")
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"property insert: {e}")
+
+    if user_id and tenant_id:
+        try:
+            requests.post(f"{_SUPABASE_URL}/rest/v1/user_profiles", headers=svc_hdr, json={
+                "user_id": user_id, "tenant_id": tenant_id, "role": "inn_owner",
+                "full_name": owner_name,
+            }, timeout=20)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"user_profile insert: {e}")
+
+    if user_id:
+        try:
+            requests.put(f"{_SUPABASE_URL}/auth/v1/admin/users/{user_id}", headers=svc_hdr, json={
+                "app_metadata": {"app_role": "inn_owner", "tenant_id": tenant_id, "plan_tier": plan},
+            }, timeout=20)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"app_metadata set: {e}")
+
+    return tenant_id, property_id, warnings
+
+
+@app.route("/api/auth/signup", methods=["POST"])
+def api_auth_signup():
+    """Public self-serve signup → creates the Supabase user (with email
+    verification when the project has confirmations on), then provisions the
+    tenant/property/profile and a 14-day trial. Abuse controls run first."""
+    if not _auth_configured():
+        return jsonify({"error": "Signup is not configured on this server."}), 503
+    if not _SUPABASE_SERVICE:
+        return jsonify({"error": "Signup is not configured (service key missing)."}), 503
+
+    ip = _client_ip()
+    if not _signup_rate_ok(ip):
+        return jsonify({"error": "Too many signup attempts. Please try again later."}), 429
+
+    d = request.get_json(force=True) or {}
+    email = (d.get("email") or "").strip().lower()
+    password = d.get("password") or ""
+    property_name = (d.get("property_name") or "").strip()
+    owner_name = (d.get("owner_name") or "").strip()
+    plan = d.get("plan_tier") or "boutique"
+    turnstile_token = d.get("turnstile_token") or ""
+
+    # ── Validation ───────────────────────────────────────────────────────────
+    if not _EMAIL_RE.match(email):
+        return jsonify({"error": "Please enter a valid email address."}), 400
+    if _is_disposable_email(email):
+        return jsonify({"error": "Please use a permanent business email address."}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters."}), 400
+    if not property_name:
+        return jsonify({"error": "Property name is required."}), 400
+    if not _verify_turnstile(turnstile_token, ip):
+        return jsonify({"error": "Bot check failed. Please try again."}), 400
+
+    # ── Create the Supabase user (respects the project's email-confirm setting
+    #    and sends the verification email automatically when it's on) ──────────
+    import requests
+    try:
+        r = requests.post(f"{_SUPABASE_URL}/auth/v1/signup",
+                          headers={"apikey": _SUPABASE_ANON, "Content-Type": "application/json"},
+                          json={"email": email, "password": password,
+                                "data": {"property_name": property_name, "owner_name": owner_name}},
+                          timeout=20)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"Auth service unavailable: {e}"}), 502
+
+    if not r.ok:
+        body = (r.text or "").lower()
+        if r.status_code in (400, 409, 422) and "already" in body:
+            return jsonify({"error": "An account with that email already exists. Try signing in."}), 409
+        logger.warning("signup failed %s: %s", r.status_code, r.text[:200])
+        return jsonify({"error": "Could not create the account. Please try again."}), 400
+
+    j = r.json() or {}
+    session = j.get("session") or {}
+    user = j.get("user") or ({"id": j.get("id"), "email": j.get("email")} if j.get("id") else {})
+    user_id = user.get("id") or j.get("id")
+    access_token = j.get("access_token") or session.get("access_token")
+    refresh_token = j.get("refresh_token") or session.get("refresh_token")
+    needs_verification = not access_token
+
+    # Guard against a duplicate tenant if this resolves to an existing account
+    # (GoTrue can return an obfuscated success for an already-registered email).
+    if user_id:
+        existing = _sb_rest_get("user_profiles", {"user_id": f"eq.{user_id}",
+                                                  "select": "tenant_id", "limit": "1"})
+        if existing:
+            return jsonify({"error": "An account with that email already exists. Try signing in."}), 409
+
+    # ── Provision tenant records (14-day trial) ──────────────────────────────
+    tenant_id, property_id, warnings = _create_tenant_records(
+        user_id, property_name, plan, owner_name, trial_days=14, signup_source="self_serve")
+
+    return jsonify({
+        "ok": True,
+        "needs_verification": needs_verification,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user_id": user_id,
+        "tenant_id": tenant_id,
+        "property_id": property_id,
+        "warnings": warnings or None,
+    })
 
 
 @app.route("/api/auth/login", methods=["POST"])
