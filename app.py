@@ -1951,6 +1951,62 @@ def api_admin_tenants():
     ]})
 
 
+_PMS_TIER_LABELS = {
+    "tier_1":          "Direct integration",
+    "tier_2":          "Direct integration",
+    "channel_manager": "Channel manager (reaches many systems)",
+    "csv_import":      "Manual / CSV import",
+}
+
+
+@app.route("/api/onboarding/pms-catalog")
+def api_onboarding_pms_catalog():
+    """Full PMS / channel-manager catalog for the onboarding 'Connect' step.
+    Shows every supported system (grouped by tier) rather than a hardcoded two."""
+    _user, _tenant_id, err = _require_tenant_user()
+    if err:
+        return err
+    try:
+        from modules.admin.tenant_store import load_pms_catalog
+        catalog = load_pms_catalog()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("load_pms_catalog failed: %s", e)
+        catalog = []
+    return jsonify({"catalog": catalog, "tier_labels": _PMS_TIER_LABELS})
+
+
+@app.route("/api/onboarding/competitors")
+def api_onboarding_competitors():
+    """Live competitor discovery for the onboarding 'Competitors' step. Geocodes
+    the property address and finds nearby lodging via Google Places, tiered by
+    price band. Returns an empty set (never a hardcoded list) if no API key."""
+    _user, _tenant_id, err = _require_tenant_user()
+    if err:
+        return err
+    args = request.args
+
+    def _f(name, default=0.0):
+        try:
+            return float(args.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+    from modules.hospitality.competitor_discovery import discover_competitors_live
+    result = discover_competitors_live(
+        api_key=os.getenv("GOOGLE_PLACES_API_KEY", ""),
+        address=args.get("address", ""),
+        latitude=(_f("lat") or None),
+        longitude=(_f("lng") or None),
+        property_type=args.get("property_type", "boutique_inn"),
+        room_count=int(_f("room_count")),
+        rate_low=_f("rate_low"),
+        rate_high=_f("rate_high"),
+        radius_miles=_f("radius", 25.0),
+        exclude_name=args.get("name", ""),
+    )
+    return jsonify(result)
+
+
 @app.route("/api/onboarding/complete", methods=["POST"])
 def api_onboarding_complete():
     if not _auth_configured():
@@ -1989,7 +2045,66 @@ def api_onboarding_complete():
                          json={"app_metadata": {"pending_onboarding": False}}, timeout=15)
         except Exception as e:  # noqa: BLE001
             logger.warning("mark onboarding complete failed: %s", e)
-    return jsonify({"success": True, "sync_status": sync_status})
+
+    # 4) Persist property location + the selected competitor set (Phase 2).
+    location_saved = False
+    competitors_saved = 0
+    if _SUPABASE_SERVICE and tenant_id:
+        import requests
+        svc_hdr = {"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+                   "Content-Type": "application/json"}
+        # 4a) Property location/details → first property for the tenant.
+        prop_patch = {k: d[k] for k in
+                      ("address", "postal_code", "website_url", "property_type",
+                       "room_count", "latitude", "longitude", "city", "state")
+                      if d.get(k) not in (None, "")}
+        if d.get("property_name"):
+            prop_patch["name"] = d["property_name"]
+        if prop_patch:
+            try:
+                prows = _sb_rest_get("properties", {"tenant_id": f"eq.{tenant_id}",
+                                                    "select": "id", "order": "created_at.asc", "limit": "1"})
+                if prows:
+                    pr = requests.patch(f"{_SUPABASE_URL}/rest/v1/properties",
+                                        headers={**svc_hdr, "Prefer": "return=minimal"},
+                                        params={"id": f"eq.{prows[0]['id']}"},
+                                        json=prop_patch, timeout=15)
+                    location_saved = pr.ok
+                else:
+                    pr = requests.post(f"{_SUPABASE_URL}/rest/v1/properties",
+                                       headers={**svc_hdr, "Prefer": "return=minimal"},
+                                       json={"tenant_id": tenant_id, **prop_patch}, timeout=15)
+                    location_saved = pr.ok
+            except Exception as e:  # noqa: BLE001
+                logger.warning("property location save failed: %s", e)
+        # 4b) Selected competitors → replace the tenant's set in tenant_competitors.
+        comps = d.get("competitors")
+        if isinstance(comps, list):
+            try:
+                requests.delete(f"{_SUPABASE_URL}/rest/v1/tenant_competitors",
+                                headers={**svc_hdr, "Prefer": "return=minimal"},
+                                params={"tenant_id": f"eq.{tenant_id}"}, timeout=15)
+                rows = [{
+                    "tenant_id":  tenant_id,
+                    "name":       (c.get("name") or "").strip(),
+                    "tier":       c.get("tier"),
+                    "place_id":   c.get("place_id"),
+                    "address":    c.get("address"),
+                    "website_url": c.get("website_url"),
+                    "source":     c.get("source") or "discovered",
+                    "selected":   True,
+                } for c in comps if (c.get("name") or "").strip()]
+                if rows:
+                    cr = requests.post(f"{_SUPABASE_URL}/rest/v1/tenant_competitors",
+                                       headers={**svc_hdr, "Prefer": "return=minimal"},
+                                       json=rows, timeout=20)
+                    competitors_saved = len(rows) if cr.ok else 0
+            except Exception as e:  # noqa: BLE001
+                logger.warning("competitor save failed: %s", e)
+
+    return jsonify({"success": True, "sync_status": sync_status,
+                    "location_saved": location_saved,
+                    "competitors_saved": competitors_saved})
 
 
 @app.route("/api/private-events")

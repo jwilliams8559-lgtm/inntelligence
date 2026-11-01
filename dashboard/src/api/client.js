@@ -70,6 +70,13 @@ export function adminAnalyticsTest() {
 }
 export function adminProvisionTenant(body) { return _post('/api/admin/provision-tenant', body) }
 export function onboardingComplete(body) { return _post('/api/onboarding/complete', body) }
+export function getPmsCatalog() { return _get('/api/onboarding/pms-catalog') }
+export function discoverCompetitors(params = {}) {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  ).toString()
+  return _get(`/api/onboarding/competitors?${qs}`)
+}
 
 // ── Billing (Stripe Checkout + Portal) ───────────────────────────────────────
 // create-checkout-session returns { url, session_id, ... }; the caller redirects

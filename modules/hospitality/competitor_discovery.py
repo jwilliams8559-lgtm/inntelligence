@@ -132,7 +132,131 @@ def competitor_discovery(
     }
 
 
-if __name__ == "__main__":  # quick manual check
+# ─────────────────────────────────────────────────────────────────────────────
+#  Live discovery — Google Places. Replaces the Beaufort stub for production.
+#  Same return shape as competitor_discovery() so callers are unchanged.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _rate_to_price_level(rate_low: float, rate_high: float) -> int:
+    """Map a nightly rate band midpoint to a Google price_level bucket (1–4)."""
+    mid = (float(rate_low) + float(rate_high)) / 2.0 if (rate_low or rate_high) else 0
+    if mid <= 0:    return 2        # unknown → assume mid-market
+    if mid < 150:   return 1
+    if mid < 300:   return 2
+    if mid < 500:   return 3
+    return 4
+
+
+def _tier_for_place(place_level, subj_level: int, klass_hint: str = "") -> int:
+    """Tier a discovered lodging by how close its price_level is to the subject.
+    Google Places gives no nightly rate, so price_level (0–4) is the proxy."""
+    if place_level is None:
+        return 2                                    # unknown → market reference
+    diff = abs(place_level - subj_level)
+    if place_level >= 4 and subj_level < 3:
+        return 3                                    # luxury ceiling anchor
+    if place_level <= 1 and subj_level > 2:
+        return 3                                    # budget floor anchor
+    if diff <= 1:
+        return 1                                    # direct competitor
+    return 2
+
+
+def discover_competitors_live(
+    *,
+    api_key: str,
+    address: str = "",
+    latitude: float | None = None,
+    longitude: float | None = None,
+    property_type: str = "boutique_inn",
+    room_count: int = 0,
+    rate_low: float = 0,
+    rate_high: float = 0,
+    radius_miles: float = 25.0,
+    exclude_name: str = "",
+    max_results: int = 20,
+) -> Dict[str, Any]:
+    """Discover nearby lodging via Google Places and tier it like the stub.
+
+    Geocodes `address` (unless lat/lng given), runs a Nearby Search for lodging
+    within `radius_miles`, and tiers results by price_level vs the subject's rate
+    band. Returns source='google_places'. With no api_key (or on any error)
+    returns source='none' with empty tiers — NEVER a hardcoded fallback set."""
+    empty = {
+        "subject": {"address": address, "property_type": property_type,
+                    "room_count": room_count, "rack_rate_range": [rate_low, rate_high]},
+        "source": "none",
+        "tiers": [{"tier": t, "label": TIER_LABELS[t], "weight": TIER_WEIGHTS[t],
+                   "competitors": []} for t in (1, 2, 3)],
+        "competitors": [],
+    }
+    if not api_key:
+        return empty
+
+    import requests
+    try:
+        lat, lng = latitude, longitude
+        if lat is None or lng is None:
+            if not address:
+                return empty
+            g = requests.get("https://maps.googleapis.com/maps/api/geocode/json",
+                             params={"address": address, "key": api_key}, timeout=15)
+            gj = g.json() if g.ok else {}
+            results = gj.get("results") or []
+            if not results:
+                return {**empty, "source": "geocode_failed"}
+            loc = results[0]["geometry"]["location"]
+            lat, lng = loc["lat"], loc["lng"]
+
+        radius_m = int(min(max(radius_miles, 1), 50) * 1609.34)  # cap at 50mi
+        n = requests.get("https://maps.googleapis.com/maps/api/place/nearbysearch/json",
+                         params={"location": f"{lat},{lng}", "radius": radius_m,
+                                 "type": "lodging", "key": api_key}, timeout=20)
+        nj = n.json() if n.ok else {}
+        places = nj.get("results") or []
+    except Exception:  # noqa: BLE001
+        return {**empty, "source": "error"}
+
+    subj_level = _rate_to_price_level(rate_low, rate_high)
+    excl = (exclude_name or "").strip().lower()
+    tiered: Dict[int, List[Dict[str, Any]]] = {1: [], 2: [], 3: []}
+    seen: set = set()
+    for p in places:
+        pid = p.get("place_id")
+        name = (p.get("name") or "").strip()
+        if not name or pid in seen:
+            continue
+        if excl and (excl in name.lower() or name.lower() in excl):
+            continue                                # skip the subject property itself
+        seen.add(pid)
+        level = p.get("price_level")
+        tier = _tier_for_place(level, subj_level)
+        tiered[tier].append({
+            "key": pid or name.lower().replace(" ", "_"),
+            "name": name,
+            "place_id": pid,
+            "address": p.get("vicinity") or "",
+            "price_level": level,
+            "rating": p.get("rating"),
+            "user_ratings_total": p.get("user_ratings_total"),
+            "tier": tier,
+            "weight": TIER_WEIGHTS[tier],
+        })
+        if sum(len(v) for v in tiered.values()) >= max_results:
+            break
+
+    return {
+        "subject": {"address": address, "latitude": lat, "longitude": lng,
+                    "property_type": property_type, "room_count": room_count,
+                    "rack_rate_range": [rate_low, rate_high]},
+        "source": "google_places",
+        "tiers": [{"tier": t, "label": TIER_LABELS[t], "weight": TIER_WEIGHTS[t],
+                   "competitors": tiered[t]} for t in (1, 2, 3)],
+        "competitors": [c for t in (1, 2, 3) for c in tiered[t]],
+    }
+
+
+if __name__ == "__main__":  # quick manual check of the stub
     import json
     result = competitor_discovery(
         address="Bay Street, Beaufort SC",
