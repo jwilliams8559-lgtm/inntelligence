@@ -1,0 +1,25 @@
+name: Daily signup/abuse digest
+
+# Runs once a day and pings the app's abuse-digest endpoint, which computes the
+# report and emails the admin allowlist. Auth is the ABUSE_DIGEST_TOKEN repo
+# secret. Also runnable on demand from the Actions tab (workflow_dispatch).
+on:
+  schedule:
+    - cron: '0 13 * * *'   # 13:00 UTC daily (~8:00 AM US Eastern)
+  workflow_dispatch: {}
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger daily abuse digest
+        env:
+          TOKEN: ${{ secrets.ABUSE_DIGEST_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "ABUSE_DIGEST_TOKEN secret is not set — add it in repo Settings → Secrets → Actions." >&2
+            exit 1
+          fi
+          curl -fsS -X POST \
+            "https://www.getinntelligence.com/api/cron/abuse-digest?token=${TOKEN}" \
+            && echo "Digest triggered."

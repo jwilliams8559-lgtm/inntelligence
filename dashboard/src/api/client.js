@@ -32,6 +32,7 @@ export function authMe() {
   return fetch('/api/auth/me', { headers: _authHdrs() }).then((r) => r.json()).catch(() => ({ authenticated: false, auth_configured: false }))
 }
 export function authLogin(email, password) { return _post('/api/auth/login', { email, password }) }
+export function authSignup(body) { return _post('/api/auth/signup', body) }
 export function authLogout() { return _post('/api/auth/logout').catch(() => ({})) }
 export function authResetPassword(email) { return _post('/api/auth/reset-password', { email }) }
 export function adminTenants() { return _get('/api/admin/tenants') }
@@ -69,6 +70,13 @@ export function adminAnalyticsTest() {
 }
 export function adminProvisionTenant(body) { return _post('/api/admin/provision-tenant', body) }
 export function onboardingComplete(body) { return _post('/api/onboarding/complete', body) }
+export function getPmsCatalog() { return _get('/api/onboarding/pms-catalog') }
+export function discoverCompetitors(params = {}) {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  ).toString()
+  return _get(`/api/onboarding/competitors?${qs}`)
+}
 
 // ── Billing (Stripe Checkout + Portal) ───────────────────────────────────────
 // create-checkout-session returns { url, session_id, ... }; the caller redirects
@@ -78,6 +86,11 @@ export function createCheckoutSession(tier, opts = {}) {
 }
 export function createPortalSession(opts = {}) {
   return _post('/api/billing/create-portal-session', opts)
+}
+// Called by the /start-trial success redirect to flip the trial on immediately
+// (rather than waiting on the Stripe webhook).
+export function confirmCheckout(sessionId) {
+  return _post('/api/billing/confirm-checkout', { session_id: sessionId })
 }
 
 // ── Feature gating + per-feature trials ──────────────────────────────────────

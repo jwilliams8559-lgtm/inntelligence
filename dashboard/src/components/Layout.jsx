@@ -3,6 +3,7 @@ import Sidebar from './Sidebar'
 import Header from './Header'
 import DemoOverlay from '../demo/DemoOverlay'
 import FoundingMemberBanner from './FoundingMemberBanner'
+import AccountTrialBanner from './AccountTrialBanner'
 import TrialBanner from './TrialBanner'
 import DemoBanner from './DemoBanner'
 import DemoWriteGuard from './DemoWriteGuard'
@@ -13,6 +14,7 @@ export default function Layout() {
       <Sidebar />
       <div className="flex flex-1 flex-col min-w-0">
         <DemoBanner />
+        <AccountTrialBanner />
         <FoundingMemberBanner />
         <TrialBanner />
         <Header />

@@ -988,6 +988,8 @@ def _tenant_context(tenant_id: Optional[str], user: Optional[dict]) -> dict:
         "plan_status": "active",
         "plan_renews_at": None,
         "founding_member_end": None,
+        "trial_ends_at": None,
+        "needs_payment": False,
     }
     if not tenant_id:
         return ctx
@@ -1009,6 +1011,16 @@ def _tenant_context(tenant_id: Optional[str], user: Optional[dict]) -> dict:
         if t.get("plan_status"):         ctx["plan_status"]         = t["plan_status"]
         if t.get("plan_renews_at"):      ctx["plan_renews_at"]      = t["plan_renews_at"]
         if t.get("founding_member_end"): ctx["founding_member_end"] = t["founding_member_end"]
+
+    # trial_ends_at — read in isolation so a missing column (migration 006 not
+    # yet applied) can never break the main tenant context above.
+    trial_rows = _sb_rest_get("tenants", {"id": f"eq.{tenant_id}", "select": "trial_ends_at"})
+    if trial_rows and trial_rows[0].get("trial_ends_at"):
+        ctx["trial_ends_at"] = trial_rows[0]["trial_ends_at"]
+
+    # needs_payment → a self-serve account that hasn't put a card on file yet
+    # (card-up-front). Routing sends these owners to /start-trial before onboarding.
+    ctx["needs_payment"] = (ctx.get("plan_status") == "pending")
 
     # properties → first property's name (preferred display name)
     props = _sb_rest_get("properties", {"tenant_id": f"eq.{tenant_id}",
@@ -1082,6 +1094,436 @@ def _send_welcome_email(to_email: str, owner_name: str, temp_password: str, prop
     except Exception as e:  # noqa: BLE001
         logger.warning("SendGrid error: %s", e)
         return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Self-serve signup — abuse controls + tenant provisioning
+#  Layers: email verification (Supabase "confirm email"), disposable-domain
+#  block, per-IP rate limit, optional Cloudflare Turnstile. Expensive operations
+#  (competitor discovery / OTA pulls) are gated elsewhere behind a verified,
+#  onboarded account so an unverified signup can never run up API cost.
+# ─────────────────────────────────────────────────────────────────────────────
+import re as _re
+
+_EMAIL_RE = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# Common throwaway / disposable mail domains. Not exhaustive — a backstop, not
+# the whole defense. Extend freely.
+_DISPOSABLE_EMAIL_DOMAINS = {
+    "mailinator.com", "guerrillamail.com", "guerrillamail.info", "10minutemail.com",
+    "tempmail.com", "temp-mail.org", "throwawaymail.com", "yopmail.com", "trashmail.com",
+    "getnada.com", "dispostable.com", "maildrop.cc", "fakeinbox.com", "sharklasers.com",
+    "grr.la", "spam4.me", "mailnesia.com", "mohmal.com", "emailondeck.com", "mintemail.com",
+    "tempmailo.com", "tmpmail.org", "burnermail.io", "33mail.com", "spamgourmet.com",
+}
+
+# Per-IP signup rate limiting. In-memory → per gunicorn worker, so it's a first
+# layer, not a global guarantee; pair with Turnstile for real bot protection and
+# move to Redis/Supabase if horizontal scale makes per-worker limits too loose.
+_SIGNUP_ATTEMPTS: dict[str, list[float]] = {}
+_SIGNUP_MAX_PER_HOUR = int(os.getenv("SIGNUP_MAX_PER_IP_PER_HOUR", "5"))
+_TURNSTILE_SECRET = os.getenv("TURNSTILE_SECRET_KEY", "")
+
+
+def _client_ip() -> str:
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _signup_rate_ok(ip: str) -> bool:
+    import time
+    now = time.time()
+    window = now - 3600
+    hits = [t for t in _SIGNUP_ATTEMPTS.get(ip, []) if t > window]
+    if len(hits) >= _SIGNUP_MAX_PER_HOUR:
+        _SIGNUP_ATTEMPTS[ip] = hits
+        return False
+    hits.append(now)
+    _SIGNUP_ATTEMPTS[ip] = hits
+    return True
+
+
+def _is_disposable_email(email: str) -> bool:
+    domain = email.rsplit("@", 1)[-1].lower().strip()
+    return domain in _DISPOSABLE_EMAIL_DOMAINS
+
+
+def _verify_turnstile(token: str, ip: str) -> bool:
+    """Cloudflare Turnstile verification. No-op (passes) when TURNSTILE_SECRET_KEY
+    isn't set, so local/testing isn't blocked. Set the secret to enforce."""
+    if not _TURNSTILE_SECRET:
+        return True
+    if not token:
+        return False
+    try:
+        import requests
+        r = requests.post("https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                          data={"secret": _TURNSTILE_SECRET, "response": token, "remoteip": ip},
+                          timeout=10)
+        return bool(r.ok and (r.json() or {}).get("success"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _create_tenant_records(user_id: Optional[str], name: str, plan: str,
+                           owner_name: str, trial_days: int = 14,
+                           signup_source: str = "self_serve") -> tuple[Optional[str], Optional[str], list]:
+    """Create tenant + property + user_profile and mirror JWT claims. Shared by
+    admin provisioning and self-serve signup. Returns (tenant_id, property_id,
+    warnings). Never raises."""
+    import requests
+    svc_hdr = {"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+               "Content-Type": "application/json"}
+    rep_hdr = {**svc_hdr, "Prefer": "return=representation"}
+    warnings: list = []
+    tenant_id = property_id = None
+
+    # plan_status='pending' → account exists but the 14-day trial hasn't started
+    # yet; it starts when the owner puts a card on file (card-up-front). The
+    # /api/billing/confirm-checkout + Stripe webhook flip this to 'trialing' and
+    # set trial_ends_at. signup_source requires migration 006; if that hasn't been
+    # applied the insert 400s, so fall back to a minimal insert.
+    tenant_body = {
+        "name": name, "slug": _slugify(name), "plan_tier": plan,
+        "active": True, "onboarding_complete": False,
+        "plan_status": "pending", "signup_source": signup_source,
+    }
+    try:
+        tr = requests.post(f"{_SUPABASE_URL}/rest/v1/tenants", headers=rep_hdr, json=tenant_body, timeout=20)
+        if not tr.ok:
+            # Retry without the migration-006 columns.
+            tr = requests.post(f"{_SUPABASE_URL}/rest/v1/tenants", headers=rep_hdr, json={
+                "name": name, "slug": _slugify(name), "plan_tier": plan,
+                "active": True, "onboarding_complete": False, "plan_status": "pending",
+            }, timeout=20)
+            warnings.append("tenant: signup_source column absent — apply migration 006")
+        if tr.ok and tr.text:
+            row = tr.json()
+            tenant_id = (row[0] if isinstance(row, list) else row).get("id")
+        else:
+            warnings.append(f"tenant insert: {tr.text[:120]}")
+    except Exception as e:  # noqa: BLE001
+        warnings.append(f"tenant insert: {e}")
+
+    if tenant_id:
+        try:
+            pr = requests.post(f"{_SUPABASE_URL}/rest/v1/properties", headers=rep_hdr, json={
+                "tenant_id": tenant_id, "name": name,
+            }, timeout=20)
+            if pr.ok and pr.text:
+                row = pr.json()
+                property_id = (row[0] if isinstance(row, list) else row).get("id")
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"property insert: {e}")
+
+    if user_id and tenant_id:
+        try:
+            requests.post(f"{_SUPABASE_URL}/rest/v1/user_profiles", headers=svc_hdr, json={
+                "user_id": user_id, "tenant_id": tenant_id, "role": "inn_owner",
+                "full_name": owner_name,
+            }, timeout=20)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"user_profile insert: {e}")
+
+    if user_id:
+        try:
+            requests.put(f"{_SUPABASE_URL}/auth/v1/admin/users/{user_id}", headers=svc_hdr, json={
+                "app_metadata": {"app_role": "inn_owner", "tenant_id": tenant_id, "plan_tier": plan},
+            }, timeout=20)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"app_metadata set: {e}")
+
+    return tenant_id, property_id, warnings
+
+
+def _log_signup_event(outcome: str, email: str, ip: str,
+                      tenant_id: Optional[str] = None, note: Optional[str] = None) -> None:
+    """Best-effort signup-attempt log for the daily abuse monitor. Stores the
+    email DOMAIN only (never the full address). Never raises."""
+    if not (_SUPABASE_URL and _SUPABASE_SERVICE):
+        return
+    domain = email.rsplit("@", 1)[-1].lower().strip() if "@" in (email or "") else None
+    try:
+        import requests
+        requests.post(f"{_SUPABASE_URL}/rest/v1/signup_events",
+                      headers={"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+                               "Content-Type": "application/json", "Prefer": "return=minimal"},
+                      json={"outcome": outcome, "email_domain": domain, "ip": ip,
+                            "tenant_id": tenant_id, "note": note}, timeout=10)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@app.route("/api/auth/signup", methods=["POST"])
+def api_auth_signup():
+    """Public self-serve signup → creates the Supabase user (with email
+    verification when the project has confirmations on), then provisions the
+    tenant/property/profile and a 14-day trial. Abuse controls run first."""
+    if not _auth_configured():
+        return jsonify({"error": "Signup is not configured on this server."}), 503
+    if not _SUPABASE_SERVICE:
+        return jsonify({"error": "Signup is not configured (service key missing)."}), 503
+
+    ip = _client_ip()
+    if not _signup_rate_ok(ip):
+        _log_signup_event("blocked_rate", (request.get_json(silent=True) or {}).get("email", ""), ip)
+        return jsonify({"error": "Too many signup attempts. Please try again later."}), 429
+
+    d = request.get_json(force=True) or {}
+    email = (d.get("email") or "").strip().lower()
+    password = d.get("password") or ""
+    property_name = (d.get("property_name") or "").strip()
+    owner_name = (d.get("owner_name") or "").strip()
+    plan = d.get("plan_tier") or "boutique"
+    turnstile_token = d.get("turnstile_token") or ""
+
+    # ── Validation ───────────────────────────────────────────────────────────
+    if not _EMAIL_RE.match(email):
+        _log_signup_event("blocked_invalid", email, ip)
+        return jsonify({"error": "Please enter a valid email address."}), 400
+    if _is_disposable_email(email):
+        _log_signup_event("blocked_disposable", email, ip)
+        return jsonify({"error": "Please use a permanent business email address."}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters."}), 400
+    if not property_name:
+        return jsonify({"error": "Property name is required."}), 400
+    if not _verify_turnstile(turnstile_token, ip):
+        _log_signup_event("blocked_bot", email, ip)
+        return jsonify({"error": "Bot check failed. Please try again."}), 400
+
+    # ── Create the Supabase user (respects the project's email-confirm setting
+    #    and sends the verification email automatically when it's on) ──────────
+    import requests
+    try:
+        r = requests.post(f"{_SUPABASE_URL}/auth/v1/signup",
+                          headers={"apikey": _SUPABASE_ANON, "Content-Type": "application/json"},
+                          json={"email": email, "password": password,
+                                "data": {"property_name": property_name, "owner_name": owner_name}},
+                          timeout=20)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"Auth service unavailable: {e}"}), 502
+
+    if not r.ok:
+        body = (r.text or "").lower()
+        if r.status_code in (400, 409, 422) and "already" in body:
+            _log_signup_event("duplicate", email, ip)
+            return jsonify({"error": "An account with that email already exists. Try signing in."}), 409
+        logger.warning("signup failed %s: %s", r.status_code, r.text[:200])
+        _log_signup_event("failed", email, ip, note=f"gotrue {r.status_code}")
+        return jsonify({"error": "Could not create the account. Please try again."}), 400
+
+    j = r.json() or {}
+    session = j.get("session") or {}
+    user = j.get("user") or ({"id": j.get("id"), "email": j.get("email")} if j.get("id") else {})
+    user_id = user.get("id") or j.get("id")
+    access_token = j.get("access_token") or session.get("access_token")
+    refresh_token = j.get("refresh_token") or session.get("refresh_token")
+    needs_verification = not access_token
+
+    # Guard against a duplicate tenant if this resolves to an existing account
+    # (GoTrue can return an obfuscated success for an already-registered email).
+    if user_id:
+        existing = _sb_rest_get("user_profiles", {"user_id": f"eq.{user_id}",
+                                                  "select": "tenant_id", "limit": "1"})
+        if existing:
+            _log_signup_event("duplicate", email, ip)
+            return jsonify({"error": "An account with that email already exists. Try signing in."}), 409
+
+    # ── Provision tenant records (account created; trial starts at card) ──────
+    tenant_id, property_id, warnings = _create_tenant_records(
+        user_id, property_name, plan, owner_name, signup_source="self_serve")
+    _log_signup_event("created", email, ip, tenant_id=tenant_id)
+
+    return jsonify({
+        "ok": True,
+        "needs_verification": needs_verification,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user_id": user_id,
+        "tenant_id": tenant_id,
+        "property_id": property_id,
+        "warnings": warnings or None,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Daily abuse monitor — aggregates signup_events + self-serve tenants and
+#  flags velocity spikes, repeat IPs, disposable probing, and low verification/
+#  card-conversion. Exposed as an admin report + a cron-triggered email digest.
+# ─────────────────────────────────────────────────────────────────────────────
+_ABUSE_DIGEST_TOKEN   = os.getenv("ABUSE_DIGEST_TOKEN", "")
+_ABUSE_IP_FLAG        = int(os.getenv("ABUSE_IP_FLAG_THRESHOLD", "4"))   # attempts/IP/window
+_ABUSE_SPIKE_FACTOR   = float(os.getenv("ABUSE_SPIKE_FACTOR", "3.0"))    # vs prior window
+
+
+def _build_abuse_report(days: int = 1) -> dict:
+    """Aggregate signup activity over the last `days` (and the prior equal window
+    for spike detection). Safe on empty data. Reads domain + IP only — no PII."""
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(days=days)
+    prior_since = now - timedelta(days=days * 2)
+
+    # Pull the last two windows of events (bounded for 1–50 scale).
+    rows = _sb_rest_get("signup_events", {
+        "created_at": f"gte.{prior_since.isoformat()}",
+        "select": "created_at,email_domain,ip,outcome,tenant_id,note",
+        "order": "created_at.desc", "limit": "20000",
+    })
+    cur = [r for r in rows if (r.get("created_at") or "") >= since.isoformat()]
+    prior = [r for r in rows if (r.get("created_at") or "") < since.isoformat()]
+
+    def _counts(evs):
+        by_outcome: dict[str, int] = {}
+        for e in evs:
+            by_outcome[e.get("outcome") or "unknown"] = by_outcome.get(e.get("outcome") or "unknown", 0) + 1
+        return by_outcome
+
+    by_outcome = _counts(cur)
+    created = by_outcome.get("created", 0)
+    prior_created = _counts(prior).get("created", 0)
+
+    # IP aggregation (attempts per IP this window).
+    ip_counts: dict[str, int] = {}
+    dom_counts: dict[str, int] = {}
+    for e in cur:
+        if e.get("ip"):           ip_counts[e["ip"]] = ip_counts.get(e["ip"], 0) + 1
+        if e.get("email_domain"): dom_counts[e["email_domain"]] = dom_counts.get(e["email_domain"], 0) + 1
+    top_ips = sorted(ip_counts.items(), key=lambda kv: kv[1], reverse=True)[:10]
+    top_domains = sorted(dom_counts.items(), key=lambda kv: kv[1], reverse=True)[:10]
+    suspicious_ips = [{"ip": ip, "attempts": n} for ip, n in top_ips if n >= _ABUSE_IP_FLAG]
+
+    # Self-serve tenants created this window → verification/card conversion.
+    tenants = _sb_rest_get("tenants", {
+        "created_at": f"gte.{since.isoformat()}",
+        "select": "id,plan_status,signup_source,created_at",
+        "limit": "5000",
+    })
+    self_serve = [t for t in tenants if (t.get("signup_source") == "self_serve")]
+    n_self = len(self_serve)
+    n_with_card = sum(1 for t in self_serve if t.get("plan_status") in ("trialing", "active"))
+    n_pending = sum(1 for t in self_serve if t.get("plan_status") == "pending")
+    card_rate = round(100 * n_with_card / n_self, 1) if n_self else None
+
+    # Flags.
+    flags: list[str] = []
+    if prior_created >= 3 and created >= _ABUSE_SPIKE_FACTOR * max(prior_created, 1):
+        flags.append(f"Signup spike: {created} this window vs {prior_created} prior "
+                     f"(≥{_ABUSE_SPIKE_FACTOR}×).")
+    for s in suspicious_ips:
+        flags.append(f"IP {s['ip']} made {s['attempts']} signup attempts (≥{_ABUSE_IP_FLAG}).")
+    if by_outcome.get("blocked_disposable", 0) >= 3:
+        flags.append(f"{by_outcome['blocked_disposable']} disposable-email attempts blocked.")
+    if by_outcome.get("blocked_rate", 0) >= 1:
+        flags.append(f"{by_outcome['blocked_rate']} attempts hit the per-IP rate limit.")
+    if n_self >= 5 and card_rate is not None and card_rate < 30:
+        flags.append(f"Low card-conversion: only {card_rate}% of {n_self} new accounts added a card.")
+
+    return {
+        "window_days": days,
+        "generated_at": now.isoformat(),
+        "since": since.isoformat(),
+        "totals": {
+            "attempts": len(cur), "created": created,
+            "by_outcome": by_outcome,
+            "unique_ips": len(ip_counts), "unique_domains": len(dom_counts),
+        },
+        "prior_created": prior_created,
+        "self_serve_accounts": {"created": n_self, "with_card": n_with_card,
+                                "pending_card": n_pending, "card_rate_pct": card_rate},
+        "top_ips": [{"ip": ip, "attempts": n} for ip, n in top_ips],
+        "top_domains": [{"domain": d, "count": n} for d, n in top_domains],
+        "suspicious_ips": suspicious_ips,
+        "flags": flags,
+        "status": "ALERT" if flags else "OK",
+    }
+
+
+def _abuse_digest_text(rep: dict) -> str:
+    t = rep["totals"]
+    ss = rep["self_serve_accounts"]
+    lines = [
+        f"INNtelligence — daily signup / abuse report",
+        f"Window: last {rep['window_days']} day(s), since {rep['since'][:16]}Z",
+        f"Status: {rep['status']}",
+        "",
+        f"Signup attempts: {t['attempts']}  (created: {t['created']}, prior window: {rep['prior_created']})",
+        f"By outcome: " + (", ".join(f"{k}={v}" for k, v in t['by_outcome'].items()) or "none"),
+        f"Unique IPs: {t['unique_ips']} · unique email domains: {t['unique_domains']}",
+        f"New self-serve accounts: {ss['created']}  (card on file: {ss['with_card']}, "
+        f"awaiting card: {ss['pending_card']}, card rate: {ss['card_rate_pct']}%)",
+    ]
+    if rep["flags"]:
+        lines += ["", "⚠️  FLAGS:"] + [f"  - {f}" for f in rep["flags"]]
+    else:
+        lines += ["", "No abuse signals this window."]
+    if rep["top_ips"]:
+        lines += ["", "Top IPs:"] + [f"  {x['ip']}: {x['attempts']}" for x in rep["top_ips"][:5]]
+    return "\n".join(lines)
+
+
+def _send_abuse_digest_email(rep: dict) -> bool:
+    """Email the daily digest to the admin allowlist via SendGrid. No-op (logged)
+    when SENDGRID_API_KEY isn't set."""
+    if not _SENDGRID_KEY:
+        logger.info("Abuse digest email skipped (no SENDGRID_API_KEY). Status=%s", rep.get("status"))
+        return False
+    body = _abuse_digest_text(rep)
+    subject = f"[INNtelligence] Signup report — {rep['status']} "\
+              f"({rep['totals']['created']} new, {len(rep['flags'])} flag(s))"
+    try:
+        import requests
+        r = requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {_SENDGRID_KEY}", "Content-Type": "application/json"},
+            json={
+                "personalizations": [{"to": [{"email": e} for e in sorted(_ADMIN_EMAILS)]}],
+                "from": {"email": _FROM_EMAIL, "name": "INNtelligence Monitor"},
+                "subject": subject,
+                "content": [{"type": "text/plain", "value": body}],
+            }, timeout=20)
+        if not r.ok:
+            logger.warning("Abuse digest SendGrid failed %s: %s", r.status_code, r.text[:200])
+        return r.ok
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Abuse digest email error: %s", e)
+        return False
+
+
+@app.route("/api/admin/abuse-report")
+def api_admin_abuse_report():
+    _user, err = _require_admin()
+    if err:
+        return err
+    try:
+        days = max(1, min(30, int(request.args.get("days", "1"))))
+    except ValueError:
+        days = 1
+    return jsonify(_build_abuse_report(days))
+
+
+@app.route("/api/cron/abuse-digest", methods=["POST", "GET"])
+def api_cron_abuse_digest():
+    """Daily trigger: computes the report and emails the admin allowlist.
+    Auth: an admin session OR a bearer/`token` matching ABUSE_DIGEST_TOKEN, so an
+    external scheduler (e.g. a Railway cron) can call it headless."""
+    token = _bearer_token() or request.args.get("token", "") or \
+        (request.get_json(silent=True) or {}).get("token", "")
+    authorized = bool(_ABUSE_DIGEST_TOKEN and token == _ABUSE_DIGEST_TOKEN)
+    if not authorized:
+        _user, err = _require_admin()
+        if err:
+            return err
+    try:
+        days = max(1, min(30, int(request.args.get("days", "1"))))
+    except ValueError:
+        days = 1
+    rep = _build_abuse_report(days)
+    sent = _send_abuse_digest_email(rep)
+    return jsonify({"ok": True, "emailed": sent, "status": rep["status"],
+                    "flags": rep["flags"], "created": rep["totals"]["created"]})
 
 
 @app.route("/api/auth/login", methods=["POST"])
@@ -1202,13 +1644,42 @@ def api_billing_create_checkout():
     base = _app_base_url()
     success_url = d.get("success_url") or f"{base}/settings?checkout=success&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url  = d.get("cancel_url")  or f"{base}/settings?checkout=cancelled"
+    # Card-up-front: always collect a payment method. Grant the 14-day trial only
+    # to a first-time account (no existing subscription) so repeat checkouts can't
+    # farm extra free trials.
+    trow = _sb_rest_get("tenants", {"id": f"eq.{tenant_id}",
+                                    "select": "stripe_subscription_id,plan_status"})
+    has_sub = bool(trow and trow[0].get("stripe_subscription_id"))
+    trial_days = 0 if has_sub else int(d.get("trial_days", 14))
     try:
         res = billing.create_checkout_session(
             tenant_id, tier,
             success_url=success_url, cancel_url=cancel_url,
-            billing_email=user.get("email"))
+            billing_email=user.get("email"),
+            trial_days=trial_days, require_card=True)
     except Exception as e:  # noqa: BLE001
         logger.warning("create_checkout_session failed: %s", e)
+        return jsonify({"error": str(e)}), 502
+    return jsonify(res)
+
+
+@app.route("/api/billing/confirm-checkout", methods=["POST"])
+def api_billing_confirm_checkout():
+    """Called by the /start-trial success redirect. Syncs the just-completed
+    Checkout subscription onto the tenant immediately so the trial gate clears
+    without waiting on the webhook. Idempotent."""
+    _user, tenant_id, err = _require_tenant_user()
+    if err:
+        return err
+    d = request.get_json(silent=True) or {}
+    session_id = (d.get("session_id") or "").strip()
+    if not session_id:
+        return jsonify({"error": "session_id required"}), 400
+    from engine import billing
+    try:
+        res = billing.confirm_checkout_session(tenant_id, session_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("confirm_checkout failed: %s", e)
         return jsonify({"error": str(e)}), 502
     return jsonify(res)
 
@@ -1480,6 +1951,62 @@ def api_admin_tenants():
     ]})
 
 
+_PMS_TIER_LABELS = {
+    "tier_1":          "Direct integration",
+    "tier_2":          "Direct integration",
+    "channel_manager": "Channel manager (reaches many systems)",
+    "csv_import":      "Manual / CSV import",
+}
+
+
+@app.route("/api/onboarding/pms-catalog")
+def api_onboarding_pms_catalog():
+    """Full PMS / channel-manager catalog for the onboarding 'Connect' step.
+    Shows every supported system (grouped by tier) rather than a hardcoded two."""
+    _user, _tenant_id, err = _require_tenant_user()
+    if err:
+        return err
+    try:
+        from modules.admin.tenant_store import load_pms_catalog
+        catalog = load_pms_catalog()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("load_pms_catalog failed: %s", e)
+        catalog = []
+    return jsonify({"catalog": catalog, "tier_labels": _PMS_TIER_LABELS})
+
+
+@app.route("/api/onboarding/competitors")
+def api_onboarding_competitors():
+    """Live competitor discovery for the onboarding 'Competitors' step. Geocodes
+    the property address and finds nearby lodging via Google Places, tiered by
+    price band. Returns an empty set (never a hardcoded list) if no API key."""
+    _user, _tenant_id, err = _require_tenant_user()
+    if err:
+        return err
+    args = request.args
+
+    def _f(name, default=0.0):
+        try:
+            return float(args.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+    from modules.hospitality.competitor_discovery import discover_competitors_live
+    result = discover_competitors_live(
+        api_key=os.getenv("GOOGLE_PLACES_API_KEY", ""),
+        address=args.get("address", ""),
+        latitude=(_f("lat") or None),
+        longitude=(_f("lng") or None),
+        property_type=args.get("property_type", "boutique_inn"),
+        room_count=int(_f("room_count")),
+        rate_low=_f("rate_low"),
+        rate_high=_f("rate_high"),
+        radius_miles=_f("radius", 25.0),
+        exclude_name=args.get("name", ""),
+    )
+    return jsonify(result)
+
+
 @app.route("/api/onboarding/complete", methods=["POST"])
 def api_onboarding_complete():
     if not _auth_configured():
@@ -1518,7 +2045,66 @@ def api_onboarding_complete():
                          json={"app_metadata": {"pending_onboarding": False}}, timeout=15)
         except Exception as e:  # noqa: BLE001
             logger.warning("mark onboarding complete failed: %s", e)
-    return jsonify({"success": True, "sync_status": sync_status})
+
+    # 4) Persist property location + the selected competitor set (Phase 2).
+    location_saved = False
+    competitors_saved = 0
+    if _SUPABASE_SERVICE and tenant_id:
+        import requests
+        svc_hdr = {"apikey": _SUPABASE_SERVICE, "Authorization": f"Bearer {_SUPABASE_SERVICE}",
+                   "Content-Type": "application/json"}
+        # 4a) Property location/details → first property for the tenant.
+        prop_patch = {k: d[k] for k in
+                      ("address", "postal_code", "website_url", "property_type",
+                       "room_count", "latitude", "longitude", "city", "state")
+                      if d.get(k) not in (None, "")}
+        if d.get("property_name"):
+            prop_patch["name"] = d["property_name"]
+        if prop_patch:
+            try:
+                prows = _sb_rest_get("properties", {"tenant_id": f"eq.{tenant_id}",
+                                                    "select": "id", "order": "created_at.asc", "limit": "1"})
+                if prows:
+                    pr = requests.patch(f"{_SUPABASE_URL}/rest/v1/properties",
+                                        headers={**svc_hdr, "Prefer": "return=minimal"},
+                                        params={"id": f"eq.{prows[0]['id']}"},
+                                        json=prop_patch, timeout=15)
+                    location_saved = pr.ok
+                else:
+                    pr = requests.post(f"{_SUPABASE_URL}/rest/v1/properties",
+                                       headers={**svc_hdr, "Prefer": "return=minimal"},
+                                       json={"tenant_id": tenant_id, **prop_patch}, timeout=15)
+                    location_saved = pr.ok
+            except Exception as e:  # noqa: BLE001
+                logger.warning("property location save failed: %s", e)
+        # 4b) Selected competitors → replace the tenant's set in tenant_competitors.
+        comps = d.get("competitors")
+        if isinstance(comps, list):
+            try:
+                requests.delete(f"{_SUPABASE_URL}/rest/v1/tenant_competitors",
+                                headers={**svc_hdr, "Prefer": "return=minimal"},
+                                params={"tenant_id": f"eq.{tenant_id}"}, timeout=15)
+                rows = [{
+                    "tenant_id":  tenant_id,
+                    "name":       (c.get("name") or "").strip(),
+                    "tier":       c.get("tier"),
+                    "place_id":   c.get("place_id"),
+                    "address":    c.get("address"),
+                    "website_url": c.get("website_url"),
+                    "source":     c.get("source") or "discovered",
+                    "selected":   True,
+                } for c in comps if (c.get("name") or "").strip()]
+                if rows:
+                    cr = requests.post(f"{_SUPABASE_URL}/rest/v1/tenant_competitors",
+                                       headers={**svc_hdr, "Prefer": "return=minimal"},
+                                       json=rows, timeout=20)
+                    competitors_saved = len(rows) if cr.ok else 0
+            except Exception as e:  # noqa: BLE001
+                logger.warning("competitor save failed: %s", e)
+
+    return jsonify({"success": True, "sync_status": sync_status,
+                    "location_saved": location_saved,
+                    "competitors_saved": competitors_saved})
 
 
 @app.route("/api/private-events")

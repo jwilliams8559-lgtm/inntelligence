@@ -318,6 +318,7 @@ def create_checkout_session(
     cancel_url:    str,
     billing_email: Optional[str] = None,
     trial_days:    int = 0,
+    require_card:  bool = False,
 ) -> dict:
     """Create a Stripe Checkout Session (subscription mode) for *tier*.
 
@@ -359,10 +360,56 @@ def create_checkout_session(
             params["customer_email"] = email
     if trial_days > 0:
         params["subscription_data"]["trial_period_days"] = trial_days
+    if require_card:
+        # Force a payment method up front even though the trial won't charge yet.
+        # Without this, Stripe Checkout skips card collection for a trialing
+        # subscription (payment_method_collection defaults to 'if_required').
+        params["payment_method_collection"] = "always"
 
     session = _stripe.checkout.Session.create(**params)
     return {"mock": False, "tenant_id": tenant_id, "tier": tier,
             "session_id": session.id, "url": session.url, "price_id": price_id}
+
+
+def confirm_checkout_session(tenant_id: str, session_id: str) -> dict:
+    """Retrieve a completed Checkout Session and sync its subscription onto the
+    tenant immediately (don't wait on the webhook). Idempotent. Returns
+    {ok, plan_status, trial_ends_at}."""
+    if _is_mock() or not session_id or session_id.startswith("cs_mock_"):
+        # No Stripe configured — start a local 14-day trial so the flow completes.
+        trial_end = (datetime.now(timezone.utc) + timedelta(days=14)).isoformat()
+        _sb_patch("tenants", {"id": f"eq.{tenant_id}"},
+                  {"plan_status": "trialing", "subscription_status": "trialing",
+                   "trial_ends_at": trial_end})
+        return {"ok": True, "mock": True, "plan_status": "trialing", "trial_ends_at": trial_end}
+
+    _stripe_init()
+    try:
+        sess = _stripe.checkout.Session.retrieve(session_id, expand=["subscription"])
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"could not retrieve session: {e}"}
+
+    cust = sess.get("customer") if isinstance(sess, dict) else getattr(sess, "customer", None)
+    sub = sess.get("subscription") if isinstance(sess, dict) else getattr(sess, "subscription", None)
+    # Normalize the subscription to a plain dict.
+    sub_obj = None
+    if sub and not isinstance(sub, str):
+        sub_obj = json.loads(json.dumps(sub, default=str)) if not isinstance(sub, dict) else sub
+    patch: dict[str, Any] = {}
+    if cust:
+        patch["stripe_customer_id"] = cust if isinstance(cust, str) else cust.get("id")
+    if patch:
+        _sb_patch("tenants", {"id": f"eq.{tenant_id}"}, patch)
+    if sub_obj:
+        _sync_subscription_to_tenant(tenant_id, sub_obj)
+        return {"ok": True, "plan_status": _plan_status_from_stripe(sub_obj.get("status")),
+                "trial_ends_at": (datetime.fromtimestamp(sub_obj["trial_end"], tz=timezone.utc).isoformat()
+                                  if sub_obj.get("trial_end") else None)}
+    # Session completed but no subscription expanded yet — mark trialing so the
+    # gate clears; the webhook will refine trial_ends_at.
+    _sb_patch("tenants", {"id": f"eq.{tenant_id}"},
+              {"plan_status": "trialing", "subscription_status": "trialing"})
+    return {"ok": True, "plan_status": "trialing", "trial_ends_at": None}
 
 
 def create_portal_session(tenant_id: str, *, return_url: str) -> dict:
@@ -547,6 +594,42 @@ def list_invoices(tenant_id: str, *, limit: int = 20) -> list[dict]:
 #  Webhook
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _plan_status_from_stripe(stripe_status: Optional[str]) -> str:
+    """Map a Stripe subscription status to the app-level tenants.plan_status the
+    frontend reads (trial banner, access gates)."""
+    return {
+        "trialing":           "trialing",
+        "active":             "active",
+        "past_due":           "past_due",
+        "unpaid":             "past_due",
+        "incomplete":         "pending",
+        "incomplete_expired": "cancelled",
+        "canceled":           "cancelled",
+    }.get(stripe_status or "", "active")
+
+
+def _sync_subscription_to_tenant(tenant_id: str, sub_obj: dict) -> None:
+    """Write a subscription's status/trial/period onto the tenant using the
+    app-level columns (plan_status + trial_ends_at) as well as the billing
+    columns (subscription_status + current_period_end)."""
+    status = sub_obj.get("status")
+    patch: dict[str, Any] = {
+        "plan_status":         _plan_status_from_stripe(status),
+        "subscription_status": status,
+    }
+    if sub_obj.get("id"):
+        patch["stripe_subscription_id"] = sub_obj["id"]
+    trial_end = sub_obj.get("trial_end")
+    if trial_end:
+        patch["trial_ends_at"] = datetime.fromtimestamp(trial_end, tz=timezone.utc).isoformat()
+    cpe = sub_obj.get("current_period_end")
+    if cpe:
+        iso = datetime.fromtimestamp(cpe, tz=timezone.utc).isoformat()
+        patch["current_period_end"] = iso
+        patch["plan_renews_at"] = iso
+    _sb_patch("tenants", {"id": f"eq.{tenant_id}"}, patch)
+
+
 def process_webhook(payload: bytes, signature: str) -> dict:
     """
     Verify and dispatch a Stripe webhook event.
@@ -608,7 +691,10 @@ def process_webhook(payload: bytes, signature: str) -> dict:
         sub  = obj.get("subscription")
         plan = md.get("plan_tier")
         if t_id and (cust or sub):
-            patch: dict[str, Any] = {"subscription_status": "active"}
+            # Card collected and subscription created → the 14-day trial is live.
+            # The customer.subscription.created event that follows refines this
+            # with the exact trial_end; setting it here clears the gate at once.
+            patch: dict[str, Any] = {"subscription_status": "trialing", "plan_status": "trialing"}
             if cust: patch["stripe_customer_id"]     = cust
             if sub:  patch["stripe_subscription_id"] = sub
             if plan in _PLAN_CATALOG: patch["plan_tier"] = plan
@@ -616,8 +702,9 @@ def process_webhook(payload: bytes, signature: str) -> dict:
             tenant_id = t_id
             handled = True
 
-    elif event_type == "customer.subscription.updated" and tenant_id:
+    elif event_type in ("customer.subscription.created", "customer.subscription.updated") and tenant_id:
         obj = event.get("data", {}).get("object", {})
+        # Keep plan_tier in sync when the price changes (upgrade/downgrade).
         items = obj.get("items", {}).get("data", [])
         new_plan = None
         for it in items:
@@ -626,14 +713,19 @@ def process_webhook(payload: bytes, signature: str) -> dict:
             for key, p in _PLAN_CATALOG.items():
                 if p["lookup_key"] == lk or md.get("plan_key") == key:
                     new_plan = key; break
+        _sync_subscription_to_tenant(tenant_id, obj)
         if new_plan:
-            _sb_patch("tenants", {"id": f"eq.{tenant_id}"}, {
-                "plan_tier":           new_plan,
-                "subscription_status": obj.get("status"),
-            })
-            handled = True
+            _sb_patch("tenants", {"id": f"eq.{tenant_id}"}, {"plan_tier": new_plan})
+        handled = True
+
+    elif event_type == "customer.subscription.deleted" and tenant_id:
+        _sb_patch("tenants", {"id": f"eq.{tenant_id}"},
+                  {"plan_status": "cancelled", "subscription_status": "canceled"})
+        handled = True
 
     elif event_type == "invoice.payment_failed" and tenant_id:
+        _sb_patch("tenants", {"id": f"eq.{tenant_id}"},
+                  {"plan_status": "past_due", "subscription_status": "past_due"})
         try:
             from engine.autopilot.autopilot import _emit_alert
             # Find a property to attach the alert to
@@ -656,6 +748,6 @@ def process_webhook(payload: bytes, signature: str) -> dict:
 
 
 __all__ = ["setup_stripe_products", "price_id_for_tier",
-           "create_checkout_session", "create_portal_session",
+           "create_checkout_session", "confirm_checkout_session", "create_portal_session",
            "create_subscription", "cancel_subscription", "list_invoices",
            "process_webhook", "_PLAN_CATALOG", "CHECKOUT_TIERS"]

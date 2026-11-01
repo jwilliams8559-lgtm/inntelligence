@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 const DEMO_ACCOUNTS = [
@@ -73,8 +73,11 @@ export default function Login() {
               className="w-full bg-navy text-white font-bold py-2.5 rounded-lg hover:bg-navy-light disabled:opacity-50 transition-colors">
               {busy ? 'Signing in…' : 'Sign In'}
             </button>
-            <div className="text-center text-[11px] text-gray-400 mt-3">
-              No account? <button type="button" onClick={() => { setRequesting(true); setError(null); setNotice(null) }} className="text-navy underline hover:text-gold">Request access</button>
+            <div className="text-center text-[12px] text-gray-500 mt-4 pt-3 border-t border-gray-100">
+              New to INNtelligence? <Link to="/signup" className="text-navy font-semibold underline hover:text-gold">Start your 14-day free trial →</Link>
+            </div>
+            <div className="text-center text-[11px] text-gray-400 mt-2">
+              Prefer a guided setup? <button type="button" onClick={() => { setRequesting(true); setError(null); setNotice(null) }} className="text-navy underline hover:text-gold">Request access</button>
             </div>
           </form>
         ) : (
