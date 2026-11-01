@@ -184,6 +184,7 @@ def discover_competitors_live(
     rate_high: float = 0,
     radius_miles: float = 25.0,
     exclude_name: str = "",
+    country: str = "",
     max_results: int = 20,
 ) -> Dict[str, Any]:
     """Discover nearby lodging via Google Places and tier it like the stub.
@@ -209,9 +210,13 @@ def discover_competitors_live(
         if lat is None or lng is None:
             if not address:
                 return empty
-            # Geocoding API (not retired) → address to lat/lng.
+            # Geocoding API (not retired) → address to lat/lng. Biasing by country
+            # keeps non-US addresses (UK, CA, EU, Caribbean) from resolving wrongly.
+            geo_params = {"address": address, "key": api_key}
+            if country:
+                geo_params["components"] = f"country:{country}"
             g = requests.get("https://maps.googleapis.com/maps/api/geocode/json",
-                             params={"address": address, "key": api_key}, timeout=15)
+                             params=geo_params, timeout=15)
             gj = g.json() if g.ok else {}
             results = gj.get("results") or []
             if not results:
@@ -234,7 +239,8 @@ def discover_competitors_live(
                 # Boutique inns / B&Bs are often typed specifically (not "lodging"),
                 # so include the sub-types or they get silently dropped.
                 "includedTypes": ["lodging", "bed_and_breakfast", "inn", "guest_house",
-                                  "hotel", "motel", "resort_hotel", "extended_stay_hotel"],
+                                  "hotel", "motel", "resort_hotel", "extended_stay_hotel",
+                                  "cottage", "farmstay"],
                 "maxResultCount": 20,
                 "rankPreference": "DISTANCE",   # nearest first → the ones next door always surface
                 "locationRestriction": {"circle": {

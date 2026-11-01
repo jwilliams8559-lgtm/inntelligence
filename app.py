@@ -1220,9 +1220,10 @@ def _create_tenant_records(user_id: Optional[str], name: str, plan: str,
 
     if user_id and tenant_id:
         try:
+            # Match the admin-provision insert exactly (user_id/tenant_id/role) — adding
+            # columns like full_name 400s the insert and leaves the link row missing.
             requests.post(f"{_SUPABASE_URL}/rest/v1/user_profiles", headers=svc_hdr, json={
                 "user_id": user_id, "tenant_id": tenant_id, "role": "inn_owner",
-                "full_name": owner_name,
             }, timeout=20)
         except Exception as e:  # noqa: BLE001
             warnings.append(f"user_profile insert: {e}")
@@ -2003,6 +2004,7 @@ def api_onboarding_competitors():
         rate_high=_f("rate_high"),
         radius_miles=_f("radius", 25.0),
         exclude_name=args.get("name", ""),
+        country=args.get("country", ""),
     )
     return jsonify(result)
 
