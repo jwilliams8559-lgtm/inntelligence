@@ -226,31 +226,38 @@ def discover_competitors_live(
 
         # Places API (New) — searchNearby. The legacy nearbysearch endpoint is not
         # available on newer projects, so we use the v1 API (POST + field mask).
+        # Google caps each search at 20 results, and in a dense area Airbnb/VRBO-style
+        # listings eat those 20 slots before real inns appear. So we run SEPARATE
+        # searches per category (hotels, inns/B&Bs, catch-all) and merge — each
+        # category gets its own 20 slots, so nothing crowds out the others.
         radius_m = int(min(max(radius_miles, 1), 31) * 1609.34)   # new API caps radius at 50 km (~31 mi)
-        resp = requests.post(
-            "https://places.googleapis.com/v1/places:searchNearby",
-            headers={
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": api_key,
-                "X-Goog-FieldMask": ("places.id,places.displayName,places.formattedAddress,"
-                                     "places.priceLevel,places.rating,places.userRatingCount,places.location"),
-            },
-            json={
-                # Boutique inns / B&Bs are often typed specifically (not "lodging"),
-                # so include the sub-types or they get silently dropped.
-                "includedTypes": ["lodging", "bed_and_breakfast", "inn", "guest_house",
-                                  "hotel", "motel", "resort_hotel", "extended_stay_hotel"],
-                "maxResultCount": 20,
-                # Nearest-first so a property's LOCAL competitors win over far-away
-                # chain hotels (which otherwise dominate a popularity ranking across a
-                # 25-mile radius). The room/unit sub-listings this would surface are
-                # stripped by the dedup below.
-                "rankPreference": "DISTANCE",
-                "locationRestriction": {"circle": {
-                    "center": {"latitude": lat, "longitude": lng}, "radius": radius_m}},
-            }, timeout=20)
-        rj = resp.json() if resp.ok else {}
-        # Normalize the New API shape to the keys the tiering loop below expects.
+        _hdrs = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": ("places.id,places.displayName,places.formattedAddress,"
+                                 "places.priceLevel,places.rating,places.userRatingCount,places.location"),
+        }
+
+        def _nearby(types: List[str], rank: str) -> List[dict]:
+            r = requests.post(
+                "https://places.googleapis.com/v1/places:searchNearby", headers=_hdrs,
+                json={"includedTypes": types, "maxResultCount": 20, "rankPreference": rank,
+                      "locationRestriction": {"circle": {
+                          "center": {"latitude": lat, "longitude": lng}, "radius": radius_m}}},
+                timeout=20)
+            return (r.json().get("places") or []) if r.ok else []
+
+        raw: List[dict] = []
+        raw += _nearby(["hotel", "motel", "resort_hotel", "extended_stay_hotel"], "POPULARITY")
+        raw += _nearby(["bed_and_breakfast", "inn"], "DISTANCE")
+        raw += _nearby(["lodging", "guest_house"], "DISTANCE")
+
+        # De-dup by place id and normalize to the keys the filter/tiering expect.
+        _by_id: Dict[str, dict] = {}
+        for p in raw:
+            pid = p.get("id")
+            if pid and pid not in _by_id:
+                _by_id[pid] = p
         places = [{
             "place_id":           p.get("id"),
             "name":               (p.get("displayName") or {}).get("text"),
@@ -258,7 +265,7 @@ def discover_competitors_live(
             "price_level":        _PRICE_ENUM.get(p.get("priceLevel")),
             "rating":             p.get("rating"),
             "user_ratings_total": p.get("userRatingCount"),
-        } for p in (rj.get("places") or [])]
+        } for p in _by_id.values()]
     except Exception:  # noqa: BLE001
         return {**empty, "source": "error"}
 
@@ -267,8 +274,8 @@ def discover_competitors_live(
     # are the AirDNA-sourced layer we add later, not map-search results.
     import re as _re2
     _UNIT_RE = _re2.compile(
-        r"\b(room|rooms|suite|unit|apt|apartment|studio|loft|getaway|hideaway|"
-        r"retreat|carriage\s+house|bungalow)\b|#\s*\d|\bno\.?\s*\d", _re2.I)
+        r"\b(room|rooms|suite|studio|getaway|hideaway|retreat|carriage\s+house)\b"
+        r"|#\s*\d|\bno\.?\s*\d|\bunit\s*\w?\d", _re2.I)
     _AT_ESTAB_RE = _re2.compile(r"\bat\s+(the\s+)?\S.*\b(inn|hotel|resort|lodge|house)\b", _re2.I)
     _ADDRESS_RE = _re2.compile(
         r"\b\d{2,5}\s+\w+(\s+\w+)?\s+(street|st|ave|avenue|road|rd|lane|ln|drive|dr|"
