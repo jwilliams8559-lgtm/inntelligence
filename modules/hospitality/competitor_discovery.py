@@ -184,6 +184,7 @@ def discover_competitors_live(
     rate_high: float = 0,
     radius_miles: float = 25.0,
     exclude_name: str = "",
+    country: str = "",
     max_results: int = 20,
 ) -> Dict[str, Any]:
     """Discover nearby lodging via Google Places and tier it like the stub.
@@ -209,9 +210,13 @@ def discover_competitors_live(
         if lat is None or lng is None:
             if not address:
                 return empty
-            # Geocoding API (not retired) → address to lat/lng.
+            # Geocoding API (not retired) → address to lat/lng. Biasing by country
+            # keeps non-US addresses (UK, CA, EU, Caribbean) from resolving wrongly.
+            geo_params = {"address": address, "key": api_key}
+            if country:
+                geo_params["components"] = f"country:{country}"
             g = requests.get("https://maps.googleapis.com/maps/api/geocode/json",
-                             params={"address": address, "key": api_key}, timeout=15)
+                             params=geo_params, timeout=15)
             gj = g.json() if g.ok else {}
             results = gj.get("results") or []
             if not results:
@@ -234,9 +239,13 @@ def discover_competitors_live(
                 # Boutique inns / B&Bs are often typed specifically (not "lodging"),
                 # so include the sub-types or they get silently dropped.
                 "includedTypes": ["lodging", "bed_and_breakfast", "inn", "guest_house",
-                                  "hotel", "motel", "resort_hotel", "extended_stay_hotel"],
+                                  "hotel", "motel", "resort_hotel", "extended_stay_hotel",
+                                  "cottage", "farmstay"],
                 "maxResultCount": 20,
-                "rankPreference": "DISTANCE",   # nearest first → the ones next door always surface
+                # Prominence (the default) returns established, reviewable properties
+                # and demotes obscure individual-room sub-listings; DISTANCE surfaced
+                # every room entry and crowded out real competitors.
+                "rankPreference": "POPULARITY",
                 "locationRestriction": {"circle": {
                     "center": {"latitude": lat, "longitude": lng}, "radius": radius_m}},
             }, timeout=20)
@@ -252,6 +261,23 @@ def discover_competitors_live(
         } for p in (rj.get("places") or [])]
     except Exception:  # noqa: BLE001
         return {**empty, "source": "error"}
+
+    # Strip individual-room / unit sub-listings (e.g. "The Rhett House Room for Two"
+    # when "The Rhett House" is present). Keep the better-reviewed canonical entry.
+    import re as _re2
+    _room_hint = _re2.compile(r"\b(room|rooms|suite|unit|apartment|apt|studio)\b|#\s*\d|\bno\.?\s*\d", _re2.I)
+    places.sort(key=lambda p: (p.get("user_ratings_total") or 0), reverse=True)
+    _deduped: List[Dict[str, Any]] = []
+    _kept_names: List[str] = []
+    for p in places:
+        low = (p.get("name") or "").strip().lower()
+        if not low:
+            continue
+        if any(low != k and low.startswith(k) and _room_hint.search(low[len(k):]) for k in _kept_names):
+            continue
+        _deduped.append(p)
+        _kept_names.append(low)
+    places = _deduped
 
     subj_level = _rate_to_price_level(rate_low, rate_high)
     excl = (exclude_name or "").strip().lower()

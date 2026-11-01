@@ -13,6 +13,14 @@ const PROPERTY_TYPES = [
   ['vacation_rental', 'Vacation rental(s)'],
   ['other', 'Other'],
 ]
+// ISO country codes for geocoding bias (keeps non-US addresses accurate).
+const COUNTRIES = [
+  ['US', 'United States'], ['CA', 'Canada'], ['GB', 'United Kingdom'], ['IE', 'Ireland'],
+  ['FR', 'France'], ['IT', 'Italy'], ['ES', 'Spain'], ['PT', 'Portugal'], ['DE', 'Germany'],
+  ['NL', 'Netherlands'], ['MX', 'Mexico'], ['BS', 'Bahamas'], ['JM', 'Jamaica'],
+  ['BB', 'Barbados'], ['DO', 'Dominican Republic'], ['PR', 'Puerto Rico'],
+  ['TC', 'Turks & Caicos'], ['KY', 'Cayman Islands'], ['AW', 'Aruba'],
+]
 
 export default function Onboarding() {
   const navigate = useNavigate()
@@ -26,8 +34,9 @@ export default function Onboarding() {
   // Step 1 — property
   const [prop, setProp] = useState({
     name: user?.property_name || '', address: '', postalCode: '', website: '',
-    type: 'boutique_inn', roomCount: '', typicalRate: '',
+    type: 'boutique_inn', roomCount: '', typicalRate: '', country: 'US',
   })
+  const [radiusMiles, setRadiusMiles] = useState('25')
   const setP = (k) => (e) => setProp((p) => ({ ...p, [k]: e.target.value }))
 
   // Step 2 — PMS
@@ -70,6 +79,7 @@ export default function Onboarding() {
     discoverCompetitors({
       address: [prop.address, prop.postalCode].filter(Boolean).join(' '),
       property_type: prop.type, room_count: prop.roomCount, name: prop.name,
+      country: prop.country, radius: radiusMiles,
       ...rateBand(),
     })
       .then((res) => {
@@ -88,11 +98,16 @@ export default function Onboarding() {
       })
       .catch(() => setDiscoSource('error'))
       .finally(() => setDiscoLoading(false))
-  }, [prop.address, prop.postalCode, prop.type, prop.roomCount, prop.name, rateBand])
+  }, [prop.address, prop.postalCode, prop.type, prop.roomCount, prop.name, prop.country, radiusMiles, rateBand])
 
   useEffect(() => {
     if (step === 3 && discoveredFor !== (prop.address || prop.postalCode)) runDiscovery()
   }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-run discovery when the radius changes while on the Competitors step.
+  useEffect(() => {
+    if (step === 3) runDiscovery()
+  }, [radiusMiles]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = (key) => setSelected((s) => { const x = new Set(s); x.has(key) ? x.delete(key) : x.add(key); return x })
   const selectAll = (on) => setSelected(on ? new Set(Object.keys(compsByKey)) : new Set())
@@ -128,6 +143,7 @@ export default function Onboarding() {
       await onboardingComplete({
         property_name: prop.name,
         address: prop.address, postal_code: prop.postalCode, website_url: prop.website,
+        country: prop.country,
         property_type: prop.type, room_count: Number(prop.roomCount) || null,
         pms_type: pmsId,
         pms_api_key: pmsId !== 'later' && pmsId !== 'csv_import' ? primaryCred : '',
@@ -205,6 +221,10 @@ export default function Onboarding() {
               <label className="block text-xs"><div className="text-gray-600 font-semibold mb-1">Street address</div>
                 <input className={INPUT} value={prop.address} onChange={setP('address')} placeholder="1001 Bay Street, Beaufort, SC" /></label>
               <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs"><div className="text-gray-600 font-semibold mb-1">Country</div>
+                  <select className={INPUT} value={prop.country} onChange={setP('country')}>
+                    {COUNTRIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select></label>
                 <label className="block text-xs"><div className="text-gray-600 font-semibold mb-1">ZIP / postal code</div>
                   <input className={INPUT} value={prop.postalCode} onChange={setP('postalCode')} placeholder="29902" /></label>
                 <label className="block text-xs"><div className="text-gray-600 font-semibold mb-1">Rooms / units</div>
@@ -271,9 +291,20 @@ export default function Onboarding() {
           {/* Step 3 — Competitors */}
           {step === 3 && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <h3 className="text-navy font-bold">Your competitors</h3>
-                <button onClick={runDiscovery} className="text-[11px] text-navy underline hover:text-gold">Re-search</button>
+                <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                  <label>Within
+                    <select value={radiusMiles} onChange={(e) => setRadiusMiles(e.target.value)}
+                      className="ml-1 border border-gray-200 rounded px-1 py-0.5">
+                      <option value="5">5 mi</option>
+                      <option value="10">10 mi</option>
+                      <option value="25">25 mi</option>
+                      <option value="50">50 mi</option>
+                    </select>
+                  </label>
+                  <button onClick={runDiscovery} className="text-navy underline hover:text-gold">Re-search</button>
+                </div>
               </div>
               {discoLoading ? (
                 <div className="text-center py-10 text-sm text-gray-500">
@@ -316,6 +347,7 @@ export default function Onboarding() {
                       onChange={(e) => setAddComp(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addManual() } }} />
                     <button onClick={addManual} className="bg-navy text-white text-xs font-bold px-3 py-2 rounded">Add</button>
                   </div>
+                  <div className="text-[10px] text-gray-400">Tip: individual Airbnb/VRBO rentals don't appear in map search — add any important ones by name here.</div>
                   <div className="text-[11px] text-gray-500">{selected.size} competitor(s) selected</div>
                 </>
               )}
