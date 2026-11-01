@@ -14,10 +14,16 @@ export default function DemoBanner() {
           <span className="hidden sm:inline"> — start a free trial to make it yours.</span>
         </span>
       </div>
-      <Link to="/onboarding"
-        className="shrink-0 px-3 py-1.5 rounded-md bg-gold text-navy text-xs font-bold hover:bg-gold-light">
-        Start free trial →
-      </Link>
+      <div className="shrink-0 flex items-center gap-2">
+        <a href="/demo?tour=1"
+          className="px-3 py-1.5 rounded-md border border-gold/60 text-gold text-xs font-bold hover:bg-gold hover:text-navy">
+          ▶ Play guided tour
+        </a>
+        <Link to="/onboarding"
+          className="px-3 py-1.5 rounded-md bg-gold text-navy text-xs font-bold hover:bg-gold-light">
+          Start free trial →
+        </Link>
+      </div>
     </div>
   )
 }
