@@ -94,6 +94,15 @@ export function AuthProvider({ children }) {
     return res
   }, [exitDemo, loadContext])
 
+  // Re-pull the enriched context for the current session (e.g. after the card
+  // gate flips plan_status), so cached flags like needs_payment update without a
+  // full reload.
+  const refresh = useCallback(async () => {
+    if (openMode) return
+    const { data } = await supabase.auth.getSession()
+    await loadContext(data.session?.access_token)
+  }, [openMode, loadContext])
+
   const logout = useCallback(async () => {
     exitDemo()
     if (!openMode) { try { await supabase.auth.signOut() } catch { /* ignore */ } }
@@ -112,7 +121,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthCtx.Provider value={{
       loading, openMode, authConfigured: !openMode,
-      user: effectiveUser, role, login, logout, resetPassword, signup,
+      user: effectiveUser, role, login, logout, resetPassword, signup, refresh,
       demoMode: !!demoUser,
       demoReadOnly: !!(demoUser && (demoUser.read_only || demoUser.demo)),
       startDemo, exitDemo,

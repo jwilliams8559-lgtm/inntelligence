@@ -80,6 +80,11 @@ export function createCheckoutSession(tier, opts = {}) {
 export function createPortalSession(opts = {}) {
   return _post('/api/billing/create-portal-session', opts)
 }
+// Called by the /start-trial success redirect to flip the trial on immediately
+// (rather than waiting on the Stripe webhook).
+export function confirmCheckout(sessionId) {
+  return _post('/api/billing/confirm-checkout', { session_id: sessionId })
+}
 
 // ── Feature gating + per-feature trials ──────────────────────────────────────
 // Authoritative access snapshot: { features: {key: {...}}, active_trial_count, ... }

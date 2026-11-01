@@ -28,6 +28,7 @@ import Login from './screens/Login'
 import Onboarding from './screens/Onboarding'
 import Pricing from './screens/Pricing'
 import Signup from './screens/Signup'
+import StartTrial from './screens/StartTrial'
 
 function DemoEntry() {
   const { startDemo, demoMode } = useAuth()
@@ -90,6 +91,8 @@ function RequireAuth({ children }) {
   if (loading) return <FullScreenSpinner />
   if (openMode) return children
   if (!user) return <Navigate to="/login" replace />
+  // Card-up-front: an account without a payment method must add one before anything else.
+  if (user.needs_payment) return <Navigate to="/start-trial" replace />
   if (user.pending_onboarding) return <Navigate to="/onboarding" replace />
   return children
 }
@@ -104,7 +107,18 @@ function OnboardingRoute() {
   const { loading, openMode, user } = useAuth()
   if (loading) return <FullScreenSpinner />
   if (!openMode && !user) return <Navigate to="/login" replace />
+  // Must have a card on file before onboarding.
+  if (!openMode && user && user.needs_payment) return <Navigate to="/start-trial" replace />
   return <Onboarding />
+}
+
+// The card gate. Requires a signed-in user but (unlike the others) must NOT
+// bounce on needs_payment — this is where they add the card.
+function StartTrialRoute() {
+  const { loading, openMode, user } = useAuth()
+  if (loading) return <FullScreenSpinner />
+  if (!openMode && !user) return <Navigate to="/login" replace />
+  return <StartTrial />
 }
 
 function AppRoutes() {
@@ -118,6 +132,7 @@ function AppRoutes() {
       <Route path="/pricing" element={<Pricing />} />
       <Route path="/demo" element={<DemoEntry />} />
       <Route path="/tour" element={<Navigate to="/demo" replace />} />
+      <Route path="/start-trial" element={<StartTrialRoute />} />
       <Route path="/onboarding" element={<OnboardingRoute />} />
 
       {/* Authenticated dashboard */}

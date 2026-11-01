@@ -89,7 +89,7 @@ export default function Signup() {
             <div className="text-navy font-bold mt-2 text-lg">Check your email</div>
             <p className="text-gray-600 text-sm mt-2">
               We sent a verification link to <span className="font-semibold">{f.email}</span>.
-              Click it to confirm your account, then sign in to start your 14-day free trial.
+              Click it to confirm your account, then sign in and add a card to start your 14-day free trial. You won't be charged until the trial ends, and you can cancel anytime.
             </p>
             <Link to="/login" className="mt-5 inline-block w-full bg-navy text-white font-bold py-2.5 rounded-lg hover:bg-navy-light">
               Go to sign in
@@ -99,7 +99,7 @@ export default function Signup() {
           <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl p-6">
             <h1 className="text-navy font-bold text-lg">Start your free trial</h1>
             <p className="text-gray-500 text-xs mt-0.5 mb-4">
-              14 days free{PLAN_LABELS[plan] ? ` on the ${PLAN_LABELS[plan]} plan` : ''} · no credit card required.
+              14 days free{PLAN_LABELS[plan] ? ` on the ${PLAN_LABELS[plan]} plan` : ''} · verify your email, then add a card to begin · cancel anytime before you're charged.
             </p>
 
             <label className="block mb-3">
@@ -132,7 +132,7 @@ export default function Signup() {
               {busy ? 'Creating your account…' : 'Create account & start trial'}
             </button>
             <p className="text-[10px] text-gray-400 text-center mt-3">
-              By creating an account you agree to our terms. We'll never charge you without asking first.
+              Next: verify your email, then add a card to start your trial. No charge until the trial ends; cancel anytime.
             </p>
             <div className="text-center text-[11px] text-gray-400 mt-3">
               Already have an account? <Link to="/login" className="text-navy underline hover:text-gold">Sign in</Link>
