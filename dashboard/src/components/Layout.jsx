@@ -10,6 +10,12 @@ import { useAuth } from '../context/AuthContext'
 
 export default function Layout() {
   const { demoReadOnly } = useAuth() || {}
+  // Explicit guided-tour mode: the narrated walkthrough can be launched over the
+  // read-only demo via ?tour=1 (the "Play the guided tour" button, or a direct
+  // link such as /demo?tour=1). The free-navigation demo is unchanged when the
+  // flag is absent.
+  const guidedTour = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('tour') === '1'
   return (
     <div className="flex h-screen bg-gray-50 text-navy">
       <Sidebar />
@@ -23,8 +29,9 @@ export default function Layout() {
         </main>
       </div>
       {/* The public read-only demo is free-navigation (no auto-playing tour).
-          The narrated DemoOverlay is reserved for an explicit guided-tour mode. */}
-      {!demoReadOnly && <DemoOverlay />}
+          The narrated DemoOverlay runs for a normal demo session, or on demand
+          over the read-only demo when guided-tour mode is requested (?tour=1). */}
+      {(!demoReadOnly || guidedTour) && <DemoOverlay />}
       <DemoWriteGuard />
     </div>
   )
