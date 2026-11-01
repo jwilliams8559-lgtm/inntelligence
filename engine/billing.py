@@ -384,29 +384,55 @@ def confirm_checkout_session(tenant_id: str, session_id: str) -> dict:
         return {"ok": True, "mock": True, "plan_status": "trialing", "trial_ends_at": trial_end}
 
     _stripe_init()
+
+    def _sid(v):
+        """A Stripe field that may be a string id or an expanded object → its id."""
+        if not v:
+            return None
+        if isinstance(v, str):
+            return v
+        return getattr(v, "id", None) or (v.get("id") if hasattr(v, "get") else None)
+
     try:
-        sess = _stripe.checkout.Session.retrieve(session_id, expand=["subscription"])
+        sess = _stripe.checkout.Session.retrieve(session_id)
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"could not retrieve session: {e}"}
 
-    cust = sess.get("customer") if isinstance(sess, dict) else getattr(sess, "customer", None)
-    sub = sess.get("subscription") if isinstance(sess, dict) else getattr(sess, "subscription", None)
-    # Normalize the subscription to a plain dict.
-    sub_obj = None
-    if sub and not isinstance(sub, str):
-        sub_obj = json.loads(json.dumps(sub, default=str)) if not isinstance(sub, dict) else sub
-    patch: dict[str, Any] = {}
-    if cust:
-        patch["stripe_customer_id"] = cust if isinstance(cust, str) else cust.get("id")
-    if patch:
-        _sb_patch("tenants", {"id": f"eq.{tenant_id}"}, patch)
-    if sub_obj:
-        _sync_subscription_to_tenant(tenant_id, sub_obj)
-        return {"ok": True, "plan_status": _plan_status_from_stripe(sub_obj.get("status")),
-                "trial_ends_at": (datetime.fromtimestamp(sub_obj["trial_end"], tz=timezone.utc).isoformat()
-                                  if sub_obj.get("trial_end") else None)}
-    # Session completed but no subscription expanded yet — mark trialing so the
-    # gate clears; the webhook will refine trial_ends_at.
+    cust_id = _sid(getattr(sess, "customer", None) if not isinstance(sess, dict) else sess.get("customer"))
+    sub_id = _sid(getattr(sess, "subscription", None) if not isinstance(sess, dict) else sess.get("subscription"))
+
+    if cust_id:
+        _sb_patch("tenants", {"id": f"eq.{tenant_id}"}, {"stripe_customer_id": cust_id})
+
+    if sub_id:
+        try:
+            s = _stripe.Subscription.retrieve(sub_id)
+            # Read into a PLAIN dict via getattr — never JSON-roundtrip a Stripe
+            # object (in stripe-python v15 it isn't dict/JSON compatible).
+            sub_dict = {
+                "id":                 getattr(s, "id", sub_id),
+                "status":             getattr(s, "status", None),
+                "trial_end":          getattr(s, "trial_end", None),
+                "current_period_end": getattr(s, "current_period_end", None),
+            }
+            _sync_subscription_to_tenant(tenant_id, sub_dict)
+            return {
+                "ok": True,
+                "plan_status": _plan_status_from_stripe(sub_dict["status"]),
+                "trial_ends_at": (datetime.fromtimestamp(sub_dict["trial_end"], tz=timezone.utc).isoformat()
+                                  if sub_dict.get("trial_end") else None),
+            }
+        except Exception as e:  # noqa: BLE001
+            # Couldn't read the subscription, but checkout returned a sub id, so the
+            # card is on file — clear the gate; the webhook will refine the dates.
+            logger.warning("confirm_checkout: subscription read failed: %s", e)
+            _sb_patch("tenants", {"id": f"eq.{tenant_id}"},
+                      {"plan_status": "trialing", "subscription_status": "trialing",
+                       "stripe_subscription_id": sub_id})
+            return {"ok": True, "plan_status": "trialing", "trial_ends_at": None}
+
+    # Session completed but no subscription on it yet — mark trialing so the gate
+    # clears; the webhook will refine trial_ends_at.
     _sb_patch("tenants", {"id": f"eq.{tenant_id}"},
               {"plan_status": "trialing", "subscription_status": "trialing"})
     return {"ok": True, "plan_status": "trialing", "trial_ends_at": None}
