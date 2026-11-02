@@ -24,7 +24,7 @@ const COUNTRIES = [
 
 export default function Onboarding() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, refresh } = useAuth()
   const first = (user?.owner_name || '').split(' ')[0] || 'there'
 
   const [step, setStep] = useState(0)
@@ -153,8 +153,16 @@ export default function Onboarding() {
         autopilot_preferences: validRooms.map(({ name, autopilot, confidence }) => ({ room: name, autopilot, confidence })),
         competitors,
       })
+      // Re-pull context so the cleared "pending onboarding" flag is picked up —
+      // otherwise navigating to the dashboard bounces straight back here.
+      try { await refresh() } catch { /* ignore */ }
     } catch { /* completion is idempotent server-side — proceed */ }
     finally { setBusy(false); setDone(true) }
+  }
+
+  const goToDashboard = async () => {
+    try { await refresh() } catch { /* ignore */ }
+    navigate('/')
   }
 
   // Step-level validation for the Next button.
@@ -173,7 +181,7 @@ export default function Onboarding() {
             {prop.name || 'Your property'} is configured with {rooms.filter((r) => r.name.trim()).length} room type(s)
             and {selected.size} competitor(s){pmsId !== 'later' && pmsId !== 'csv_import' ? `, connected to ${pmsSelected?.name || 'your PMS'}` : ''}.
           </p>
-          <button onClick={() => navigate('/')} className="mt-6 w-full bg-gold text-navy font-bold py-3 rounded-xl hover:bg-gold-light">Go to my dashboard →</button>
+          <button onClick={goToDashboard} className="mt-6 w-full bg-gold text-navy font-bold py-3 rounded-xl hover:bg-gold-light">Go to my dashboard →</button>
         </div>
       </div>
     )
