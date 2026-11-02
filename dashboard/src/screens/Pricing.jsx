@@ -49,11 +49,11 @@ export default function Pricing() {
             <h2 className="font-bold text-navy text-xl mt-1">Free for 6 months, then $399/month (Boutique)</h2>
             <p className="text-sm text-gray-600 mt-1 max-w-xl">In exchange: PMS connection, monthly calls, a testimonial, and a case study. We're looking for 3–5 founding members.</p>
           </div>
-          <a href="mailto:hello@inntelligence.app?subject=Founding%20Member%20Application" className="bg-gold text-navy font-bold px-6 py-3 rounded-lg hover:bg-gold-light whitespace-nowrap">Apply Now →</a>
+          <a href="mailto:jim@graciouscollection.com?subject=Founding%20Member%20Application" className="bg-gold text-navy font-bold px-6 py-3 rounded-lg hover:bg-gold-light whitespace-nowrap">Apply Now →</a>
         </div>
 
         <div className="text-center text-[10px] text-gray-400 mt-10">
-          INNtelligence by The Gracious Collection © 2026 · hello@inntelligence.app · <Link to="/" className="underline hover:text-gold">Back to dashboard</Link>
+          INNtelligence by The Gracious Collection © 2026 · jim@graciouscollection.com · <Link to="/" className="underline hover:text-gold">Back to dashboard</Link>
         </div>
       </div>
     </div>

@@ -1493,6 +1493,46 @@ def _send_abuse_digest_email(rep: dict) -> bool:
         return False
 
 
+def _notify_pms_connection_request(pms_type: str, property_name: str,
+                                   owner_email: str, tenant_id: str) -> bool:
+    """Alert the team that a customer requested a live PMS / channel-manager
+    connection, so setup (and any partner onboarding) for that system can begin.
+    This is the automation behind the customer-facing "we'll finalize your
+    connection in 1–2 business days" promise. No-op (logged) without a key."""
+    if not _SENDGRID_KEY:
+        logger.info("PMS connection request (no SENDGRID_API_KEY): %s for %s",
+                    pms_type, property_name)
+        return False
+    body = (
+        "A customer requested a live PMS / channel-manager connection.\n\n"
+        f"System:   {pms_type}\n"
+        f"Property: {property_name or '—'}\n"
+        f"Owner:    {owner_email or '—'}\n"
+        f"Tenant:   {tenant_id or '—'}\n\n"
+        "Next step: begin the connection setup for this system and email the "
+        "customer when it is live (target 1–2 business days). Their credentials "
+        "are stored under config/pms_creds/.\n"
+    )
+    try:
+        import requests
+        r = requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {_SENDGRID_KEY}", "Content-Type": "application/json"},
+            json={
+                "personalizations": [{"to": [{"email": e} for e in sorted(_ADMIN_EMAILS)]}],
+                "from": {"email": _FROM_EMAIL, "name": "INNtelligence"},
+                "subject": f"[INNtelligence] PMS connection requested — {pms_type} "
+                           f"({property_name or 'property'})",
+                "content": [{"type": "text/plain", "value": body}],
+            }, timeout=20)
+        if not r.ok:
+            logger.warning("PMS notify SendGrid failed %s: %s", r.status_code, r.text[:200])
+        return r.ok
+    except Exception as e:  # noqa: BLE001
+        logger.warning("PMS notify error: %s", e)
+        return False
+
+
 @app.route("/api/admin/abuse-report")
 def api_admin_abuse_report():
     _user, err = _require_admin()
@@ -2028,10 +2068,24 @@ def api_onboarding_complete():
                            "saved_at": datetime.now(timezone.utc).isoformat()}, f)
         except Exception as e:  # noqa: BLE001
             logger.warning("PMS cred save failed: %s", e)
-    # 2) Trigger initial PMS sync — stub until PMS connectors are live.
-    sync_status = "queued" if d.get("pms_api_key") else "demo_data"
+    # 2) PMS connection: honest request→notify pipeline (live connectors roll out
+    #    per system). A real credential means the customer wants a live connection
+    #    → we alert the team to begin setup and hold status "connection_requested"
+    #    until that system's connector is live. CSV / "later" keep their own status.
+    pms_type = d.get("pms_type") or "later"
+    pms_connect_requested = bool(d.get("pms_api_key")) and pms_type not in ("later", "csv_import")
+    sync_status = ("connection_requested" if pms_connect_requested
+                   else "csv_import" if pms_type == "csv_import"
+                   else "not_connected")
     # 3) Mark onboarding complete on the tenant (clears the /onboarding gate).
     _role, tenant_id = _role_and_tenant(user)
+    # Alert the team to begin the live connection (the "finalize in 1–2 days" promise).
+    if pms_connect_requested:
+        try:
+            _notify_pms_connection_request(
+                pms_type, d.get("property_name") or "", user.get("email") or "", tenant_id or "")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("PMS notify dispatch failed: %s", e)
     if _SUPABASE_SERVICE:
         try:
             import requests

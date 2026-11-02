@@ -179,7 +179,7 @@ export default function Onboarding() {
           <h2 className="text-navy font-bold text-2xl mt-3">Your INNtelligence dashboard is ready</h2>
           <p className="text-gray-500 text-sm mt-1">
             {prop.name || 'Your property'} is configured with {rooms.filter((r) => r.name.trim()).length} room type(s)
-            and {selected.size} competitor(s){pmsId !== 'later' && pmsId !== 'csv_import' ? `, connected to ${pmsSelected?.name || 'your PMS'}` : ''}.
+            and {selected.size} competitor(s){pmsId !== 'later' && pmsId !== 'csv_import' ? `. Your ${pmsSelected?.name || 'PMS'} connection is being finalized — we’ll email you when it’s live` : ''}.
           </p>
           <button onClick={goToDashboard} className="mt-6 w-full bg-gold text-navy font-bold py-3 rounded-xl hover:bg-gold-light">Go to my dashboard →</button>
         </div>
@@ -256,8 +256,9 @@ export default function Onboarding() {
             <div className="space-y-3">
               <h3 className="text-navy font-bold">Connect your PMS or channel manager</h3>
               <p className="text-xs text-gray-500">
-                We integrate with {catalog.length || 'two dozen+'} systems. Pick yours to sync rooms, rates and bookings —
-                or connect later and start with the rates you enter here.
+                We support {catalog.length || 'two dozen+'} systems. Pick yours and we’ll set up your live data
+                connection — most finalize within 1–2 business days, and we’ll email you the moment it’s live.
+                You can start pricing right away with the rates you enter here or a CSV import.
               </p>
               {catalogErr && <div className="text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded p-2">Couldn't load the full list right now — you can connect later from Settings.</div>}
               <input className={INPUT} placeholder="Search for your PMS…" value={pmsSearch} onChange={(e) => setPmsSearch(e.target.value)} />
@@ -281,6 +282,7 @@ export default function Onboarding() {
               {pmsSelected && pmsSelected.auth_fields?.length > 0 && (
                 <div className="rounded-xl border border-gray-200 p-4 space-y-2">
                   <div className="text-xs font-semibold text-navy">Connect {pmsSelected.name}</div>
+                  <div className="text-[11px] text-gray-500">Enter your credentials and we’ll begin finalizing this connection after setup. We’ll email you when your live data is syncing — usually 1–2 business days. You can use INNtelligence right away in the meantime.</div>
                   {pmsSelected.notes && <div className="text-[11px] text-gray-500">{pmsSelected.notes}</div>}
                   {pmsSelected.auth_fields.map((f) => (
                     <label key={f.key} className="block text-xs">
@@ -308,7 +310,7 @@ export default function Onboarding() {
                       <option value="5">5 mi</option>
                       <option value="10">10 mi</option>
                       <option value="25">25 mi</option>
-                      <option value="50">50 mi</option>
+                      <option value="30">30 mi (max)</option>
                     </select>
                   </label>
                   <button onClick={runDiscovery} className="text-navy underline hover:text-gold">Re-search</button>
