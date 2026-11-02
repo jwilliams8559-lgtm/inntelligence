@@ -247,8 +247,10 @@ def discover_competitors_live(
                 timeout=20)
             return (r.json().get("places") or []) if r.ok else []
 
+        # All categories nearest-first, so LOCAL competitors win over far-away
+        # popular resorts. (Popularity ranking pulled distant Hilton Head resorts.)
         raw: List[dict] = []
-        raw += _nearby(["hotel", "motel", "resort_hotel", "extended_stay_hotel"], "POPULARITY")
+        raw += _nearby(["hotel", "motel", "resort_hotel", "extended_stay_hotel"], "DISTANCE")
         raw += _nearby(["bed_and_breakfast", "inn"], "DISTANCE")
         raw += _nearby(["lodging", "guest_house"], "DISTANCE")
 
@@ -258,14 +260,26 @@ def discover_competitors_live(
             pid = p.get("id")
             if pid and pid not in _by_id:
                 _by_id[pid] = p
-        places = [{
-            "place_id":           p.get("id"),
-            "name":               (p.get("displayName") or {}).get("text"),
-            "vicinity":           p.get("formattedAddress"),
-            "price_level":        _PRICE_ENUM.get(p.get("priceLevel")),
-            "rating":             p.get("rating"),
-            "user_ratings_total": p.get("userRatingCount"),
-        } for p in _by_id.values()]
+        places = []
+        for p in _by_id.values():
+            loc = p.get("location") or {}
+            places.append({
+                "place_id":           p.get("id"),
+                "name":               (p.get("displayName") or {}).get("text"),
+                "vicinity":           p.get("formattedAddress"),
+                "price_level":        _PRICE_ENUM.get(p.get("priceLevel")),
+                "rating":             p.get("rating"),
+                "user_ratings_total": p.get("userRatingCount"),
+                "_lat":               loc.get("latitude"),
+                "_lng":               loc.get("longitude"),
+            })
+        # Sort the merged set by true distance from the subject so the nearest
+        # establishments are kept when we cap — local inns/hotels beat distant resorts.
+        def _dist(c: dict) -> float:
+            if c.get("_lat") is None or c.get("_lng") is None:
+                return 9e18
+            return (c["_lat"] - lat) ** 2 + (c["_lng"] - lng) ** 2
+        places.sort(key=_dist)
     except Exception:  # noqa: BLE001
         return {**empty, "source": "error"}
 
@@ -288,7 +302,7 @@ def discover_competitors_live(
         s = _re2.sub(r"\s+(sc|south carolina|usa|us)$", "", s)
         return _re2.sub(r"\s+", " ", s).strip()
 
-    places.sort(key=lambda p: (p.get("user_ratings_total") or 0), reverse=True)
+    # (Already sorted nearest-first above; keep that order so the cap favours local.)
     _kept: List[Dict[str, Any]] = []
     _kept_norm: List[str] = []
     _seen_norm: set = set()
